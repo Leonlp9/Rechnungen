@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Invoice } from '@/types';
@@ -7,7 +8,7 @@ import { detectPatterns, forecastCurrentMonth } from '@/lib/patternDetection';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { fmtCurrency } from '@/lib/utils';
-import { TrendingUp, TrendingDown, CalendarClock } from 'lucide-react';
+import { TrendingUp, TrendingDown, CalendarClock, ExternalLink } from 'lucide-react';
 
 interface Props {
   invoices: Invoice[];
@@ -28,6 +29,7 @@ function confidenceBadge(c: number) {
 }
 
 export function ForecastList({ invoices, privacyMode }: Props) {
+  const navigate = useNavigate();
   const forecasts = useMemo(() => {
     const patterns = detectPatterns(invoices);
     return forecastCurrentMonth(patterns);
@@ -67,13 +69,27 @@ export function ForecastList({ invoices, privacyMode }: Props) {
       <CardContent>
         <div className="divide-y">
           {forecasts.map((f, idx) => (
-            <div key={idx} className="flex items-center justify-between py-2 text-sm">
+            <div
+              key={idx}
+              className="flex items-center justify-between py-2 text-sm cursor-pointer rounded-md hover:bg-muted/50 px-1 -mx-1 transition-colors group"
+              onClick={() => {
+                const params = new URLSearchParams();
+                params.set('q', f.pattern.partner);
+                params.set('cat', f.pattern.category);
+                params.set('type', f.pattern.type);
+                navigate(`/invoices?${params.toString()}`);
+              }}
+              title="Quell-Rechnungen anzeigen"
+            >
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-muted-foreground w-20 shrink-0">
                   {format(f.expectedDate, 'dd.MM.yyyy', { locale: de })}
                 </span>
                 <div className="min-w-0">
-                  <p className="font-medium truncate">{f.pattern.partner}</p>
+                    <p className="font-medium truncate flex items-center gap-1">
+                      {f.pattern.partner}
+                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {CATEGORY_LABELS[f.pattern.category]} · {INTERVAL_LABELS[f.pattern.interval]}
                   </p>

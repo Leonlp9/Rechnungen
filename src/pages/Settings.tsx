@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
@@ -26,6 +26,8 @@ const PROFILE_FIELDS = [
 export default function SettingsPage() {
 	const [apiKey, setApiKey] = useState('');
 	const [showKey, setShowKey] = useState(false);
+	const [aiInstructions, setAiInstructions] = useState('');
+	const [aiInstructionsSaving, setAiInstructionsSaving] = useState(false);
 	const darkMode = useAppStore((s) => s.darkMode);
 	const setDarkMode = useAppStore((s) => s.setDarkMode);
 	const theme = useAppStore((s) => s.theme);
@@ -79,6 +81,7 @@ export default function SettingsPage() {
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
 		getSetting('gemini_api_key').then((v) => { if (v) setApiKey(v); }).catch(console.error);
+		getSetting('profile_ai_instructions').then((v) => { if (v) setAiInstructions(v); }).catch(console.error);
 		// Load profile
 		Promise.all(
 			PROFILE_FIELDS.map(async (f) => {
@@ -108,6 +111,18 @@ export default function SettingsPage() {
 			toast.success('API-Key gespeichert!');
 		} catch (e) {
 			toast.error('Fehler: ' + String(e));
+		}
+	};
+
+	const saveAiInstructions = async () => {
+		setAiInstructionsSaving(true);
+		try {
+			await setSetting('profile_ai_instructions', aiInstructions);
+			toast.success('KI-Anweisungen gespeichert!');
+		} catch (e) {
+			toast.error('Fehler: ' + String(e));
+		} finally {
+			setAiInstructionsSaving(false);
 		}
 	};
 
@@ -187,6 +202,41 @@ export default function SettingsPage() {
 				</CardContent>
 			</Card>
 
+			{/* KI-Anweisungen */}
+			<Card className="rounded-xl shadow-sm">
+				<CardHeader>
+					<div className="flex items-center gap-2">
+						<Bot className="h-5 w-5 text-primary" />
+						<CardTitle className="text-base">KI-Anweisungen</CardTitle>
+					</div>
+					<p className="text-xs text-muted-foreground mt-1">
+						Gib der KI eigene Regeln und Hinweise vor, die sie beim Analysieren von Rechnungen berücksichtigen soll – z.&nbsp;B. Sonderregeln für bestimmte Partner, bevorzugte Kategorien oder individuelle Hinweise.
+					</p>
+				</CardHeader>
+				<CardContent className="space-y-3">
+					<div className="space-y-1.5">
+						<Label htmlFor="ai-instructions">Anweisungen</Label>
+						<textarea
+							id="ai-instructions"
+							value={aiInstructions}
+							onChange={(e) => setAiInstructions(e.target.value)}
+							placeholder={`Beispiele:\n- Rechnungen von "Amazon" sind immer Ausgaben, Kategorie "buerobedarf"\n- Wenn der Partner "Finanzamt" heißt, ist es immer type="info"\n- Zahlungen an mich selbst mit dem Betreff "Privatentnahme" sind type="info"\n- Nutze für alle Streaming-Einnahmen die Kategorie "einnahmen"`}
+							rows={8}
+							className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-30 font-mono leading-relaxed"
+						/>
+						<p className="text-xs text-muted-foreground">
+							Freitext – die KI liest diese Anweisungen bei jeder Rechnungsanalyse mit.
+						</p>
+					</div>
+					<div className="flex justify-end">
+						<Button onClick={saveAiInstructions} disabled={aiInstructionsSaving}>
+							<Save className="mr-2 h-4 w-4" />
+							Anweisungen speichern
+						</Button>
+					</div>
+				</CardContent>
+			</Card>
+
 	<Card className="rounded-xl shadow-sm">
 		<CardHeader>
 			<CardTitle className="text-base">Erscheinungsbild</CardTitle>
@@ -248,6 +298,113 @@ export default function SettingsPage() {
 						</div>
 						<p className="text-sm font-medium">Default</p>
 						<p className="text-xs text-muted-foreground">Klares, minimales Design</p>
+					</button>
+
+					{/* Zinc Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('zinc')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'zinc'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'zinc' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden flex flex-col gap-1 p-2"
+							style={{
+								background: darkMode ? 'oklch(0.141 0 0)' : 'oklch(0.985 0 0)',
+								border: darkMode ? '1px solid oklch(1 0 0 / 12%)' : '1px solid oklch(0.870 0 0)',
+							}}
+						>
+							<div className="h-2 w-3/4 rounded" style={{ background: darkMode ? 'oklch(0.920 0 0)' : 'oklch(0.271 0 0)' }} />
+							<div className="h-2 w-1/2 rounded" style={{ background: darkMode ? 'oklch(0.650 0 0)' : 'oklch(0.520 0 0)', opacity: 0.5 }} />
+							<div className="mt-1 h-6 w-full rounded"
+								style={{
+									background: darkMode ? 'oklch(0.200 0 0)' : 'oklch(0.920 0 0)',
+									border: darkMode ? '1px solid oklch(1 0 0 / 12%)' : '1px solid oklch(0.870 0 0)',
+								}}
+							/>
+						</div>
+						<p className="text-sm font-medium">Zinc</p>
+						<p className="text-xs text-muted-foreground">Kühl-neutrales Grau, kompakt</p>
+					</button>
+
+					{/* Stone Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('stone')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'stone'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'stone' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden flex flex-col gap-1 p-2"
+							style={{
+								background: darkMode ? 'oklch(0.147 0.012 75)' : 'oklch(0.982 0.012 75)',
+								border: darkMode ? '1px solid oklch(1 0 0 / 12%)' : '1px solid oklch(0.858 0.026 75)',
+							}}
+						>
+							<div className="h-2 w-3/4 rounded" style={{ background: darkMode ? 'oklch(0.923 0.005 75)' : 'oklch(0.268 0.018 75)' }} />
+							<div className="h-2 w-1/2 rounded" style={{ background: darkMode ? 'oklch(0.655 0.008 75)' : 'oklch(0.520 0.020 75)', opacity: 0.5 }} />
+							<div className="mt-1 h-6 w-full rounded"
+								style={{
+									background: darkMode ? 'oklch(0.205 0.005 75)' : 'oklch(0.910 0.022 75)',
+									border: darkMode ? '1px solid oklch(1 0 0 / 12%)' : '1px solid oklch(0.858 0.026 75)',
+								}}
+							/>
+						</div>
+						<p className="text-sm font-medium">Stone</p>
+						<p className="text-xs text-muted-foreground">Warm-neutrales Beige, weich</p>
+					</button>
+
+					{/* Chroma Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('chroma')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'chroma'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'chroma' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						{/* Animated rainbow preview */}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2"
+							style={{ background: darkMode ? '#0f0f18' : '#fafaff', border: '1px solid transparent' }}
+						>
+							<div className="absolute inset-0 rounded-lg"
+								style={{ background: 'linear-gradient(135deg, oklch(0.65 0.24 0), oklch(0.65 0.24 60), oklch(0.65 0.24 120), oklch(0.65 0.24 180), oklch(0.65 0.24 240), oklch(0.65 0.24 300), oklch(0.65 0.24 360))', opacity: darkMode ? 0.30 : 0.18 }}
+							/>
+							<div className="relative h-2 w-3/4 rounded"
+								style={{ background: 'linear-gradient(90deg, oklch(0.55 0.24 10), oklch(0.58 0.22 120), oklch(0.55 0.24 240))' }}
+							/>
+							<div className="relative h-2 w-1/2 rounded"
+								style={{ background: 'linear-gradient(90deg, oklch(0.65 0.20 60), oklch(0.65 0.20 180))', opacity: 0.7 }}
+							/>
+							<div className="relative mt-1 h-6 w-full rounded-lg"
+								style={{
+									background: darkMode ? 'oklch(0.19 0.026 240 / 80%)' : 'oklch(0.993 0.004 240 / 85%)',
+									border: '1px solid oklch(0.60 0.22 300 / 40%)',
+								}}
+							/>
+						</div>
+						<p className="text-sm font-medium">Chroma</p>
+						<p className="text-xs text-muted-foreground">Lebendiger Regenbogen-Farbwechsel</p>
 					</button>
 
 					{/* Liquid Glass Theme */}

@@ -1,28 +1,25 @@
 export const CATEGORIES = [
-  // Einnahmen
+  'anlagevermoegen_afa',
+  'buerobedarf',
   'einnahmen',
   'erstattungen',
-  // Betriebsausgaben
-  'anlagevermoegen_afa',
-  'gwg',
-  'software_abos',
-  'fremdleistungen',
-  'buerobedarf',
-  'reisekosten',
-  'marketing',
-  'weiterbildung',
-  'miete',
-  'versicherungen_betrieb',
   'fahrzeugkosten',
-  'kommunikation',
-  'vertraege',
-  'sonstiges',
-  // Sonderausgaben (kein regulärer Betriebsaufwand, aber steuerlich ggf. absetzbar)
-  'spenden',
+  'fremdleistungen',
+  'gwg',
   'krankenkasse',
-  'sozialversicherung',
-  // Privat (weder Betriebsausgabe noch absetzbar)
+  'marketing',
+  'miete',
   'privat',
+  'privatentnahme',
+  'reisekosten',
+  'software_abos',
+  'sozialversicherung',
+  'sonstiges',
+  'spenden',
+  'kommunikation',
+  'versicherungen_betrieb',
+  'vertraege',
+  'weiterbildung',
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
@@ -40,31 +37,31 @@ export const SONDERAUSGABEN_CATEGORIES: Category[] = [
 /** Rein private Ausgaben – nicht absetzbar, kein Betriebsaufwand, kein Steuerbonus. */
 export const PRIVAT_CATEGORIES: Category[] = [
   'privat',
+  'privatentnahme',
 ];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
+  anlagevermoegen_afa: 'Anlagevermögen / AfA',
+  buerobedarf: 'Bürobedarf & Material',
   einnahmen: 'Einnahmen',
   erstattungen: 'Erstattungen / Auslagen',
-  anlagevermoegen_afa: 'Anlagevermögen / AfA',
-  gwg: 'GWG',
-  software_abos: 'Software & Abos',
-  fremdleistungen: 'Fremdleistungen',
-  buerobedarf: 'Bürobedarf & Material',
-  reisekosten: 'Reisekosten',
-  marketing: 'Marketing & Werbung',
-  weiterbildung: 'Weiterbildung & Fachliteratur',
-  miete: 'Miete & Raumkosten',
-  versicherungen_betrieb: 'Versicherungen (Betrieb)',
   fahrzeugkosten: 'Fahrzeugkosten',
-  kommunikation: 'Telefon & Internet',
-  vertraege: 'Verträge',
-  sonstiges: 'Sonstiges',
-  // Sonderausgaben
-  spenden: 'Spenden',
+  fremdleistungen: 'Fremdleistungen',
+  gwg: 'GWG',
   krankenkasse: 'Krankenversicherung',
+  marketing: 'Marketing & Werbung',
+  miete: 'Miete & Raumkosten',
+  privat: 'Privat (Kauf, nicht absetzbar)',
+  privatentnahme: 'Privatentnahme (Überweisung an sich selbst)',
+  reisekosten: 'Reisekosten',
+  software_abos: 'Software & Abos',
   sozialversicherung: 'Sozialversicherung / Altersvorsorge',
-  // Privat
-  privat: 'Privat (nicht absetzbar)',
+  sonstiges: 'Sonstiges',
+  spenden: 'Spenden',
+  kommunikation: 'Telefon & Internet',
+  versicherungen_betrieb: 'Versicherungen (Betrieb)',
+  vertraege: 'Verträge',
+  weiterbildung: 'Weiterbildung & Fachliteratur',
 };
 
 export const INVOICE_TYPES = ['einnahme', 'ausgabe', 'info'] as const;

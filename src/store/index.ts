@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Invoice } from '@/types';
 
-export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk';
+export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk' | 'zinc' | 'stone' | 'chroma';
 
 interface AppState {
   invoices: Invoice[];

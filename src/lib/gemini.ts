@@ -285,6 +285,8 @@ export async function analyzeInvoicePdf(base64: string): Promise<GeminiResult> {
   const profile = Object.fromEntries(profileEntries);
   const hasProfile = Object.values(profile).some((v) => v.length > 0);
 
+  const aiInstructions = await getSetting('profile_ai_instructions') ?? '';
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   let profileContext = '';
@@ -307,7 +309,13 @@ Nutze diese Informationen, um zu entscheiden:
 
   const prompt = `Analysiere diese PDF-Rechnung/Dokument und extrahiere die folgenden Informationen als JSON.
 Antworte NUR mit validem JSON, kein Markdown, kein Text drumherum.
-${profileContext}
+${profileContext}${aiInstructions.trim() ? `
+═══════════════════════════════════════════════════════
+PERSÖNLICHE KI-ANWEISUNGEN DES NUTZERS (höchste Priorität – halte dich strikt daran):
+═══════════════════════════════════════════════════════
+${aiInstructions.trim()}
+
+` : ''}
 JSON-Schema:
 {
   "date": "YYYY-MM-DD (Rechnungsdatum)",
@@ -318,7 +326,7 @@ JSON-Schema:
   "brutto": 0.00,
   "currency": "EUR",
   "type": "einnahme | ausgabe | info",
-  "suggested_category": "einnahmen | erstattungen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | sonstiges"
+  "suggested_category": "einnahmen | erstattungen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | privatentnahme | sonstiges"
 }
 
 === REGELN FÜR "type" ===
@@ -355,6 +363,7 @@ SONDERAUSGABEN (type="ausgabe", aber kein regulärer Betriebsaufwand – eigene 
 
 PRIVAT (type="ausgabe", weder Betriebsausgabe noch steuerlich absetzbar):
 - "privat": Rein private Ausgaben ohne Geschäftsbezug. Beispiele: Twitch-Subs, Gaming-Abos, Netflix, Spotify, private Einkäufe, Restaurantbesuche (privat), Freizeitaktivitäten. NICHT steuerlich relevant.
+- "privatentnahme": Geldentnahme aus dem Betrieb für private Zwecke (Überweisung an sich selbst, Privatentnahme aus der Kasse). type="ausgabe", nicht steuerlich absetzbar.
 
 EINNAHMEN aus Spenden:
 - Wenn der Benutzer Spenden/Donations EMPFÄNGT (z.B. Streaming-Donations, Crowdfunding-Einnahmen), dann: type="einnahme", suggested_category="einnahmen". Erhaltene Spenden sind reguläre Einnahmen!
@@ -397,7 +406,7 @@ WICHTIG:
           type: { type: 'STRING', enum: ['einnahme', 'ausgabe', 'info'] },
           suggested_category: {
             type: 'STRING',
-            enum: ['einnahmen', 'erstattungen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'sonstiges'],
+            enum: ['einnahmen', 'erstattungen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'privatentnahme', 'sonstiges'],
           },
         },
         required: ['date', 'description', 'partner', 'netto', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],

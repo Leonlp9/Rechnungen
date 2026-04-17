@@ -6,11 +6,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
+} from '@/components/ui/dropdown-menu';
 import { CATEGORY_LABELS, TYPE_LABELS, CATEGORIES, INVOICE_TYPES } from '@/types';
 import type { Invoice, Category, InvoiceType } from '@/types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { fmtCurrency } from '@/lib/utils';
 import { InvoiceContextMenu } from './InvoiceContextMenu';
@@ -36,21 +39,32 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   const search = searchParams.get('q') ?? '';
   const sortKey = (searchParams.get('sort') as SortKey) ?? 'date';
   const sortDir = (searchParams.get('dir') as SortDir) ?? 'desc';
-  const filterCategory = (searchParams.get('cat') as Category) ?? null;
-  const filterType = (searchParams.get('type') as InvoiceType) ?? null;
+  const filterCategories: Category[] = searchParams.get('cat') ? (searchParams.get('cat')!.split(',') as Category[]) : [];
+  const filterTypes: InvoiceType[] = searchParams.get('type') ? (searchParams.get('type')!.split(',') as InvoiceType[]) : [];
   const pageSize = Number(searchParams.get('size') ?? 25);
   const page = Number(searchParams.get('page') ?? 1);
-  const filterYear = searchParams.get('fyear') ? Number(searchParams.get('fyear')) : null;
+  const fyearParam = searchParams.get('fyear');
+  const currentYear = new Date().getFullYear();
+  // kein Param → aktuelles Jahr; "all" → alle Jahre; sonst kommagetrennte Jahre
+  const filterYears: number[] = fyearParam === 'all'
+    ? []
+    : fyearParam
+      ? fyearParam.split(',').map(Number)
+      : [currentYear];
 
   const setParam = (key: string, value: string | null) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (value == null || value === '') next.delete(key);
       else next.set(key, value);
-      // reset page when filter changes (but not when setting page itself)
       if (key !== 'page') next.delete('page');
       return next;
-    }, { replace: true }); // replace=true: Filteränderungen erzeugen keinen eigenen History-Eintrag
+    }, { replace: true });
+  };
+
+  const toggleMultiParam = (key: string, value: string, current: string[]) => {
+    const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+    setParam(key, next.length ? next.join(',') : null);
   };
 
   const toggleSort = (key: SortKey) => {
@@ -68,7 +82,6 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
     return Array.from(s).sort((a, b) => b - a);
   }, [invoices]);
 
-
   const filtered = useMemo(() => {
     let list = invoices;
     if (search) {
@@ -80,9 +93,9 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
           i.note.toLowerCase().includes(q)
       );
     }
-    if (filterYear) list = list.filter((i) => i.year === filterYear);
-    if (filterCategory) list = list.filter((i) => i.category === filterCategory);
-    if (filterType) list = list.filter((i) => i.type === filterType);
+    if (filterYears.length) list = list.filter((i) => filterYears.includes(i.year));
+    if (filterCategories.length) list = list.filter((i) => filterCategories.includes(i.category as Category));
+    if (filterTypes.length) list = list.filter((i) => filterTypes.includes(i.type as InvoiceType));
     list = [...list].sort((a, b) => {
       let cmp = 0;
       if (sortKey === 'date') cmp = a.date.localeCompare(b.date);
@@ -93,13 +106,11 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return list;
-  }, [invoices, search, sortKey, sortDir, filterYear, filterCategory, filterType]);
+  }, [invoices, search, sortKey, sortDir, filterYears, filterCategories, filterTypes]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  // Reset to page 1 when filters/search change - handled in setParam
 
   const SortHeader = ({ label, field }: { label: string; field: SortKey }) => {
     const active = sortKey === field;
@@ -114,7 +125,25 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
     );
   };
 
-  const hasFilters = (showYearFilter && filterYear) || filterCategory || filterType;
+  const hasFilters = (showYearFilter && fyearParam != null) || filterCategories.length > 0 || filterTypes.length > 0;
+
+  const yearLabel = fyearParam === 'all'
+    ? 'Alle Jahre'
+    : filterYears.length === 1
+      ? String(filterYears[0])
+      : `${filterYears.length} Jahre`;
+
+  const catLabel = filterCategories.length === 0
+    ? 'Kategorie'
+    : filterCategories.length === 1
+      ? CATEGORY_LABELS[filterCategories[0]]
+      : `${filterCategories.length} Kategorien`;
+
+  const typeLabel = filterTypes.length === 0
+    ? 'Typ'
+    : filterTypes.length === 1
+      ? TYPE_LABELS[filterTypes[0]]
+      : `${filterTypes.length} Typen`;
 
   return (
     <div className="space-y-4">
@@ -128,28 +157,89 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap gap-2">
-          {showYearFilter && years.map((y) => (
-            <Button key={y} size="sm" variant={filterYear === y ? 'default' : 'outline'}
-              onClick={() => setParam('fyear', filterYear === y ? null : String(y))}>{y}</Button>
-          ))}
-          {CATEGORIES.map((c) => (
-            <Button key={c} size="sm" variant={filterCategory === c ? 'default' : 'outline'}
-              onClick={() => setParam('cat', filterCategory === c ? null : c)}>
-              {CATEGORY_LABELS[c]}
-            </Button>
-          ))}
-          {INVOICE_TYPES.map((t) => (
-            <Button key={t} size="sm" variant={filterType === t ? 'default' : 'outline'}
-              onClick={() => setParam('type', filterType === t ? null : t)}>
-              {TYPE_LABELS[t]}
-            </Button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Jahr Dropdown */}
+          {showYearFilter && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant={filterYears.length > 0 ? 'default' : 'outline'} className="gap-1">
+                  {yearLabel} <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuCheckboxItem
+                  checked={fyearParam === 'all'}
+                  onCheckedChange={() => setParam('fyear', 'all')}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Alle Jahre
+                </DropdownMenuCheckboxItem>
+                {years.map((y) => (
+                  <DropdownMenuCheckboxItem
+                    key={y}
+                    checked={filterYears.includes(y)}
+                    onCheckedChange={() => {
+                      const next = filterYears.includes(y)
+                        ? filterYears.filter((v) => v !== y)
+                        : [...filterYears, y];
+                      setParam('fyear', next.length ? next.join(',') : null);
+                    }}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {y}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Kategorie Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant={filterCategories.length > 0 ? 'default' : 'outline'} className="gap-1">
+                {catLabel} <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 w-64 overflow-y-auto">
+              {CATEGORIES.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c}
+                  checked={filterCategories.includes(c)}
+                  onCheckedChange={() => toggleMultiParam('cat', c, filterCategories)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {CATEGORY_LABELS[c]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Typ Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant={filterTypes.length > 0 ? 'default' : 'outline'} className="gap-1">
+                {typeLabel} <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {INVOICE_TYPES.map((t) => (
+                <DropdownMenuCheckboxItem
+                  key={t}
+                  checked={filterTypes.includes(t)}
+                  onCheckedChange={() => toggleMultiParam('type', t, filterTypes)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {TYPE_LABELS[t]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {hasFilters && (
             <Button size="sm" variant="ghost" onClick={() => {
               setSearchParams((prev) => {
                 const next = new URLSearchParams(prev);
-                if (showYearFilter) next.delete('fyear');
+                next.delete('fyear');
                 next.delete('cat'); next.delete('type'); next.delete('page');
                 return next;
               }, { replace: true });
