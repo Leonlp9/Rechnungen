@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import type { InvoiceTemplate, TemplateElement } from '@/types/template';
+import type { InvoiceTemplate, TemplateElement, ItemsElement, LineItem } from '@/types/template';
 import { PX_TO_MM } from '@/types/template';
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -56,8 +56,93 @@ function renderTextContent(
   }
 }
 
-function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>) {
+function fmt(n: number) {
+  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+function renderItemsTable(
+  doc: jsPDF,
+  el: ItemsElement,
+  lineItems: LineItem[],
+) {
   const x = el.x * PX_TO_MM;
+  const w = el.width * PX_TO_MM;
+  const rowH = (el.rowHeight || 24) * PX_TO_MM;
+  const headerH = rowH * 1.25;
+  const fs = el.fontSize || 10;
+  const cols = el.colWidths || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
+  const colW = cols.map((c) => c * w);
+  const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
+  const headerBg = el.headerBgColor || '#1e3a5f';
+  const headerTxt = el.headerTextColor || '#ffffff';
+  const borderCol = el.borderColor || '#d1d5db';
+  const altBg = el.altRowBgColor || '#f8fafc';
+  const summaryBg = el.summaryBgColor || '#1e3a5f';
+
+  let cy = el.y * PX_TO_MM;
+
+  const drawRow = (
+    cells: string[],
+    rowHeight: number,
+    bgColor: string | null,
+    textColor: string,
+    bold: boolean,
+    aligns: Array<'left' | 'right'>,
+  ) => {
+    if (bgColor) {
+      const [r, g, b] = hexToRgb(bgColor);
+      doc.setFillColor(r, g, b);
+      doc.rect(x, cy, w, rowHeight, 'F');
+    }
+    const [br, bg2, bb] = hexToRgb(borderCol);
+    doc.setDrawColor(br, bg2, bb);
+    doc.setLineWidth(0.2);
+    doc.rect(x, cy, w, rowHeight, 'S');
+
+    let cx = x;
+    cells.forEach((cell, i) => {
+      const cw = colW[i];
+      if (i > 0) {
+        doc.setDrawColor(br, bg2, bb);
+        doc.setLineWidth(0.2);
+        doc.line(cx, cy, cx, cy + rowHeight);
+      }
+      applyTextStyle(doc, { fontSize: fs, fontWeight: bold ? 'bold' : 'normal', fontStyle: 'normal', color: textColor });
+      const align = aligns[i] ?? 'left';
+      const tx = align === 'right' ? cx + cw - 2 : cx + 2;
+      const ty = cy + rowHeight * 0.65;
+      doc.text(cell, tx, ty, { align, baseline: 'alphabetic', maxWidth: cw - 4 });
+      cx += cw;
+    });
+    cy += rowHeight;
+  };
+
+  // Header
+  drawRow(headers, headerH, headerBg, headerTxt, true,
+    ['left', 'left', 'right', 'right', 'right', 'right']);
+
+  // Data rows
+  let netto = 0;
+  lineItems.forEach((item, idx) => {
+    const total = item.quantity * item.unitPrice;
+    netto += total;
+    const bg = idx % 2 === 1 ? altBg : '#ffffff';
+    drawRow(
+      [
+        String(idx + 1),
+        item.description || '',
+        item.quantity.toLocaleString('de-DE'),
+        item.unit || '',
+        fmt(item.unitPrice),
+        fmt(total),
+      ],
+      rowH, bg, '#111827', false,
+      ['left', 'left', 'right', 'right', 'right', 'right'],
+    );
+  });
+}
+
+function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[], includeMwst?: boolean) {  const x = el.x * PX_TO_MM;
   const y = el.y * PX_TO_MM;
   const w = el.width * PX_TO_MM;
   const h = el.height * PX_TO_MM;
@@ -98,18 +183,24 @@ function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, s
       }
       break;
     }
+    case 'items': {
+      renderItemsTable(doc, el as ItemsElement, lineItems || []);
+      break;
+    }
   }
 }
 
 export async function generateTemplatePdf(
   template: InvoiceTemplate,
-  values: Record<string, string>
+  values: Record<string, string>,
+  lineItems?: LineItem[],
+  includeMwst?: boolean,
 ): Promise<ArrayBuffer> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
   const sorted = [...template.elements].sort((a, b) => a.zIndex - b.zIndex);
   for (const el of sorted) {
-    renderElement(doc, el, values);
+    renderElement(doc, el, values, lineItems, includeMwst);
   }
 
   return doc.output('arraybuffer');

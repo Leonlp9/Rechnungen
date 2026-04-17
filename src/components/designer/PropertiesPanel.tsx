@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type {
-  TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement,
+  TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement, ItemsElement,
   TemplateVariable,
 } from '@/types/template';
 import { Trash2, ChevronUp, ChevronDown } from 'lucide-react';
@@ -184,13 +184,49 @@ function ImagePanel({ element, onUpdate }: { element: ImageElement; onUpdate: (p
   );
 }
 
+function ItemsPanel({ element, onUpdate }: { element: ItemsElement; onUpdate: (p: Partial<TemplateElement>) => void }) {
+  const cols = element.colWidths || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
+  const colLabels = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
+  return (
+    <>
+      <NumInput label="Schriftgröße" value={element.fontSize ?? 10} onChange={(v) => onUpdate({ fontSize: v })} min={6} max={20} />
+      <NumInput label="Zeilenhöhe (px)" value={element.rowHeight ?? 24} onChange={(v) => onUpdate({ rowHeight: v })} min={16} max={60} />
+      <NumInput label="MwSt-Satz (%)" value={element.mwstRate ?? 19} onChange={(v) => onUpdate({ mwstRate: v })} min={0} max={100} />
+      <ColorInput label="Kopfzeile Hintergrund" value={element.headerBgColor || '#1e3a5f'} onChange={(v) => onUpdate({ headerBgColor: v })} />
+      <ColorInput label="Kopfzeile Text" value={element.headerTextColor || '#ffffff'} onChange={(v) => onUpdate({ headerTextColor: v })} />
+      <ColorInput label="Trennlinien" value={element.borderColor || '#d1d5db'} onChange={(v) => onUpdate({ borderColor: v })} />
+      <ColorInput label="Alt.-Zeile Hintergrund" value={element.altRowBgColor || '#f8fafc'} onChange={(v) => onUpdate({ altRowBgColor: v })} />
+      <ColorInput label="Summen-Zeile Hintergrund" value={element.summaryBgColor || '#1e3a5f'} onChange={(v) => onUpdate({ summaryBgColor: v })} />
+      <div className="space-y-1">
+        <Label className="text-xs font-medium">Spaltenbreiten (%)</Label>
+        {colLabels.map((label, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-xs w-20 text-muted-foreground truncate">{label}</span>
+            <Input
+              type="number" min={1} max={80} step={1}
+              value={Math.round(cols[i] * 100)}
+              onChange={(e) => {
+                const newCols = [...cols] as typeof cols;
+                newCols[i] = Math.max(0.01, Number(e.target.value) / 100);
+                onUpdate({ colWidths: newCols });
+              }}
+              className="h-7 text-xs w-16"
+            />
+            <span className="text-xs text-muted-foreground">%</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function PropertiesPanel({ element, variables, onUpdate, onDelete }: Props) {
   if (!element) {
     return <div className="p-4 text-xs text-muted-foreground text-center mt-8">Element auswählen, um Eigenschaften zu bearbeiten</div>;
   }
 
   const patch = (p: Partial<TemplateElement>) => onUpdate({ ...element, ...p } as TemplateElement);
-  const typeLabel = element.type === 'text' ? 'Text' : element.type === 'variable' ? 'Variable' : element.type === 'image' ? 'Bild' : 'Rechteck';
+  const typeLabel = element.type === 'text' ? 'Text' : element.type === 'variable' ? 'Variable' : element.type === 'image' ? 'Bild' : element.type === 'items' ? 'Positionen-Tabelle' : 'Rechteck';
 
   return (
     <div className="p-3 space-y-4 text-sm overflow-y-auto">
@@ -218,6 +254,7 @@ export function PropertiesPanel({ element, variables, onUpdate, onDelete }: Prop
       )}
       {element.type === 'rectangle' && <RectPanel element={element as RectangleElement} onUpdate={patch} />}
       {element.type === 'image' && <ImagePanel element={element as ImageElement} onUpdate={patch} />}
+      {element.type === 'items' && <ItemsPanel element={element as ItemsElement} onUpdate={patch} />}
     </div>
   );
 }

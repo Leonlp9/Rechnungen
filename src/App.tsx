@@ -11,6 +11,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/updater";
 import { useAppStore } from "@/store";
+import { useTemplateStore } from "@/store/templateStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 
@@ -33,6 +34,10 @@ function App() {
     open: false, version: '', phase: 'confirm', progress: 0,
   });
   const darkMode = useAppStore((s) => s.darkMode);
+  const autoUpdateBuiltins = useTemplateStore((s) => s.autoUpdateBuiltins);
+
+  // Upgrade outdated builtin templates (e.g. missing items element) on every mount
+  useEffect(() => { autoUpdateBuiltins(); }, []);
 
   useEffect(() => {
     registerUpdateSetter((patch) => setUpdateState((s) => ({ ...s, ...patch })));

@@ -1,4 +1,4 @@
-export type ElementType = 'text' | 'variable' | 'image' | 'rectangle';
+export type ElementType = 'text' | 'variable' | 'image' | 'rectangle' | 'items';
 
 export interface BaseElement {
   id: string;
@@ -38,7 +38,7 @@ export interface VariableElement extends BaseElement {
 
 export interface ImageElement extends BaseElement {
   type: 'image';
-  src: string; // base64 data-URL
+  src: string;
   objectFit: 'contain' | 'cover' | 'fill';
 }
 
@@ -50,18 +50,43 @@ export interface RectangleElement extends BaseElement {
   borderRadius: number;
 }
 
+export interface ItemsElement extends BaseElement {
+  type: 'items';
+  fontSize: number;
+  rowHeight: number;          // px per data row
+  headerBgColor: string;
+  headerTextColor: string;
+  borderColor: string;
+  altRowBgColor: string;      // alternating row tint, '' = none
+  summaryBgColor: string;     // background for Netto/MwSt/Brutto rows
+  mwstRate: number;           // e.g. 19
+  // column widths as fractions of element width (must sum to 1)
+  colWidths: [number, number, number, number, number, number];
+}
+
 export type TemplateElement =
   | TextElement
   | VariableElement
   | ImageElement
-  | RectangleElement;
+  | RectangleElement
+  | ItemsElement;
+
+/** A single invoice line item used in WriteInvoice */
+export interface LineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+}
 
 export interface TemplateVariable {
   key: string;
   label: string;
   defaultValue: string;
-  settingsKey: string; // if set, auto-filled from settings
+  settingsKey: string;
   multiline: boolean;
+  autoCalculated?: boolean; // true = filled automatically from line items, not shown as input
 }
 
 export interface InvoiceTemplate {

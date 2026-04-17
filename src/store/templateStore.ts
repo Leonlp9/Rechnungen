@@ -14,6 +14,7 @@ interface TemplateStoreState {
   updateTemplate: (id: string, patch: Partial<InvoiceTemplate>) => void;
   deleteTemplate: (id: string) => void;
   resetBuiltin: (id: string) => void;
+  autoUpdateBuiltins: () => void;
   updateElement: (templateId: string, element: TemplateElement) => void;
   deleteElement: (templateId: string, elementId: string) => void;
   addElement: (templateId: string, element: TemplateElement) => void;
@@ -44,6 +45,19 @@ export const useTemplateStore = create<TemplateStoreState>()(
               ? { ...BUILTIN_DEFAULTS[id], updatedAt: new Date().toISOString() }
               : t
           ),
+        })),
+
+      // Called on app mount – silently upgrades any builtin that is missing an 'items' element
+      autoUpdateBuiltins: () =>
+        set((s) => ({
+          templates: s.templates.map((t) => {
+            const fresh = BUILTIN_DEFAULTS[t.id];
+            if (!fresh) return t;
+            if (!t.elements.some((el) => el.type === 'items')) {
+              return { ...fresh, updatedAt: new Date().toISOString() };
+            }
+            return t;
+          }),
         })),
 
       updateElement: (templateId, element) =>
@@ -80,19 +94,27 @@ export const useTemplateStore = create<TemplateStoreState>()(
     }),
     {
       name: 'invoice-templates',
-      // On first load (no stored data), use defaults; otherwise keep stored state as-is
       merge: (persisted: unknown, current) => {
         const p = persisted as TemplateStoreState | undefined;
         if (!p?.templates?.length) return current;
-        // Ensure builtins always exist (add if missing, but keep stored version)
         const stored = p.templates;
-        const hasRechnung = stored.some((t) => t.id === DEFAULT_RECHNUNG.id);
-        const hasGutschrift = stored.some((t) => t.id === DEFAULT_GUTSCHRIFT.id);
+
+        // Always bring builtins up-to-date: replace stored builtin if it lacks an 'items' element
+        const upgraded = stored.map((t) => {
+          const fresh = BUILTIN_DEFAULTS[t.id];
+          if (!fresh) return t; // custom template – keep as-is
+          const hasItemsEl = t.elements.some((el) => el.type === 'items');
+          if (!hasItemsEl) return { ...fresh, updatedAt: new Date().toISOString() };
+          return t;
+        });
+
+        const hasRechnung = upgraded.some((t) => t.id === DEFAULT_RECHNUNG.id);
+        const hasGutschrift = upgraded.some((t) => t.id === DEFAULT_GUTSCHRIFT.id);
         const missing = [
           ...(!hasRechnung ? [DEFAULT_RECHNUNG] : []),
           ...(!hasGutschrift ? [DEFAULT_GUTSCHRIFT] : []),
         ];
-        return { ...current, templates: [...missing, ...stored] };
+        return { ...current, templates: [...missing, ...upgraded] };
       },
     }
   )

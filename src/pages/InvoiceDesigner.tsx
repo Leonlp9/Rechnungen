@@ -1,17 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useBlocker } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTemplateStore } from '@/store/templateStore';
-import type { InvoiceTemplate, TemplateElement } from '@/types/template';
+import type { InvoiceTemplate, TemplateElement, ItemsElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { DesignerCanvas } from '@/components/designer/DesignerCanvas';
 import { PropertiesPanel } from '@/components/designer/PropertiesPanel';
 import { VariableManager } from '@/components/designer/VariableManager';
 import {
   Plus, Trash2, Copy, Type, Variable, Image, Square, Sliders, FileText, CheckSquare,
-  Save, RotateCcw, RefreshCcw,
+  Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,6 +29,16 @@ function defaultRectEl(): TemplateElement {
 function defaultImgEl(): TemplateElement {
   return { id: newId(), type: 'image', x: 100, y: 100, width: 150, height: 100, zIndex: 5, src: '', objectFit: 'contain' };
 }
+function defaultItemsEl(): ItemsElement {
+  return {
+    id: newId(), type: 'items', x: 40, y: 400, width: 714, height: 200, zIndex: 5,
+    fontSize: 10, rowHeight: 24,
+    headerBgColor: '#1e3a5f', headerTextColor: '#ffffff',
+    borderColor: '#d1d5db', altRowBgColor: '#f8fafc', summaryBgColor: '#1e3a5f',
+    mwstRate: 19,
+    colWidths: [0.07, 0.38, 0.1, 0.1, 0.15, 0.2],
+  };
+}
 
 export default function InvoiceDesigner() {
   const navigate = useNavigate();
@@ -37,9 +47,55 @@ export default function InvoiceDesigner() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(templates[0]?.id ?? null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [draft, setDraft] = useState<InvoiceTemplate | null>(null);
+  const draftRef = useRef<InvoiceTemplate | null>(null);
+
+  // Keep draftRef in sync so history helpers can read current draft without setDraft side-effects
+  useEffect(() => { draftRef.current = draft; }, [draft]);
   const [varManagerOpen, setVarManagerOpen] = useState(false);
   const [scale, setScale] = useState(0.65);
-  const [switchPending, setSwitchPending] = useState<string | null>(null); // id of template to switch to
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [switchPending, setSwitchPending] = useState<string | null>(null);
+
+  // ── Undo / Redo history ─────────────────────────────────────────────
+  const MAX_HISTORY = 50;
+  const historyRef = useRef<InvoiceTemplate[]>([]);
+  const futureRef = useRef<InvoiceTemplate[]>([]);
+  const [historySize, setHistorySize] = useState(0);
+  const [futureSize, setFutureSize] = useState(0);
+
+  /** Call this BEFORE applying a draft mutation to record the current state */
+  const recordHistory = useCallback(() => {
+    const current = draftRef.current;
+    if (!current) return;
+    historyRef.current = [...historyRef.current.slice(-(MAX_HISTORY - 1)), structuredClone(current)];
+    futureRef.current = [];
+    setHistorySize(historyRef.current.length);
+    setFutureSize(0);
+  }, []);
+
+  const undo = useCallback(() => {
+    const prev = historyRef.current[historyRef.current.length - 1];
+    if (!prev) return;
+    historyRef.current = historyRef.current.slice(0, -1);
+    const current = draftRef.current;
+    if (current) futureRef.current = [structuredClone(current), ...futureRef.current].slice(0, MAX_HISTORY);
+    setHistorySize(historyRef.current.length);
+    setFutureSize(futureRef.current.length);
+    setDraft(prev);
+    setSelectedElementId(null);
+  }, []);
+
+  const redo = useCallback(() => {
+    const next = futureRef.current[0];
+    if (!next) return;
+    futureRef.current = futureRef.current.slice(1);
+    const current = draftRef.current;
+    if (current) historyRef.current = [...historyRef.current.slice(-(MAX_HISTORY - 1)), structuredClone(current)];
+    setHistorySize(historyRef.current.length);
+    setFutureSize(futureRef.current.length);
+    setDraft(next);
+    setSelectedElementId(null);
+  }, []);
 
   // Saved template from store
   const savedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null;
@@ -53,6 +109,10 @@ export default function InvoiceDesigner() {
     const t = templates.find((x) => x.id === selectedTemplateId) ?? null;
     setDraft(t ? structuredClone(t) : null);
     setSelectedElementId(null);
+    historyRef.current = [];
+    futureRef.current = [];
+    setHistorySize(0);
+    setFutureSize(0);
   }, [selectedTemplateId]);
 
   // Sync draft when store changes externally (e.g. reset builtin)
@@ -68,18 +128,21 @@ export default function InvoiceDesigner() {
 
   // ── Draft operations (never touch the store directly) ──────────────
   const updateDraftElement = useCallback((el: TemplateElement) => {
+    recordHistory();
     setDraft((d) => d ? { ...d, elements: d.elements.map((e) => e.id === el.id ? el : e) } : d);
-  }, []);
+  }, [recordHistory]);
 
   const deleteDraftElement = useCallback((id: string) => {
+    recordHistory();
     setDraft((d) => d ? { ...d, elements: d.elements.filter((e) => e.id !== id) } : d);
     setSelectedElementId(null);
-  }, []);
+  }, [recordHistory]);
 
   const addDraftElement = useCallback((el: TemplateElement) => {
+    recordHistory();
     setDraft((d) => d ? { ...d, elements: [...d.elements, el] } : d);
     setSelectedElementId(el.id);
-  }, []);
+  }, [recordHistory]);
 
   // ── Save / Discard ──────────────────────────────────────────────────
   const save = () => {
@@ -112,17 +175,32 @@ export default function InvoiceDesigner() {
     toast.success('Standard wiederhergestellt');
   };
 
-  // ── Delete key ──────────────────────────────────────────────────────
+  // ── Delete key + Undo/Redo ──────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
-        if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      // Undo: Ctrl+Z
+      if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      // Redo: Ctrl+Shift+Z
+      if (e.ctrlKey && e.shiftKey && e.key === 'Z') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId && !inInput) {
         deleteDraftElement(selectedElementId);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedElementId, deleteDraftElement]);
+  }, [selectedElementId, deleteDraftElement, undo, redo]);
 
   // ── Template CRUD ───────────────────────────────────────────────────
   const createTemplate = () => {
@@ -205,7 +283,10 @@ export default function InvoiceDesigner() {
             <>
               <Input
                 value={draft.name}
-                onChange={(e) => setDraft((d) => d ? { ...d, name: e.target.value } : d)}
+                onChange={(e) => {
+                  recordHistory();
+                  setDraft((d) => d ? { ...d, name: e.target.value } : d);
+                }}
                 className="h-8 w-48 text-sm font-medium"
               />
               <div className="h-5 w-px bg-border" />
@@ -221,9 +302,30 @@ export default function InvoiceDesigner() {
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => addDraftElement(defaultImgEl())}>
                 <Image className="h-3.5 w-3.5" /> Bild
               </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => addDraftElement(defaultItemsEl())}>
+                <Table2 className="h-3.5 w-3.5" /> Tabelle
+              </Button>
               <div className="h-5 w-px bg-border" />
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setVarManagerOpen(true)}>
                 <Sliders className="h-3.5 w-3.5" /> Variablen
+              </Button>
+              <div className="h-5 w-px bg-border" />
+              {/* Undo / Redo */}
+              <Button
+                variant="outline" size="icon" className="h-8 w-8"
+                title={`Rückgängig (Strg+Z)${historySize > 0 ? ` – ${historySize} Schritt${historySize !== 1 ? 'e' : ''}` : ''}`}
+                disabled={historySize === 0}
+                onClick={undo}
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="outline" size="icon" className="h-8 w-8"
+                title={`Wiederholen (Strg+Shift+Z)${futureSize > 0 ? ` – ${futureSize} Schritt${futureSize !== 1 ? 'e' : ''}` : ''}`}
+                disabled={futureSize === 0}
+                onClick={redo}
+              >
+                <Redo2 className="h-3.5 w-3.5" />
               </Button>
 
               <div className="ml-auto flex items-center gap-2 flex-wrap">
@@ -252,6 +354,17 @@ export default function InvoiceDesigner() {
                   className="w-24 h-1.5 accent-primary" />
                 <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => setScale((s) => Math.min(2, +(s + 0.1).toFixed(1)))}>+</Button>
                 <span className="text-xs text-muted-foreground w-10">{Math.round(scale * 100)}%</span>
+                <div className="h-5 w-px bg-border" />
+                {/* Snap toggle */}
+                <Button
+                  variant={snapEnabled ? 'default' : 'outline'}
+                  size="icon"
+                  className="h-7 w-7"
+                  title={snapEnabled ? 'Snapping aktiv (klicken zum Deaktivieren)' : 'Snapping deaktiviert (klicken zum Aktivieren)'}
+                  onClick={() => setSnapEnabled(s => !s)}
+                >
+                  <Magnet className="h-3.5 w-3.5" />
+                </Button>
               </div>
             </>
           ) : (
@@ -269,6 +382,7 @@ export default function InvoiceDesigner() {
                 onSelect={setSelectedElementId}
                 onUpdate={updateDraftElement}
                 scale={scale}
+                snapEnabled={snapEnabled}
               />
             ) : (
               <div className="text-muted-foreground text-sm mt-20">Template auswählen oder neu erstellen</div>
@@ -306,7 +420,10 @@ export default function InvoiceDesigner() {
           open={varManagerOpen}
           onClose={() => setVarManagerOpen(false)}
           variables={draft.variables ?? []}
-          onChange={(vars) => setDraft((d) => d ? { ...d, variables: vars } : d)}
+          onChange={(vars) => {
+            recordHistory();
+            setDraft((d) => d ? { ...d, variables: vars } : d);
+          }}
         />
       )}
 
