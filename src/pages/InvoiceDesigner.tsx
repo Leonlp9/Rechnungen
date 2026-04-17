@@ -57,7 +57,7 @@ export default function InvoiceDesigner() {
   const [varManagerOpen, setVarManagerOpen] = useState(false);
   const [newTemplateDialogOpen, setNewTemplateDialogOpen] = useState(false);
   const [scale, setScale] = useState(0.65);
-  const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('width');
+  const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('page');
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [switchPending, setSwitchPending] = useState<string | null>(null);

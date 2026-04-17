@@ -30,7 +30,7 @@ export default function WriteInvoice() {
   const [settingsValues, setSettingsValues] = useState<Record<string, string>>({});
   const [showPreview, setShowPreview] = useState(true);
   const [previewScale, setPreviewScale] = useState(0.65);
-  const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('width');
+  const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('page');
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
