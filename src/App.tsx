@@ -36,6 +36,7 @@ function App() {
     open: false, version: '', phase: 'confirm', progress: 0,
   });
   const darkMode = useAppStore((s) => s.darkMode);
+  const theme = useAppStore((s) => s.theme);
   const autoUpdateBuiltins = useTemplateStore((s) => s.autoUpdateBuiltins);
 
   // Upgrade outdated builtin templates (e.g. missing items element) on every mount
@@ -45,11 +46,16 @@ function App() {
     registerUpdateSetter((patch) => setUpdateState((s) => ({ ...s, ...patch })));
   }, []);
 
-  // dark-Klasse auf <html> setzen + Titelleiste synchronisieren
+  // dark-Klasse auf <html> setzen + Titelleiste synchronisieren + Theme
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
+    // Theme-Klassen: alle entfernen, dann aktives setzen
+    document.documentElement.classList.remove('liquid-glass', 'aurora-borealis', 'crimson-dusk');
+    if (theme !== 'default') {
+      document.documentElement.classList.add(theme);
+    }
     getCurrentWindow().setTheme(darkMode ? 'dark' : 'light').catch(() => {});
-  }, [darkMode]);
+  }, [darkMode, theme]);
 
   return (
     <>

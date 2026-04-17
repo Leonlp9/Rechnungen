@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Invoice } from '@/types';
 
+export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk';
+
 interface AppState {
   invoices: Invoice[];
   setInvoices: (invoices: Invoice[]) => void;
@@ -11,6 +13,8 @@ interface AppState {
   toggleSidebar: () => void;
   darkMode: boolean;
   setDarkMode: (darkMode: boolean) => void;
+  theme: AppTheme;
+  setTheme: (theme: AppTheme) => void;
   privacyMode: boolean;
   togglePrivacyMode: () => void;
   searchOpen: boolean;
@@ -28,6 +32,8 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       darkMode: false,
       setDarkMode: (darkMode) => set({ darkMode }),
+      theme: 'default' as AppTheme,
+      setTheme: (theme) => set({ theme }),
       privacyMode: false,
       togglePrivacyMode: () => set((s) => ({ privacyMode: !s.privacyMode })),
       searchOpen: false,
@@ -35,7 +41,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'rechnungs-manager-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme }),
     }
   )
 );

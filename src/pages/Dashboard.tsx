@@ -4,9 +4,11 @@ import { KPICard } from '@/components/dashboard/KPICard';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { CategoryDonut } from '@/components/dashboard/CategoryDonut';
 import { SonderausgabenCard } from '@/components/dashboard/SonderausgabenCard';
+import { ForecastList } from '@/components/dashboard/ForecastList';
+import { Last28DaysChart } from '@/components/dashboard/Last28DaysChart';
 import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
-import { Euro, TrendingUp, TrendingDown, FileText, Calculator } from 'lucide-react';
+import { Euro, TrendingUp, TrendingDown, FileText, Calculator, CalendarDays, Sparkles } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -19,6 +21,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { fmtCurrency } from '@/lib/utils';
 import { InvoiceContextMenu } from '@/components/invoices/InvoiceContextMenu';
+import { detectPatterns, forecastCurrentMonth } from '@/lib/patternDetection';
 
 export default function Dashboard() {
   const invoices = useAppStore((s) => s.invoices);
@@ -79,6 +82,40 @@ export default function Dashboard() {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const recentCount = invoices.filter((i) => new Date(i.date) >= thirtyDaysAgo).length;
 
+  const isCurrentYear = selectedYear === now.getFullYear();
+
+  // ── Monatliche Kennzahlen (nur im aktuellen Jahr relevant) ──────────────────
+  const thisMonth = now.getMonth() + 1;
+  const prevMonthNum = thisMonth === 1 ? 12 : thisMonth - 1;
+  const prevMonthYear = thisMonth === 1 ? selectedYear - 1 : selectedYear;
+
+  const monthInvoices = useMemo(
+    () => yearInvoices.filter((i) => i.month === thisMonth),
+    [yearInvoices, thisMonth]
+  );
+  const prevMonthInvoices = useMemo(
+    () => invoices.filter((i) => i.year === prevMonthYear && i.month === prevMonthNum),
+    [invoices, prevMonthYear, prevMonthNum]
+  );
+
+  const monatEin = monthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
+  const monatAus = monthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+  const monatSaldo = monatEin - monatAus;
+
+  const prevMonatEin = prevMonthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
+  const prevMonatAus = prevMonthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+  const prevMonatSaldo = prevMonatEin - prevMonatAus;
+
+  const deltaMonatEin = prevMonatEin ? ((monatEin - prevMonatEin) / prevMonatEin) * 100 : 0;
+  const deltaMonatAus = prevMonatAus ? ((monatAus - prevMonatAus) / prevMonatAus) * 100 : 0;
+  const deltaMonatSaldo = prevMonatSaldo ? ((monatSaldo - prevMonatSaldo) / Math.abs(prevMonatSaldo)) * 100 : 0;
+
+  // Prognose für Rest-Monat
+  const forecastItems = useMemo(() => forecastCurrentMonth(detectPatterns(invoices)), [invoices]);
+  const forecastEin = forecastItems.filter((f) => f.pattern.type === 'einnahme').reduce((s, f) => s + f.expectedBrutto, 0);
+  const forecastAus = forecastItems.filter((f) => f.pattern.type === 'ausgabe').reduce((s, f) => s + f.expectedBrutto, 0);
+  const monatSaldoMitPrognose = monatSaldo + forecastEin - forecastAus;
+
   const lastTen = yearInvoices.slice(0, 10);
 
   if (loading) {
@@ -109,11 +146,35 @@ export default function Dashboard() {
         <KPICard title="Belege (30 Tage)" value={String(recentCount)} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {isCurrentYear && (
+        <>
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            <CalendarDays className="h-4 w-4" />
+            {format(now, 'MMMM yyyy', { locale: de })}
+            <span className="text-[11px] font-normal normal-case text-muted-foreground/60">vs. Vormonat</span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KPICard title="Einnahmen (Monat)" value={fmtCurrency(monatEin, privacyMode)} delta={privacyMode ? undefined : deltaMonatEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
+            <KPICard title="Ausgaben (Monat)" value={fmtCurrency(monatAus, privacyMode)} delta={privacyMode ? undefined : deltaMonatAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
+            <KPICard title="Saldo (Monat)" value={fmtCurrency(monatSaldo, privacyMode)} delta={privacyMode ? undefined : deltaMonatSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Einnahmen minus Ausgaben im aktuellen Monat" />
+            <KPICard title="Saldo inkl. Prognose" value={fmtCurrency(monatSaldoMitPrognose, privacyMode)} icon={<Sparkles className="h-4 w-4 text-violet-500" />} tooltip={`Aktueller Monatssaldo + erwartete Einnahmen (${fmtCurrency(forecastEin, privacyMode)}) − erwartete Ausgaben (${fmtCurrency(forecastAus, privacyMode)}) bis Monatsende`} />
+          </div>
+        </>
+      )}
+
+      {isCurrentYear && <ForecastList invoices={invoices} privacyMode={privacyMode} />}
+
+      <div className={`grid grid-cols-1 gap-6 ${sonderausgabenGesamt > 0 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
         <RevenueChart invoices={yearInvoices} privacyMode={privacyMode} />
         <CategoryDonut invoices={yearInvoices} privacyMode={privacyMode} />
         <SonderausgabenCard invoices={yearInvoices} privacyMode={privacyMode} />
       </div>
+
+      {isCurrentYear && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Last28DaysChart invoices={invoices} privacyMode={privacyMode} />
+        </div>
+      )}
 
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4">Letzte 10 Belege</h2>

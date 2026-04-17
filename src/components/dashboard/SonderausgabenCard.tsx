@@ -41,6 +41,7 @@ export function SonderausgabenCard({ invoices, privacyMode }: Props) {
   const sonderGesamt = sonderRows.reduce((s, r) => s + r.total, 0);
   const privatGesamt = privatRows.reduce((s, r) => s + r.total, 0);
   const isEmpty = sonderRows.length === 0 && privatRows.length === 0;
+  if (isEmpty) return null;
 
   return (
     <Card className="rounded-xl shadow-sm">
@@ -54,12 +55,7 @@ export function SonderausgabenCard({ invoices, privacyMode }: Props) {
         </p>
       </CardHeader>
       <CardContent>
-        {isEmpty ? (
-          <div className="flex items-center justify-center h-30 text-muted-foreground text-sm">
-            Keine Einträge vorhanden.
-          </div>
-        ) : (
-          <div className="space-y-4">
+        <div className="space-y-4">
             {sonderRows.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sonderausgaben</p>
@@ -97,7 +93,6 @@ export function SonderausgabenCard({ invoices, privacyMode }: Props) {
               </div>
             )}
           </div>
-        )}
       </CardContent>
     </Card>
   );

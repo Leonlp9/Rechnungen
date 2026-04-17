@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
@@ -28,6 +28,8 @@ export default function SettingsPage() {
 	const [showKey, setShowKey] = useState(false);
 	const darkMode = useAppStore((s) => s.darkMode);
 	const setDarkMode = useAppStore((s) => s.setDarkMode);
+	const theme = useAppStore((s) => s.theme);
+	const setTheme = useAppStore((s) => s.setTheme);
 	const [profile, setProfile] = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
@@ -183,22 +185,193 @@ export default function SettingsPage() {
 				</CardContent>
 			</Card>
 
-		<Card className="rounded-xl shadow-sm">
-			<CardHeader>
-				<CardTitle className="text-base">Erscheinungsbild</CardTitle>
-			</CardHeader>
-			<CardContent className="space-y-4">
-				<div className="flex items-center justify-between">
-					<div>
-						<Label>Dark Mode</Label>
-						<p className="text-xs text-muted-foreground">Dunkles Farbschema aktivieren</p>
-					</div>
-					<Button variant="outline" onClick={toggleDark}>
-						{darkMode ? 'Deaktivieren' : 'Aktivieren'}
-					</Button>
+	<Card className="rounded-xl shadow-sm">
+		<CardHeader>
+			<CardTitle className="text-base">Erscheinungsbild</CardTitle>
+		</CardHeader>
+		<CardContent className="space-y-6">
+			{/* Dark Mode */}
+			<div className="flex items-center justify-between">
+				<div>
+					<Label>Dark Mode</Label>
+					<p className="text-xs text-muted-foreground">Dunkles Farbschema aktivieren</p>
 				</div>
-			</CardContent>
-		</Card>
+				<Button variant="outline" onClick={toggleDark}>
+					{darkMode ? 'Deaktivieren' : 'Aktivieren'}
+				</Button>
+			</div>
+
+			{/* Theme-Auswahl */}
+			<div className="space-y-3">
+				<div>
+					<Label>Theme</Label>
+					<p className="text-xs text-muted-foreground">Wähle das visuelle Design der App</p>
+				</div>
+				<div className="grid grid-cols-2 gap-3">
+					{/* Default Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('default')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'default'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'default' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						{/* Preview */}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex flex-col gap-1 p-2">
+							<div className="h-2 w-3/4 rounded bg-zinc-900 dark:bg-zinc-100 opacity-80" />
+							<div className="h-2 w-1/2 rounded bg-zinc-300 dark:bg-zinc-600" />
+							<div className="mt-1 h-6 w-full rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700" />
+						</div>
+						<p className="text-sm font-medium">Default</p>
+						<p className="text-xs text-muted-foreground">Klares, minimales Design</p>
+					</button>
+
+					{/* Liquid Glass Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('liquid-glass')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'liquid-glass'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'liquid-glass' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						{/* Preview */}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2"
+							style={{
+								background: darkMode
+									? 'linear-gradient(135deg, oklch(0.18 0.04 265) 0%, oklch(0.14 0.03 200) 100%)'
+									: 'linear-gradient(135deg, oklch(0.88 0.06 265) 0%, oklch(0.92 0.04 200) 100%)',
+							}}
+						>
+							<div className="absolute inset-0 opacity-30"
+								style={{ background: 'radial-gradient(circle at 30% 30%, oklch(0.75 0.18 265 / 40%), transparent 60%)' }}
+							/>
+							<div className="relative h-2 w-3/4 rounded"
+								style={{ background: darkMode ? 'oklch(0.95 0 0 / 80%)' : 'oklch(0.15 0 0 / 70%)' }}
+							/>
+							<div className="relative h-2 w-1/2 rounded"
+								style={{ background: darkMode ? 'oklch(0.95 0 0 / 40%)' : 'oklch(0.15 0 0 / 35%)' }}
+							/>
+							<div className="relative mt-1 h-6 w-full rounded-lg"
+								style={{
+									background: darkMode ? 'oklch(1 0 0 / 8%)' : 'oklch(1 0 0 / 55%)',
+									backdropFilter: 'blur(8px)',
+									border: darkMode ? '1px solid oklch(1 0 0 / 12%)' : '1px solid oklch(1 0 0 / 40%)',
+								}}
+							/>
+						</div>
+						<p className="text-sm font-medium">Liquid Glass</p>
+						<p className="text-xs text-muted-foreground">Apple-ähnliches Glasdesign</p>
+					</button>
+
+					{/* Aurora Borealis Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('aurora-borealis')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'aurora-borealis'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'aurora-borealis' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						{/* Preview */}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2"
+							style={{
+								background: darkMode
+									? 'linear-gradient(135deg, oklch(0.10 0.025 220) 0%, oklch(0.12 0.03 175) 100%)'
+									: 'linear-gradient(135deg, oklch(0.93 0.025 165) 0%, oklch(0.90 0.04 200) 100%)',
+							}}
+						>
+							<div className="absolute inset-0"
+								style={{ background: darkMode
+									? 'radial-gradient(ellipse at 20% 50%, oklch(0.45 0.22 175 / 45%) 0%, transparent 55%), radial-gradient(ellipse at 80% 30%, oklch(0.42 0.24 280 / 35%) 0%, transparent 50%)'
+									: 'radial-gradient(ellipse at 20% 50%, oklch(0.65 0.18 175 / 25%) 0%, transparent 55%), radial-gradient(ellipse at 80% 30%, oklch(0.60 0.20 280 / 20%) 0%, transparent 50%)',
+								}}
+							/>
+							<div className="relative h-2 w-3/4 rounded"
+								style={{ background: darkMode ? 'oklch(0.62 0.20 175 / 90%)' : 'oklch(0.48 0.18 175 / 80%)' }}
+							/>
+							<div className="relative h-2 w-1/2 rounded"
+								style={{ background: darkMode ? 'oklch(0.65 0.22 280 / 60%)' : 'oklch(0.55 0.20 280 / 50%)' }}
+							/>
+							<div className="relative mt-1 h-6 w-full rounded-lg"
+								style={{
+									background: darkMode ? 'oklch(0.14 0.03 210 / 80%)' : 'oklch(0.99 0.008 165 / 75%)',
+									border: darkMode ? '1px solid oklch(0.62 0.20 175 / 25%)' : '1px solid oklch(0.48 0.18 175 / 30%)',
+								}}
+							/>
+						</div>
+						<p className="text-sm font-medium">Aurora Borealis</p>
+						<p className="text-xs text-muted-foreground">Nordlichter in Grün & Lila</p>
+					</button>
+
+					{/* Crimson Dusk Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('crimson-dusk')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'crimson-dusk'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'crimson-dusk' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						{/* Preview */}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2"
+							style={{
+								background: darkMode
+									? 'linear-gradient(135deg, oklch(0.10 0.025 20) 0%, oklch(0.13 0.03 35) 100%)'
+									: 'linear-gradient(135deg, oklch(0.97 0.010 40) 0%, oklch(0.93 0.025 25) 100%)',
+							}}
+						>
+							<div className="absolute inset-0"
+								style={{ background: darkMode
+									? 'radial-gradient(ellipse at 75% 20%, oklch(0.48 0.24 25 / 50%) 0%, transparent 50%), radial-gradient(ellipse at 25% 70%, oklch(0.50 0.20 50 / 35%) 0%, transparent 50%)'
+									: 'radial-gradient(ellipse at 75% 20%, oklch(0.65 0.22 25 / 25%) 0%, transparent 50%), radial-gradient(ellipse at 25% 70%, oklch(0.68 0.18 50 / 20%) 0%, transparent 50%)',
+								}}
+							/>
+							<div className="relative h-2 w-3/4 rounded"
+								style={{ background: darkMode ? 'oklch(0.65 0.22 25 / 90%)' : 'oklch(0.52 0.22 25 / 80%)' }}
+							/>
+							<div className="relative h-2 w-1/2 rounded"
+								style={{ background: darkMode ? 'oklch(0.70 0.20 50 / 60%)' : 'oklch(0.60 0.18 50 / 50%)' }}
+							/>
+							<div className="relative mt-1 h-6 w-full rounded-lg"
+								style={{
+									background: darkMode ? 'oklch(0.15 0.03 20 / 80%)' : 'oklch(0.99 0.006 40 / 75%)',
+									border: darkMode ? '1px solid oklch(0.65 0.22 25 / 25%)' : '1px solid oklch(0.52 0.22 25 / 30%)',
+								}}
+							/>
+						</div>
+						<p className="text-sm font-medium">Crimson Dusk</p>
+						<p className="text-xs text-muted-foreground">Warmer Sonnenuntergang in Rot & Orange</p>
+					</button>
+				</div>
+			</div>
+		</CardContent>
+	</Card>
 
       <Card className="rounded-xl shadow-sm">
         <CardHeader>

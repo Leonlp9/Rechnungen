@@ -281,3 +281,314 @@
   scrollbar-width: thin;
   scrollbar-color: var(--muted-foreground) var(--muted);
 }
+
+/* ── Liquid Glass Theme (Light) ── */
+.liquid-glass {
+  --background: oklch(0.96 0.005 240);
+  --foreground: oklch(0.15 0.01 250);
+  --card: oklch(1 0 0 / 55%);
+  --card-foreground: oklch(0.15 0.01 250);
+  --popover: oklch(1 0 0 / 70%);
+  --popover-foreground: oklch(0.15 0.01 250);
+  --primary: oklch(0.52 0.22 265);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.92 0.01 240 / 60%);
+  --secondary-foreground: oklch(0.15 0.01 250);
+  --muted: oklch(0.92 0.01 240 / 50%);
+  --muted-foreground: oklch(0.45 0.01 250);
+  --accent: oklch(0.88 0.04 265 / 60%);
+  --accent-foreground: oklch(0.15 0.01 250);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.7 0.01 240 / 30%);
+  --input: oklch(0.85 0.01 240 / 50%);
+  --ring: oklch(0.52 0.22 265 / 50%);
+  --radius: 1rem;
+  --sidebar: oklch(0.97 0.005 240 / 60%);
+  --sidebar-foreground: oklch(0.15 0.01 250);
+  --sidebar-primary: oklch(0.52 0.22 265);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.88 0.04 265 / 50%);
+  --sidebar-accent-foreground: oklch(0.15 0.01 250);
+  --sidebar-border: oklch(0.7 0.01 240 / 20%);
+  --sidebar-ring: oklch(0.52 0.22 265 / 40%);
+  --chart-1: oklch(0.52 0.22 265);
+  --chart-2: oklch(0.62 0.18 200);
+  --chart-3: oklch(0.65 0.15 150);
+  --chart-4: oklch(0.72 0.18 90);
+  --chart-5: oklch(0.60 0.20 30);
+}
+
+/* ── Liquid Glass Theme (Dark) ── */
+.liquid-glass.dark {
+  --background: oklch(0.12 0.015 255);
+  --foreground: oklch(0.95 0.005 240);
+  --card: oklch(1 0 0 / 8%);
+  --card-foreground: oklch(0.95 0.005 240);
+  --popover: oklch(0.18 0.02 255 / 80%);
+  --popover-foreground: oklch(0.95 0.005 240);
+  --primary: oklch(0.65 0.22 265);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(1 0 0 / 8%);
+  --secondary-foreground: oklch(0.95 0.005 240);
+  --muted: oklch(1 0 0 / 6%);
+  --muted-foreground: oklch(0.65 0.01 250);
+  --accent: oklch(1 0 0 / 10%);
+  --accent-foreground: oklch(0.95 0.005 240);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.65 0.22 265 / 50%);
+  --sidebar: oklch(1 0 0 / 5%);
+  --sidebar-foreground: oklch(0.95 0.005 240);
+  --sidebar-primary: oklch(0.65 0.22 265);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(1 0 0 / 8%);
+  --sidebar-accent-foreground: oklch(0.95 0.005 240);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.65 0.22 265 / 40%);
+  --chart-1: oklch(0.65 0.22 265);
+  --chart-2: oklch(0.70 0.18 200);
+  --chart-3: oklch(0.72 0.15 150);
+  --chart-4: oklch(0.78 0.18 90);
+  --chart-5: oklch(0.68 0.20 30);
+}
+
+/* ── Liquid Glass: Frosted glass surfaces ── */
+.liquid-glass body {
+  background-image:
+    radial-gradient(ellipse at 20% 20%, oklch(0.75 0.18 265 / 25%) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 80%, oklch(0.72 0.15 200 / 20%) 0%, transparent 55%),
+    radial-gradient(ellipse at 60% 10%, oklch(0.78 0.12 300 / 15%) 0%, transparent 45%);
+  background-attachment: fixed;
+}
+
+.liquid-glass.dark body {
+  background-image:
+    radial-gradient(ellipse at 20% 20%, oklch(0.45 0.22 265 / 30%) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 80%, oklch(0.42 0.18 200 / 25%) 0%, transparent 55%),
+    radial-gradient(ellipse at 60% 10%, oklch(0.40 0.15 300 / 20%) 0%, transparent 45%);
+  background-attachment: fixed;
+}
+
+.liquid-glass [data-slot="card"],
+.liquid-glass .glass-surface {
+  backdrop-filter: blur(12px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(140%) brightness(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    /* äußerer Abwurfschatten */
+    0 6px 6px rgba(0, 0, 0, 0.18),
+    0 0 20px rgba(0, 0, 0, 0.10),
+    /* spekularer Glanzpunkt oben-links */
+    inset 1px 1px 0 rgba(255, 255, 255, 0.75),
+    /* inneres Leuchten */
+    inset 0 0 8px rgba(255, 255, 255, 0.55);
+}
+
+.liquid-glass.dark [data-slot="card"],
+.liquid-glass.dark .glass-surface {
+  backdrop-filter: blur(12px) saturate(150%) brightness(1.12);
+  -webkit-backdrop-filter: blur(12px) saturate(150%) brightness(1.12);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    /* äußerer Abwurfschatten */
+    0 6px 6px rgba(0, 0, 0, 0.40),
+    0 0 20px rgba(0, 0, 0, 0.28),
+    /* spekularer Glanzpunkt oben-links */
+    inset 1px 1px 0 rgba(255, 255, 255, 0.18),
+    /* inneres Leuchten */
+    inset 0 0 8px rgba(255, 255, 255, 0.08);
+}
+
+.liquid-glass nav,
+.liquid-glass aside,
+.liquid-glass header {
+  backdrop-filter: blur(16px) saturate(150%) brightness(1.06);
+  -webkit-backdrop-filter: blur(16px) saturate(150%) brightness(1.06);
+}
+
+.liquid-glass button:not([data-variant="ghost"]):not([data-variant="link"]) {
+  backdrop-filter: blur(8px) saturate(130%);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+}
+
+/* ══════════════════════════════════════════
+   Aurora Borealis Theme (Light)
+   ══════════════════════════════════════════ */
+.aurora-borealis {
+  --background: oklch(0.97 0.012 165);
+  --foreground: oklch(0.12 0.02 200);
+  --card: oklch(0.99 0.008 165);
+  --card-foreground: oklch(0.12 0.02 200);
+  --popover: oklch(0.99 0.008 165);
+  --popover-foreground: oklch(0.12 0.02 200);
+  --primary: oklch(0.48 0.18 175);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.91 0.03 170);
+  --secondary-foreground: oklch(0.12 0.02 200);
+  --muted: oklch(0.92 0.02 170);
+  --muted-foreground: oklch(0.42 0.04 190);
+  --accent: oklch(0.88 0.06 280 / 70%);
+  --accent-foreground: oklch(0.12 0.02 200);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.84 0.04 170);
+  --input: oklch(0.88 0.03 170);
+  --ring: oklch(0.48 0.18 175 / 50%);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.93 0.025 165);
+  --sidebar-foreground: oklch(0.12 0.02 200);
+  --sidebar-primary: oklch(0.48 0.18 175);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.88 0.05 280 / 50%);
+  --sidebar-accent-foreground: oklch(0.12 0.02 200);
+  --sidebar-border: oklch(0.84 0.04 170);
+  --sidebar-ring: oklch(0.48 0.18 175 / 40%);
+  --chart-1: oklch(0.48 0.18 175);
+  --chart-2: oklch(0.55 0.20 280);
+  --chart-3: oklch(0.60 0.16 200);
+  --chart-4: oklch(0.65 0.14 150);
+  --chart-5: oklch(0.52 0.22 240);
+}
+
+/* Aurora Borealis (Dark) */
+.aurora-borealis.dark {
+  --background: oklch(0.10 0.025 220);
+  --foreground: oklch(0.93 0.015 175);
+  --card: oklch(0.14 0.03 210);
+  --card-foreground: oklch(0.93 0.015 175);
+  --popover: oklch(0.14 0.03 210);
+  --popover-foreground: oklch(0.93 0.015 175);
+  --primary: oklch(0.62 0.20 175);
+  --primary-foreground: oklch(0.08 0.02 200);
+  --secondary: oklch(0.18 0.04 210);
+  --secondary-foreground: oklch(0.93 0.015 175);
+  --muted: oklch(0.17 0.03 215);
+  --muted-foreground: oklch(0.58 0.06 185);
+  --accent: oklch(0.22 0.06 280);
+  --accent-foreground: oklch(0.93 0.015 175);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.62 0.20 175 / 50%);
+  --sidebar: oklch(0.12 0.03 215);
+  --sidebar-foreground: oklch(0.93 0.015 175);
+  --sidebar-primary: oklch(0.62 0.20 175);
+  --sidebar-primary-foreground: oklch(0.08 0.02 200);
+  --sidebar-accent: oklch(0.20 0.06 280);
+  --sidebar-accent-foreground: oklch(0.93 0.015 175);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.62 0.20 175 / 40%);
+  --chart-1: oklch(0.62 0.20 175);
+  --chart-2: oklch(0.65 0.22 280);
+  --chart-3: oklch(0.68 0.16 200);
+  --chart-4: oklch(0.70 0.14 150);
+  --chart-5: oklch(0.60 0.22 240);
+}
+
+.aurora-borealis body {
+  background-image:
+    radial-gradient(ellipse at 15% 30%, oklch(0.65 0.20 175 / 20%) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 20%, oklch(0.60 0.22 280 / 18%) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 90%, oklch(0.62 0.18 200 / 15%) 0%, transparent 55%);
+  background-attachment: fixed;
+}
+
+.aurora-borealis.dark body {
+  background-image:
+    radial-gradient(ellipse at 10% 25%, oklch(0.45 0.22 175 / 35%) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 15%, oklch(0.42 0.24 280 / 30%) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 85%, oklch(0.40 0.18 200 / 25%) 0%, transparent 55%);
+  background-attachment: fixed;
+}
+
+/* ══════════════════════════════════════════
+   Crimson Dusk Theme (Light)
+   ══════════════════════════════════════════ */
+.crimson-dusk {
+  --background: oklch(0.97 0.010 40);
+  --foreground: oklch(0.14 0.025 30);
+  --card: oklch(0.99 0.006 40);
+  --card-foreground: oklch(0.14 0.025 30);
+  --popover: oklch(0.99 0.006 40);
+  --popover-foreground: oklch(0.14 0.025 30);
+  --primary: oklch(0.52 0.22 25);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.92 0.03 40);
+  --secondary-foreground: oklch(0.14 0.025 30);
+  --muted: oklch(0.92 0.02 40);
+  --muted-foreground: oklch(0.46 0.04 35);
+  --accent: oklch(0.88 0.08 55 / 70%);
+  --accent-foreground: oklch(0.14 0.025 30);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.85 0.04 35);
+  --input: oklch(0.88 0.03 38);
+  --ring: oklch(0.52 0.22 25 / 50%);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.94 0.02 38);
+  --sidebar-foreground: oklch(0.14 0.025 30);
+  --sidebar-primary: oklch(0.52 0.22 25);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.88 0.08 55 / 50%);
+  --sidebar-accent-foreground: oklch(0.14 0.025 30);
+  --sidebar-border: oklch(0.85 0.04 35);
+  --sidebar-ring: oklch(0.52 0.22 25 / 40%);
+  --chart-1: oklch(0.52 0.22 25);
+  --chart-2: oklch(0.60 0.20 50);
+  --chart-3: oklch(0.65 0.18 15);
+  --chart-4: oklch(0.70 0.14 70);
+  --chart-5: oklch(0.55 0.24 5);
+}
+
+/* Crimson Dusk (Dark) */
+.crimson-dusk.dark {
+  --background: oklch(0.10 0.025 20);
+  --foreground: oklch(0.94 0.015 40);
+  --card: oklch(0.15 0.03 20);
+  --card-foreground: oklch(0.94 0.015 40);
+  --popover: oklch(0.15 0.03 20);
+  --popover-foreground: oklch(0.94 0.015 40);
+  --primary: oklch(0.65 0.22 25);
+  --primary-foreground: oklch(0.10 0 0);
+  --secondary: oklch(0.19 0.04 22);
+  --secondary-foreground: oklch(0.94 0.015 40);
+  --muted: oklch(0.18 0.03 22);
+  --muted-foreground: oklch(0.58 0.06 35);
+  --accent: oklch(0.22 0.06 50);
+  --accent-foreground: oklch(0.94 0.015 40);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.65 0.22 25 / 50%);
+  --sidebar: oklch(0.12 0.03 20);
+  --sidebar-foreground: oklch(0.94 0.015 40);
+  --sidebar-primary: oklch(0.65 0.22 25);
+  --sidebar-primary-foreground: oklch(0.10 0 0);
+  --sidebar-accent: oklch(0.20 0.06 50);
+  --sidebar-accent-foreground: oklch(0.94 0.015 40);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.65 0.22 25 / 40%);
+  --chart-1: oklch(0.65 0.22 25);
+  --chart-2: oklch(0.70 0.20 50);
+  --chart-3: oklch(0.68 0.18 15);
+  --chart-4: oklch(0.72 0.14 70);
+  --chart-5: oklch(0.62 0.24 5);
+}
+
+.crimson-dusk body {
+  background-image:
+    radial-gradient(ellipse at 75% 15%, oklch(0.65 0.22 25 / 18%) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 75%, oklch(0.68 0.18 50 / 16%) 0%, transparent 50%),
+    radial-gradient(ellipse at 55% 50%, oklch(0.62 0.20 10 / 12%) 0%, transparent 55%);
+  background-attachment: fixed;
+}
+
+.crimson-dusk.dark body {
+  background-image:
+    radial-gradient(ellipse at 75% 15%, oklch(0.48 0.24 25 / 35%) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 75%, oklch(0.50 0.20 50 / 28%) 0%, transparent 50%),
+    radial-gradient(ellipse at 55% 50%, oklch(0.44 0.22 10 / 22%) 0%, transparent 55%);
+  background-attachment: fixed;
+}
+
+
+

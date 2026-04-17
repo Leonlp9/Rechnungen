@@ -16,6 +16,7 @@ import {
   FileSearch,
   Sparkles,
   ArrowLeft,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -503,6 +504,107 @@ const ARTICLES: HelpArticle[] = [
           </ul>
         </Section>
         <Tip>Der API-Key wird ausschließlich lokal in der SQLite-Datenbank gespeichert und nie an Dritte weitergegeben.</Tip>
+      </div>
+    ),
+  },
+  {
+    id: 'forecast',
+    title: 'Prognosen & Mustererkennung',
+    icon: TrendingUp,
+    category: 'Auswertungen',
+    keywords: ['prognose', 'muster', 'wiederholung', 'abo', 'vorhersage', 'symmetrie', 'regelmäßig', 'monatlich', 'algorythmus', 'erkennung', '28 tage'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Der Rechnungs-Manager erkennt automatisch wiederkehrende Zahlungsmuster – egal ob offizielle
+          Abonnements oder einfach monatlich gleichartige Einkäufe. Daraus wird eine Prognose für den
+          restlichen Monat berechnet.
+        </p>
+
+        <Section title="Wie funktioniert die Mustererkennung?">
+          <p className="text-sm text-muted-foreground mb-3">
+            Der Algorithmus gruppiert alle Rechnungen nach dem Schlüssel <strong>Partner + Kategorie + Typ</strong>.
+            Innerhalb jeder Gruppe wird geprüft, ob die zeitlichen Abstände zwischen den Einträgen
+            einem regelmäßigen Intervall entsprechen.
+          </p>
+          <div className="space-y-2 text-sm">
+            {[
+              ['Mindestanzahl', 'Mindestens 3 Einträge in der Gruppe – sonst kein Muster.'],
+              ['Intervall-Erkennung', 'Median der Tagesabstände. Toleranz ±30 %: wöchentlich (~7 d), monatlich (~30 d), quartalsweise (~91 d), jährlich (~365 d).'],
+              ['Betragsanalyse', 'Der Median aller Beträge wird als Prognose-Betrag verwendet – robust gegenüber temporären Rabatten oder Sonderkonditionen.'],
+              ['Ausreißer', 'Bis zu 30 % abweichende Einträge werden toleriert, ohne das Muster zu entwerten (z. B. 3 Rabattmonate in einem Jahres-Abo).'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex gap-3">
+                <span className="font-medium w-40 shrink-0">{k}</span>
+                <span className="text-muted-foreground">{v}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Konfidenz-Score">
+          <p className="text-sm text-muted-foreground mb-3">
+            Jedes erkannte Muster erhält einen Konfidenz-Wert zwischen 0 und 1, der aus drei Faktoren berechnet wird:
+          </p>
+          <div className="rounded-lg border border-border overflow-hidden text-sm">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-muted/50 border-b border-border">
+                  <th className="text-left px-3 py-2 font-semibold">Faktor</th>
+                  <th className="text-left px-3 py-2 font-semibold">Gewichtung</th>
+                  <th className="text-left px-3 py-2 font-semibold">Bedeutung</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                <tr>
+                  <td className="px-3 py-2 font-medium">Anzahl</td>
+                  <td className="px-3 py-2 text-muted-foreground">30 %</td>
+                  <td className="px-3 py-2 text-muted-foreground">3 Einträge = niedrig, ab 10+ = maximal</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-2 font-medium">Betrag</td>
+                  <td className="px-3 py-2 text-muted-foreground">30 %</td>
+                  <td className="px-3 py-2 text-muted-foreground">Weniger Ausreißer = höhere Konfidenz</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-2 font-medium">Regelmäßigkeit</td>
+                  <td className="px-3 py-2 text-muted-foreground">40 %</td>
+                  <td className="px-3 py-2 text-muted-foreground">Wie konstant sind die Zeitabstände?</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2.5 py-0.5 font-medium">Hoch ≥ 0.7</span>
+            <span className="rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2.5 py-0.5 font-medium">Mittel ≥ 0.4</span>
+            <span className="rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 px-2.5 py-0.5 font-medium">Niedrig &lt; 0.4</span>
+          </div>
+        </Section>
+
+        <Section title="Prognose-Liste im Dashboard">
+          <p className="text-sm text-muted-foreground mb-2">
+            Die Prognose-Karte erscheint nur wenn es tatsächlich Vorhersagen gibt – sie wird ausgeblendet wenn nichts erwartet wird.
+          </p>
+          <ul className="space-y-1.5 text-sm">
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Nur Muster deren nächster Termin <strong>heute oder später</strong> im laufenden Monat liegt werden gezeigt.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Bereits vergangene Fälligkeiten werden <strong>nicht</strong> angezeigt.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Oben in der Karte steht eine Zusammenfassung: erwartete Einnahmen und Ausgaben.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Die Prognose nutzt <strong>alle historischen Rechnungen</strong>, nicht nur das aktuell gewählte Jahr.</span></li>
+          </ul>
+        </Section>
+
+        <Section title="Letzte-28-Tage-Chart">
+          <p className="text-sm text-muted-foreground">
+            Unabhängig von den Prognosen zeigt ein Balkendiagramm die täglichen Einnahmen und Ausgaben
+            der letzten 28 Tage. Jeder Balken steht für einen Tag – die X-Achse wird alle 7 Tage
+            beschriftet. Auch dieser Chart nutzt alle Rechnungen (jahresübergreifend).
+          </p>
+        </Section>
+
+        <Tip>
+          Muster werden rein algorithmisch berechnet – es werden keine Daten gespeichert oder verändert.
+          Die Prognose ist eine Wahrscheinlichkeit, keine Gewissheit.
+        </Tip>
       </div>
     ),
   },

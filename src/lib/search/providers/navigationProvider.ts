@@ -11,10 +11,10 @@ const NAV_ITEMS = [
   {
     id: 'nav-dashboard',
     title: 'Dashboard',
-    subtitle: 'Übersicht, KPIs, Diagramme',
+    subtitle: 'Übersicht, KPIs, Diagramme, Prognosen',
     icon: LayoutDashboard,
     path: '/',
-    keywords: ['dashboard', 'übersicht', 'kpi', 'umsatz', 'statistik', 'diagramm'],
+    keywords: ['dashboard', 'übersicht', 'kpi', 'umsatz', 'statistik', 'diagramm', 'prognose', 'muster', 'vorhersage', 'wiederholung', '28 tage', 'letzte tage', 'forecast'],
   },
   {
     id: 'nav-invoices',

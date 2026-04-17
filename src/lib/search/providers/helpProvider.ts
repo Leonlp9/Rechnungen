@@ -140,6 +140,13 @@ const HELP_ITEMS = [
 		keywords: ['ki', 'ai', 'gemini', 'apikey', 'erkennung', 'google'],
 		articleId: 'ai-recognition',
 	},
+	{
+		id: 'help-forecast',
+		title: 'Prognosen & Mustererkennung',
+		subtitle: 'Wie werden Muster erkannt, Konfidenz, 28-Tage-Chart',
+		keywords: ['prognose', 'muster', 'wiederholung', 'abo', 'vorhersage', 'regelmäßig', 'monatlich', 'algorithmus', '28 tage', 'konfidenz', 'forecast', 'letzte tage', 'symmetrie', 'wiederkehrend'],
+		articleId: 'forecast',
+	},
 ];
 
 export function createHelpProvider(navigate: (path: string) => void): SearchProvider {
