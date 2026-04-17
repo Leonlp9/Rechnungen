@@ -25,6 +25,8 @@
     "fs:allow-copy-file",
     "fs:allow-read-file",
     "fs:allow-write-file",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "fs:scope",
       "allow": [
