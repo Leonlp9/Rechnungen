@@ -590,5 +590,253 @@
   background-attachment: fixed;
 }
 
+/* ══════════════════════════════════════════
+   UI Animations (toggled via .animations-enabled on <html>)
+   ══════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════
+   UI Animations – CSS-Variablen-System
+   Jedes Theme kann die Variablen überschreiben
+   ══════════════════════════════════════════ */
 
+/* ── Basis-Variablen (Default Theme) ── */
+.animations-enabled {
+  /* Timing */
+  --anim-duration-fast:   0.12s;
+  --anim-duration-base:   0.20s;
+  --anim-duration-slow:   0.30s;
+  /* Easing – kein Überschwingen im Default */
+  --anim-ease-spring:     cubic-bezier(0.25, 0.1, 0.25, 1);
+  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
+  --anim-ease-page:       cubic-bezier(0.22, 1, 0.36, 1);
+  /* Card-Lift */
+  --anim-card-y:          -2px;
+  --anim-card-scale:      1.004;
+  --anim-card-shadow:
+    0 6px 20px -4px oklch(0 0 0 / 12%),
+    0 2px 6px  -2px oklch(0 0 0 / 8%);
+  /* Button */
+  --anim-btn-y:           -1px;
+  --anim-btn-scale:       1.02;
+  --anim-btn-shadow:      0 3px 10px -2px oklch(0 0 0 / 15%);
+  /* Nav-Icon-Rotation */
+  --anim-nav-icon-rotate: 0deg;
+  --anim-nav-icon-scale:  1.12;
+  /* Fade-Up */
+  --anim-fadeup-y:        8px;
+  --anim-fadeup-dur:      0.24s;
+}
+
+/* ── Liquid Glass – federnd & verspielt ── */
+.animations-enabled.liquid-glass {
+  --anim-ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
+  --anim-duration-base:   0.22s;
+  --anim-card-y:          -4px;
+  --anim-card-scale:      1.010;
+  --anim-card-shadow:
+    0 10px 30px -6px oklch(0.52 0.22 265 / 25%),
+    0 3px  10px -3px oklch(0 0 0 / 12%);
+  --anim-btn-y:           -1.5px;
+  --anim-btn-scale:       1.04;
+  --anim-btn-shadow:      0 4px 14px -2px oklch(0.52 0.22 265 / 30%);
+  --anim-nav-icon-rotate: -5deg;
+  --anim-nav-icon-scale:  1.20;
+  --anim-fadeup-y:        12px;
+  --anim-fadeup-dur:      0.28s;
+}
+
+/* ── Aurora Borealis – fließend & ethereal ── */
+.animations-enabled.aurora-borealis {
+  --anim-ease-spring:     cubic-bezier(0.4, 0, 0.2, 1);
+  --anim-ease-out:        cubic-bezier(0.4, 0, 0.2, 1);
+  --anim-ease-page:       cubic-bezier(0.4, 0, 0.2, 1);
+  --anim-duration-fast:   0.18s;
+  --anim-duration-base:   0.32s;
+  --anim-duration-slow:   0.48s;
+  --anim-card-y:          -3px;
+  --anim-card-scale:      1.006;
+  --anim-card-shadow:
+    0 0  0   1px oklch(0.48 0.18 175 / 20%),
+    0 8px 28px -4px oklch(0.48 0.18 175 / 22%),
+    0 0  18px  0px oklch(0.55 0.20 280 / 12%);
+  --anim-btn-y:           -1px;
+  --anim-btn-scale:       1.025;
+  --anim-btn-shadow:
+    0 0  12px 0px oklch(0.48 0.18 175 / 35%),
+    0 3px 8px -2px oklch(0 0 0 / 12%);
+  --anim-nav-icon-rotate: 0deg;
+  --anim-nav-icon-scale:  1.15;
+  --anim-fadeup-y:        14px;
+  --anim-fadeup-dur:      0.36s;
+}
+
+/* ── Crimson Dusk – warm & dramatisch ── */
+.animations-enabled.crimson-dusk {
+  --anim-ease-spring:     cubic-bezier(0.32, 1.25, 0.54, 1);
+  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
+  --anim-duration-fast:   0.14s;
+  --anim-duration-base:   0.24s;
+  --anim-card-y:          -3px;
+  --anim-card-scale:      1.006;
+  --anim-card-shadow:
+    0 0  0   1px oklch(0.52 0.22 25 / 18%),
+    0 8px 24px -4px oklch(0.52 0.22 25 / 20%),
+    0 0  16px  0px oklch(0.60 0.20 50 / 10%);
+  --anim-btn-y:           -1.5px;
+  --anim-btn-scale:       1.03;
+  --anim-btn-shadow:
+    0 0  14px 0px oklch(0.52 0.22 25 / 35%),
+    0 4px 10px -2px oklch(0 0 0 / 14%);
+  --anim-nav-icon-rotate: -3deg;
+  --anim-nav-icon-scale:  1.16;
+  --anim-fadeup-y:        10px;
+  --anim-fadeup-dur:      0.26s;
+}
+
+/* ─────────────────────────────────────────
+   Keyframes (nutzen die Variablen)
+   ───────────────────────────────────────── */
+@keyframes rm-fade-up {
+  from { opacity: 0; transform: translateY(var(--anim-fadeup-y, 8px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rm-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ─────────────────────────────────────────
+   Anwendung
+   ───────────────────────────────────────── */
+
+/* Page content fade-in */
+.animations-enabled main > *,
+.animations-enabled [data-slot="content"] > * {
+  animation: rm-fade-up var(--anim-fadeup-dur) var(--anim-ease-page) both;
+}
+
+/* Stagger für Grid-Kinder */
+.animations-enabled .grid > *:nth-child(1) { animation-delay: 0ms; }
+.animations-enabled .grid > *:nth-child(2) { animation-delay: 45ms; }
+.animations-enabled .grid > *:nth-child(3) { animation-delay: 90ms; }
+.animations-enabled .grid > *:nth-child(4) { animation-delay: 135ms; }
+.animations-enabled .grid > *:nth-child(5) { animation-delay: 180ms; }
+
+/* ── Cards ── */
+.animations-enabled [data-slot="card"] {
+  transition:
+    transform  var(--anim-duration-base) var(--anim-ease-spring),
+    box-shadow var(--anim-duration-base) ease;
+  will-change: transform;
+}
+.animations-enabled [data-slot="card"]:hover {
+  transform: translateY(var(--anim-card-y)) scale(var(--anim-card-scale));
+  box-shadow: var(--anim-card-shadow);
+}
+
+/* ── Buttons ── */
+.animations-enabled [data-slot="button"]:not(:disabled) {
+  transition:
+    transform          var(--anim-duration-fast) var(--anim-ease-spring),
+    box-shadow         var(--anim-duration-fast) ease,
+    background-color   var(--anim-duration-fast) ease,
+    border-color       var(--anim-duration-fast) ease;
+  will-change: transform;
+}
+.animations-enabled [data-slot="button"]:not(:disabled):hover {
+  transform: translateY(var(--anim-btn-y)) scale(var(--anim-btn-scale));
+  box-shadow: var(--anim-btn-shadow);
+}
+.animations-enabled [data-slot="button"]:not(:disabled):active {
+  transform: scale(0.96);
+  box-shadow: none;
+  transition-duration: 0.07s;
+}
+
+/* ── Tabellen-Zeilen ── */
+.animations-enabled tbody tr {
+  transition:
+    transform        var(--anim-duration-fast) var(--anim-ease-out),
+    background-color var(--anim-duration-fast) ease;
+}
+.animations-enabled tbody tr:hover {
+  transform: translateX(3px);
+}
+
+/* ── Sidebar-Nav ── */
+.animations-enabled nav a,
+.animations-enabled nav button {
+  transition:
+    transform        var(--anim-duration-base) var(--anim-ease-spring),
+    background-color var(--anim-duration-base) ease,
+    color            var(--anim-duration-base) ease;
+}
+.animations-enabled nav a:hover,
+.animations-enabled nav button:hover {
+  transform: translateX(3px);
+}
+.animations-enabled nav a svg,
+.animations-enabled nav button svg {
+  transition: transform var(--anim-duration-base) var(--anim-ease-spring);
+}
+.animations-enabled nav a:hover svg,
+.animations-enabled nav button:hover svg {
+  transform: scale(var(--anim-nav-icon-scale)) rotate(var(--anim-nav-icon-rotate));
+}
+
+/* ── Tabs ── */
+.animations-enabled [role="tab"] {
+  transition:
+    transform        var(--anim-duration-fast) var(--anim-ease-spring),
+    background-color var(--anim-duration-fast) ease;
+}
+.animations-enabled [role="tab"]:hover:not([data-state="active"]) {
+  transform: translateY(-1px);
+}
+.animations-enabled [role="tabpanel"] {
+  animation: rm-scale-in var(--anim-duration-base) var(--anim-ease-out) both;
+}
+
+/* ── Badge ── */
+.animations-enabled [data-slot="badge"] {
+  transition: transform var(--anim-duration-fast) var(--anim-ease-spring);
+}
+.animations-enabled [data-slot="badge"]:hover {
+  transform: scale(1.07);
+}
+
+/* ── Select-Trigger ── */
+.animations-enabled [data-slot="select-trigger"] {
+  transition:
+    transform    var(--anim-duration-fast) var(--anim-ease-spring),
+    box-shadow   var(--anim-duration-fast) ease,
+    border-color var(--anim-duration-fast) ease;
+}
+.animations-enabled [data-slot="select-trigger"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px -2px oklch(0 0 0 / 12%);
+}
+
+/* ── Inputs ── */
+.animations-enabled input:not([type="checkbox"]):not([type="radio"]),
+.animations-enabled textarea {
+  transition: box-shadow var(--anim-duration-fast) ease,
+              border-color var(--anim-duration-fast) ease,
+              transform var(--anim-duration-fast) ease;
+}
+.animations-enabled input:not([type="checkbox"]):not([type="radio"]):focus,
+.animations-enabled textarea:focus {
+  transform: scale(1.005);
+}
+
+/* ── Dropdown-Items ── */
+.animations-enabled [role="menuitem"] {
+  transition:
+    transform        var(--anim-duration-fast) var(--anim-ease-spring),
+    background-color var(--anim-duration-fast) ease;
+}
+.animations-enabled [role="menuitem"]:hover {
+  transform: translateX(4px);
+}

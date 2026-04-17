@@ -30,6 +30,8 @@ export default function SettingsPage() {
 	const setDarkMode = useAppStore((s) => s.setDarkMode);
 	const theme = useAppStore((s) => s.theme);
 	const setTheme = useAppStore((s) => s.setTheme);
+	const animations = useAppStore((s) => s.animations);
+	const setAnimations = useAppStore((s) => s.setAnimations);
 	const [profile, setProfile] = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
@@ -198,6 +200,21 @@ export default function SettingsPage() {
 				</div>
 				<Button variant="outline" onClick={toggleDark}>
 					{darkMode ? 'Deaktivieren' : 'Aktivieren'}
+				</Button>
+			</div>
+
+			{/* UI Animationen */}
+			<div className="flex items-center justify-between">
+				<div>
+					<Label>UI Animationen</Label>
+					<p className="text-xs text-muted-foreground">Hover-Effekte, Karten-Lift, Seiten-Übergänge u.v.m.</p>
+				</div>
+				<Button
+					variant="outline"
+					onClick={() => setAnimations(!animations)}
+					className="min-w-25"
+				>
+					{animations ? 'Deaktivieren' : 'Aktivieren'}
 				</Button>
 			</div>
 

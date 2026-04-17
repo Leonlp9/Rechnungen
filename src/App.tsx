@@ -37,6 +37,7 @@ function App() {
   });
   const darkMode = useAppStore((s) => s.darkMode);
   const theme = useAppStore((s) => s.theme);
+  const animations = useAppStore((s) => s.animations);
   const autoUpdateBuiltins = useTemplateStore((s) => s.autoUpdateBuiltins);
 
   // Upgrade outdated builtin templates (e.g. missing items element) on every mount
@@ -56,6 +57,11 @@ function App() {
     }
     getCurrentWindow().setTheme(darkMode ? 'dark' : 'light').catch(() => {});
   }, [darkMode, theme]);
+
+  // Animationen-Klasse synchronisieren
+  useEffect(() => {
+    document.documentElement.classList.toggle('animations-enabled', animations);
+  }, [animations]);
 
   return (
     <>

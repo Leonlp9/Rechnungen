@@ -15,6 +15,8 @@ interface AppState {
   setDarkMode: (darkMode: boolean) => void;
   theme: AppTheme;
   setTheme: (theme: AppTheme) => void;
+  animations: boolean;
+  setAnimations: (animations: boolean) => void;
   privacyMode: boolean;
   togglePrivacyMode: () => void;
   searchOpen: boolean;
@@ -34,6 +36,8 @@ export const useAppStore = create<AppState>()(
       setDarkMode: (darkMode) => set({ darkMode }),
       theme: 'default' as AppTheme,
       setTheme: (theme) => set({ theme }),
+      animations: true,
+      setAnimations: (animations) => set({ animations }),
       privacyMode: false,
       togglePrivacyMode: () => set((s) => ({ privacyMode: !s.privacyMode })),
       searchOpen: false,
@@ -41,7 +45,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'rechnungs-manager-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations }),
     }
   )
 );
