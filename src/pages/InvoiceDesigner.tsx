@@ -9,6 +9,9 @@ import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { DesignerCanvas } from '@/components/designer/DesignerCanvas';
 import { PropertiesPanel } from '@/components/designer/PropertiesPanel';
 import { VariableManager } from '@/components/designer/VariableManager';
+import { NewTemplateDialog } from '@/components/designer/NewTemplateDialog';
+import type { AiTemplateResult } from '@/lib/gemini';
+import { DEFAULT_RECHNUNG } from '@/lib/defaultTemplates';
 import {
   Plus, Trash2, Copy, Type, Variable, Image, Square, Sliders, FileText, CheckSquare,
   Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2,
@@ -52,6 +55,7 @@ export default function InvoiceDesigner() {
   // Keep draftRef in sync so history helpers can read current draft without setDraft side-effects
   useEffect(() => { draftRef.current = draft; }, [draft]);
   const [varManagerOpen, setVarManagerOpen] = useState(false);
+  const [newTemplateDialogOpen, setNewTemplateDialogOpen] = useState(false);
   const [scale, setScale] = useState(0.65);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [switchPending, setSwitchPending] = useState<string | null>(null);
@@ -213,6 +217,23 @@ export default function InvoiceDesigner() {
     setSelectedTemplateId(t.id);
   };
 
+  const createTemplateFromAI = (result: AiTemplateResult) => {
+    const t: InvoiceTemplate = {
+      id: `tpl-${Date.now()}`,
+      name: result.name || 'KI-Template',
+      templateType: 'invoice',
+      isBuiltin: false,
+      // Reuse the shared system variables so all variableKeys are available
+      variables: DEFAULT_RECHNUNG.variables.map((v) => ({ ...v })),
+      elements: result.elements,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    addTemplate(t);
+    setSelectedTemplateId(t.id);
+    toast.success(`Template „${t.name}" wurde von der KI erstellt!`);
+  };
+
   const duplicateTemplate = (t: InvoiceTemplate) => {
     const copy: InvoiceTemplate = {
       ...t, id: `tpl-${Date.now()}`, name: `${t.name} (Kopie)`, isBuiltin: false,
@@ -237,7 +258,7 @@ export default function InvoiceDesigner() {
       {/* ── Left: Template list ── */}
       <div className="w-52 border-r border-border bg-background flex flex-col shrink-0">
         <div className="p-3 border-b border-border">
-          <Button size="sm" className="w-full text-xs" onClick={createTemplate}>
+          <Button size="sm" className="w-full text-xs" onClick={() => setNewTemplateDialogOpen(true)}>
             <Plus className="mr-1 h-3.5 w-3.5" /> Neues Template
           </Button>
         </div>
@@ -426,6 +447,14 @@ export default function InvoiceDesigner() {
           }}
         />
       )}
+
+      {/* ── New Template Dialog ── */}
+      <NewTemplateDialog
+        open={newTemplateDialogOpen}
+        onClose={() => setNewTemplateDialogOpen(false)}
+        onCreateFromScratch={() => { setNewTemplateDialogOpen(false); createTemplate(); }}
+        onCreateFromAI={(result) => { setNewTemplateDialogOpen(false); createTemplateFromAI(result); }}
+      />
 
       {/* ── Unsaved-changes blocker dialog (navigation) ── */}
       <Dialog open={blocker.state === 'blocked'} onOpenChange={() => blocker.reset?.()}>
