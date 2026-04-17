@@ -24,14 +24,14 @@ import {
 import { CATEGORY_LABELS, TYPE_LABELS } from '@/types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-
-const fmt = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+import { fmtCurrency } from '@/lib/utils';
 
 export default function Dashboard() {
   const invoices = useAppStore((s) => s.invoices);
   const setInvoices = useAppStore((s) => s.setInvoices);
   const selectedYear = useAppStore((s) => s.selectedYear);
   const setSelectedYear = useAppStore((s) => s.setSelectedYear);
+  const privacyMode = useAppStore((s) => s.privacyMode);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -97,15 +97,15 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KPICard title="Einnahmen YTD" value={fmt.format(einnahmen)} delta={deltaEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
-        <KPICard title="Ausgaben YTD" value={fmt.format(ausgaben)} delta={deltaAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
-        <KPICard title="Saldo YTD" value={fmt.format(saldo)} delta={deltaSaldo} icon={<Euro className="h-4 w-4 text-primary" />} />
+        <KPICard title="Einnahmen YTD" value={fmtCurrency(einnahmen, privacyMode)} delta={privacyMode ? undefined : deltaEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
+        <KPICard title="Ausgaben YTD" value={fmtCurrency(ausgaben, privacyMode)} delta={privacyMode ? undefined : deltaAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
+        <KPICard title="Saldo YTD" value={fmtCurrency(saldo, privacyMode)} delta={privacyMode ? undefined : deltaSaldo} icon={<Euro className="h-4 w-4 text-primary" />} />
         <KPICard title="Belege (30 Tage)" value={String(recentCount)} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <RevenueChart invoices={yearInvoices} />
-        <CategoryDonut invoices={yearInvoices} />
+        <RevenueChart invoices={yearInvoices} privacyMode={privacyMode} />
+        <CategoryDonut invoices={yearInvoices} privacyMode={privacyMode} />
       </div>
 
       <div className="rounded-xl border bg-card p-6 shadow-sm">
@@ -130,7 +130,7 @@ export default function Dashboard() {
                   <TableCell>{inv.partner}</TableCell>
                   <TableCell>{CATEGORY_LABELS[inv.category]}</TableCell>
                   <TableCell className={inv.type === 'einnahme' ? 'text-green-600' : inv.type === 'ausgabe' ? 'text-red-600' : ''}>
-                    {fmt.format(inv.brutto)}
+                    {fmtCurrency(inv.brutto, privacyMode)}
                   </TableCell>
                   <TableCell>{TYPE_LABELS[inv.type]}</TableCell>
                 </TableRow>

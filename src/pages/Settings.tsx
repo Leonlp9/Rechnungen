@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw } from 'lucide-react';
+import { getVersion } from '@tauri-apps/api/app';
+import { checkForUpdates } from '@/lib/updater';
 
 const PROFILE_FIELDS = [
 	{ key: 'profile_name', label: 'Name / Firma' },
@@ -23,15 +25,16 @@ const PROFILE_FIELDS = [
 export default function SettingsPage() {
 	const [apiKey, setApiKey] = useState('');
 	const [showKey, setShowKey] = useState(false);
-	const [primaryColor, setPrimaryColor] = useState('#1a1a1a');
 	const darkMode = useAppStore((s) => s.darkMode);
 	const setDarkMode = useAppStore((s) => s.setDarkMode);
 	const [profile, setProfile] = useState<Record<string, string>>({});
-	const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [version, setVersion] = useState('');
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
-	useEffect(() => {
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
 		getSetting('gemini_api_key').then((v) => { if (v) setApiKey(v); }).catch(console.error);
-		getSetting('primary_color').then((v) => { if (v) setPrimaryColor(v); }).catch(console.error);
 		// Load profile
 		Promise.all(
 			PROFILE_FIELDS.map(async (f) => {
@@ -59,16 +62,6 @@ export default function SettingsPage() {
 		try {
 			await setSetting('gemini_api_key', apiKey);
 			toast.success('API-Key gespeichert!');
-		} catch (e) {
-			toast.error('Fehler: ' + String(e));
-		}
-	};
-
-	const savePrimaryColor = async () => {
-		try {
-			await setSetting('primary_color', primaryColor);
-			document.documentElement.style.setProperty('--primary', primaryColor);
-			toast.success('Primärfarbe gespeichert!');
 		} catch (e) {
 			toast.error('Fehler: ' + String(e));
 		}
@@ -150,48 +143,45 @@ export default function SettingsPage() {
 				</CardContent>
 			</Card>
 
-			<Card className="rounded-xl shadow-sm">
-				<CardHeader>
-					<CardTitle className="text-base">Erscheinungsbild</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="flex items-center justify-between">
-						<div>
-							<Label>Dark Mode</Label>
-							<p className="text-xs text-muted-foreground">Dunkles Farbschema aktivieren</p>
-						</div>
-						<Button variant="outline" onClick={toggleDark}>
-							{darkMode ? 'Deaktivieren' : 'Aktivieren'}
-						</Button>
+		<Card className="rounded-xl shadow-sm">
+			<CardHeader>
+				<CardTitle className="text-base">Erscheinungsbild</CardTitle>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div className="flex items-center justify-between">
+					<div>
+						<Label>Dark Mode</Label>
+						<p className="text-xs text-muted-foreground">Dunkles Farbschema aktivieren</p>
 					</div>
-					<div className="space-y-1.5">
-						<Label>Primärfarbe</Label>
-						<div className="flex gap-2 items-center">
-							<input
-								type="color"
-								value={primaryColor}
-								onChange={(e) => setPrimaryColor(e.target.value)}
-								className="h-10 w-14 cursor-pointer rounded border-0"
-							/>
-							<Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-32" />
-							<Button onClick={savePrimaryColor}>
-								<Save className="mr-2 h-4 w-4" />
-								Speichern
-							</Button>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+					<Button variant="outline" onClick={toggleDark}>
+						{darkMode ? 'Deaktivieren' : 'Aktivieren'}
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
 
-			<Card className="rounded-xl shadow-sm">
-				<CardHeader>
-					<CardTitle className="text-base">Über</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<p className="text-sm text-muted-foreground">Rechnungs-Manager v0.1.0</p>
-					<p className="text-sm text-muted-foreground">Tauri + React + TypeScript</p>
-				</CardContent>
-			</Card>
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Über</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">Rechnungs-Manager</p>
+          <p className="text-sm text-muted-foreground">Version: <span className="font-mono font-medium text-foreground">{version ? `v${version}` : '...'}</span></p>
+          <p className="text-sm text-muted-foreground">Tauri + React + TypeScript</p>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              setCheckingUpdate(true);
+              await checkForUpdates(false);
+              setCheckingUpdate(false);
+            }}
+            disabled={checkingUpdate}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${checkingUpdate ? 'animate-spin' : ''}`} />
+            {checkingUpdate ? 'Suche...' : 'Nach Updates suchen'}
+          </Button>
+        </CardContent>
+      </Card>
 		</div>
 	);
 }

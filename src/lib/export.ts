@@ -1,10 +1,12 @@
 import ExcelJS from 'exceljs';
 import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { writeFile, readFile } from '@tauri-apps/plugin-fs';
 import type { Invoice } from '@/types';
 import { CATEGORY_LABELS, TYPE_LABELS } from '@/types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { zipSync } from 'fflate';
+import { getAbsolutePdfPath } from '@/lib/pdf';
 
 const MONTH_NAMES = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -12,6 +14,95 @@ const MONTH_NAMES = [
 ];
 
 const fmtEur = (v: number) => v.toFixed(2).replace('.', ',');
+
+/** Sanitize a string so it's safe to use as a filename */
+function sanitize(s: string): string {
+  return s.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim().slice(0, 60);
+}
+
+export async function exportToZip(invoices: Invoice[], year: number) {
+  const path = await save({
+    defaultPath: `Rechnungen_${year}.zip`,
+    filters: [{ name: 'ZIP', extensions: ['zip'] }],
+  });
+  if (!path) return;
+
+  const files: Record<string, Uint8Array> = {};
+
+  for (const inv of invoices) {
+    if (!inv.pdf_path) continue;
+
+    const monthIdx = inv.month - 1;
+    const monthFolder = `${String(inv.month).padStart(2, '0')}_${MONTH_NAMES[monthIdx]}`;
+    const catFolder = sanitize(CATEGORY_LABELS[inv.category] ?? inv.category);
+    const dateStr = format(new Date(inv.date), 'yyyy-MM-dd', { locale: de });
+    const partnerStr = sanitize(inv.partner);
+    const bruttoStr = fmtEur(inv.brutto).replace(',', '-');
+    const descStr = sanitize(inv.description);
+    const fileName = `${dateStr}_${partnerStr}_${bruttoStr}EUR_${descStr}.pdf`;
+
+    try {
+      const absPath = await getAbsolutePdfPath(inv.pdf_path);
+      const data = await readFile(absPath);
+      const zipPath = `${monthFolder}/${catFolder}/${fileName}`;
+      files[zipPath] = data;
+    } catch {
+      // PDF not found – skip
+    }
+  }
+
+  if (Object.keys(files).length === 0) {
+    throw new Error('Keine PDFs gefunden zum Exportieren.');
+  }
+
+  const zipped = zipSync(files, { level: 0 });
+  await writeFile(path, zipped);
+}
+
+export async function exportAll(invoices: Invoice[], year: number) {
+  const path = await save({
+    defaultPath: `Rechnungen_${year}.zip`,
+    filters: [{ name: 'ZIP', extensions: ['zip'] }],
+  });
+  if (!path) return;
+
+  const files: Record<string, Uint8Array> = {};
+
+  // --- PDFs nach Monat/Kategorie ---
+  for (const inv of invoices) {
+    if (!inv.pdf_path) continue;
+    const monthIdx = inv.month - 1;
+    const monthFolder = `${String(inv.month).padStart(2, '0')}_${MONTH_NAMES[monthIdx]}`;
+    const catFolder = sanitize(CATEGORY_LABELS[inv.category] ?? inv.category);
+    const dateStr = format(new Date(inv.date), 'yyyy-MM-dd', { locale: de });
+    const partnerStr = sanitize(inv.partner);
+    const bruttoStr = fmtEur(inv.brutto).replace(',', '-');
+    const descStr = sanitize(inv.description);
+    const fileName = `${dateStr}_${partnerStr}_${bruttoStr}EUR_${descStr}.pdf`;
+    try {
+      const absPath = await getAbsolutePdfPath(inv.pdf_path);
+      const data = await readFile(absPath);
+      files[`${monthFolder}/${catFolder}/${fileName}`] = data;
+    } catch {
+      // PDF not found – skip
+    }
+  }
+
+  // --- Excel ins Root der ZIP ---
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Rechnungs-Manager';
+  wb.created = new Date();
+  await buildWorkbook(wb, invoices, year);
+  const xlsxBuffer = await wb.xlsx.writeBuffer();
+  files[`Rechnungen_${year}.xlsx`] = new Uint8Array(xlsxBuffer as ArrayBuffer);
+
+  if (Object.keys(files).length === 0) {
+    throw new Error('Keine Dateien gefunden zum Exportieren.');
+  }
+
+  const zipped = zipSync(files, { level: 0 });
+  await writeFile(path, zipped);
+}
 
 export async function exportToXlsx(invoices: Invoice[], year: number) {
   const path = await save({
@@ -23,6 +114,12 @@ export async function exportToXlsx(invoices: Invoice[], year: number) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Rechnungs-Manager';
   wb.created = new Date();
+  await buildWorkbook(wb, invoices, year);
+  const buffer = await wb.xlsx.writeBuffer();
+  await writeFile(path, new Uint8Array(buffer as ArrayBuffer));
+}
+
+async function buildWorkbook(wb: ExcelJS.Workbook, invoices: Invoice[], year: number) {
 
   // --- Sheet 1: Alle Belege ---
   const ws1 = wb.addWorksheet('Alle Belege');
@@ -115,10 +212,7 @@ export async function exportToXlsx(invoices: Invoice[], year: number) {
   ws4.addRow({ note: `Export erstellt am ${format(new Date(), 'dd.MM.yyyy HH:mm', { locale: de })}` });
   ws4.addRow({ note: `Jahr: ${year}` });
   ws4.addRow({ note: `Anzahl Belege: ${invoices.length}` });
-  ws4.addRow({ note: 'Erstellt mit Rechnungs-Manager v0.1.0' });
-
-  const buffer = await wb.xlsx.writeBuffer();
-  await writeFile(path, new Uint8Array(buffer as ArrayBuffer));
+  ws4.addRow({ note: 'Erstellt mit Rechnungs-Manager' });
 }
 
 function styleHeaderRow(ws: ExcelJS.Worksheet) {

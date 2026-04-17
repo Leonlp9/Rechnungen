@@ -11,9 +11,10 @@ const fmtEur = (v: number) =>
 
 interface Props {
   invoices: Invoice[];
+  privacyMode?: boolean;
 }
 
-export function CategoryDonut({ invoices }: Props) {
+export function CategoryDonut({ invoices, privacyMode }: Props) {
   const data = useMemo(() => {
     const map = new Map<string, number>();
     for (const inv of invoices) {
@@ -54,7 +55,7 @@ export function CategoryDonut({ invoices }: Props) {
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => fmtEur(Number(v))} />
+              <Tooltip formatter={(v) => privacyMode ? '••••' : fmtEur(Number(v))} />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
@@ -63,5 +64,3 @@ export function CategoryDonut({ invoices }: Props) {
     </Card>
   );
 }
-
-

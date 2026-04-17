@@ -2,8 +2,6 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
-  CalendarDays,
-  Tags,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -11,18 +9,23 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import { getVersion } from '@tauri-apps/api/app';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/invoices', label: 'Alle Rechnungen', icon: FileText },
-  { to: '/by-year', label: 'Nach Jahr', icon: CalendarDays },
-  { to: '/by-category', label: 'Nach Kategorie', icon: Tags },
   { to: '/settings', label: 'Einstellungen', icon: Settings },
 ];
 
 export function Sidebar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const toggle = useAppStore((s) => s.toggleSidebar);
+  const [version, setVersion] = useState('');
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
+  }, []);
 
   return (
     <aside
@@ -70,10 +73,9 @@ export function Sidebar() {
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
         {!collapsed && (
-          <p className="mt-1 text-center text-xs text-muted-foreground">v0.1.0</p>
+          <p className="mt-1 text-center text-xs text-muted-foreground">v{version}</p>
         )}
       </div>
     </aside>
   );
 }
-

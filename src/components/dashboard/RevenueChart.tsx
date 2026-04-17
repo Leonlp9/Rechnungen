@@ -19,9 +19,10 @@ const fmtEur = (v: number) =>
 
 interface Props {
   invoices: Invoice[];
+  privacyMode?: boolean;
 }
 
-export function RevenueChart({ invoices }: Props) {
+export function RevenueChart({ invoices, privacyMode }: Props) {
   const data = useMemo(() => {
     return MONTH_SHORT.map((name, idx) => {
       const m = idx + 1;
@@ -44,8 +45,8 @@ export function RevenueChart({ invoices }: Props) {
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis dataKey="name" className="text-xs" />
-            <YAxis tickFormatter={(v) => fmtEur(v)} className="text-xs" width={80} />
-            <Tooltip formatter={(v) => fmtEur(Number(v))} />
+            <YAxis tickFormatter={(v) => privacyMode ? '••••' : fmtEur(v)} className="text-xs" width={80} />
+            <Tooltip formatter={(v) => privacyMode ? '••••' : fmtEur(Number(v))} />
             <Legend />
             <Line type="monotone" dataKey="Einnahmen" stroke="#22c55e" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="Ausgaben" stroke="#ef4444" strokeWidth={2} dot={false} />
@@ -55,5 +56,3 @@ export function RevenueChart({ invoices }: Props) {
     </Card>
   );
 }
-
-

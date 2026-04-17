@@ -1,4 +1,4 @@
-import { Search, Plus, Moon, Sun, Download } from 'lucide-react';
+import { Search, Plus, Moon, Sun, Download, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAppStore } from '@/store';
@@ -11,6 +11,8 @@ interface TopbarProps {
 export function Topbar({ onNewInvoice, onExport }: TopbarProps) {
   const darkMode = useAppStore((s) => s.darkMode);
   const setDarkMode = useAppStore((s) => s.setDarkMode);
+  const privacyMode = useAppStore((s) => s.privacyMode);
+  const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
 
   const toggleDark = () => {
     const next = !darkMode;
@@ -26,6 +28,9 @@ export function Topbar({ onNewInvoice, onExport }: TopbarProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={togglePrivacyMode} title={privacyMode ? 'Beträge einblenden' : 'Beträge ausblenden'}>
+          {privacyMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </Button>
         <Button variant="ghost" size="icon" onClick={toggleDark}>
           {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
