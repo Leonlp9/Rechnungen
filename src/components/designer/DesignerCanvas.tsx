@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import React from 'react';
 import { Rnd } from 'react-rnd';
-import type { InvoiceTemplate, TemplateElement, LineElement, LineItem } from '@/types/template';
+import type { InvoiceTemplate, TemplateElement, BaseElement, LineElement, LineItem } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { ElementRenderer } from './ElementRenderer';
 
@@ -14,7 +14,7 @@ function computeSnap(
   x: number, y: number, w: number, h: number,
   dragId: string, elements: TemplateElement[],
 ): { x: number; y: number; lines: SnapLine[] } {
-  const others = elements.filter(e => e.id !== dragId && e.type !== 'line');
+  const others = elements.filter(e => e.id !== dragId && e.type !== 'line') as BaseElement[];
   const lines: SnapLine[] = [];
 
   // X: left / center / right of dragged element vs all edges of others

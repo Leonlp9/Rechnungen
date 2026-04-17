@@ -290,7 +290,7 @@ export default function InvoiceDesigner() {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
       setFitMode('manual');
-      setScale((s) => Math.min(2, Math.max(0.2, +( s + delta).toFixed(1))));
+      setScale((s) => Math.min(5, Math.max(0.2, +( s + delta).toFixed(1))));
     };
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
@@ -588,11 +588,11 @@ export default function InvoiceDesigner() {
               <div className="h-3.5 w-px bg-border" />
               <Button variant="ghost" size="icon" className="h-6 w-6 text-xs"
                 onClick={() => { setFitMode('manual'); setScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1))); }}>−</Button>
-              <input type="range" min={20} max={200} value={Math.round(scale * 100)}
+              <input type="range" min={20} max={500} value={Math.round(scale * 100)}
                 onChange={(e) => { setFitMode('manual'); setScale(Number(e.target.value) / 100); }}
                 className="w-24 h-1 accent-primary cursor-pointer" />
               <Button variant="ghost" size="icon" className="h-6 w-6 text-xs"
-                onClick={() => { setFitMode('manual'); setScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
+                onClick={() => { setFitMode('manual'); setScale((s) => Math.min(5, +(s + 0.1).toFixed(1))); }}>+</Button>
               <span className="w-9 text-right tabular-nums">{Math.round(scale * 100)}%</span>
             </div>
           </div>
