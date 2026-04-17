@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
@@ -13,6 +13,20 @@ import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/upd
 import { useAppStore } from "@/store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
+
+const router = createBrowserRouter([
+  {
+    element: <AppLayout />,
+    children: [
+      { path: "/", element: <Dashboard /> },
+      { path: "/invoices", element: <AllInvoices /> },
+      { path: "/invoices/:id", element: <InvoiceDetail /> },
+      { path: "/write-invoice", element: <WriteInvoice /> },
+      { path: "/invoice-designer", element: <InvoiceDesigner /> },
+      { path: "/settings", element: <SettingsPage /> },
+    ],
+  },
+]);
 
 function App() {
   const [updateState, setUpdateState] = useState<UpdateState>({
@@ -31,17 +45,8 @@ function App() {
   }, [darkMode]);
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/invoices" element={<AllInvoices />} />
-          <Route path="/invoices/:id" element={<InvoiceDetail />} />
-          <Route path="/write-invoice" element={<WriteInvoice />} />
-          <Route path="/invoice-designer" element={<InvoiceDesigner />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
+    <>
+      <RouterProvider router={router} />
       <Toaster richColors position="bottom-right" />
       {updateState.open && (
         <UpdateDialog
@@ -53,8 +58,9 @@ function App() {
           onCancel={() => setUpdateState((s) => ({ ...s, open: false }))}
         />
       )}
-    </BrowserRouter>
+    </>
   );
 }
+
 
 export default App;

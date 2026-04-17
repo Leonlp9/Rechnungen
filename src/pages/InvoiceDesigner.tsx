@@ -39,6 +39,7 @@ export default function InvoiceDesigner() {
   const [draft, setDraft] = useState<InvoiceTemplate | null>(null);
   const [varManagerOpen, setVarManagerOpen] = useState(false);
   const [scale, setScale] = useState(0.65);
+  const [switchPending, setSwitchPending] = useState<string | null>(null); // id of template to switch to
 
   // Saved template from store
   const savedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null;
@@ -147,7 +148,8 @@ export default function InvoiceDesigner() {
 
   const switchTemplate = (id: string) => {
     if (isDirty) {
-      if (!window.confirm('Du hast ungespeicherte Änderungen. Jetzt wechseln und verwerfen?')) return;
+      setSwitchPending(id);
+      return;
     }
     setSelectedTemplateId(id);
   };
@@ -308,7 +310,7 @@ export default function InvoiceDesigner() {
         />
       )}
 
-      {/* ── Unsaved-changes blocker dialog ── */}
+      {/* ── Unsaved-changes blocker dialog (navigation) ── */}
       <Dialog open={blocker.state === 'blocked'} onOpenChange={() => blocker.reset?.()}>
         <DialogContent className="max-w-sm" showCloseButton={false} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
@@ -319,6 +321,9 @@ export default function InvoiceDesigner() {
             Möchtest du sie speichern oder verwerfen?
           </p>
           <div className="flex gap-2 justify-end pt-2">
+            <Button variant="ghost" onClick={() => blocker.reset?.()}>
+              Abbrechen
+            </Button>
             <Button variant="outline" onClick={() => {
               discard();
               blocker.proceed?.();
@@ -330,6 +335,38 @@ export default function InvoiceDesigner() {
               blocker.proceed?.();
             }}>
               Speichern & verlassen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Unsaved-changes dialog (template switch) ── */}
+      <Dialog open={switchPending !== null} onOpenChange={(o) => { if (!o) setSwitchPending(null); }}>
+        <DialogContent className="max-w-sm" showCloseButton={false} onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Ungespeicherte Änderungen</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Du hast ungespeicherte Änderungen am Template <span className="font-semibold text-foreground">„{draft?.name}"</span>.
+            Möchtest du sie speichern oder verwerfen?
+          </p>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="ghost" onClick={() => setSwitchPending(null)}>
+              Abbrechen
+            </Button>
+            <Button variant="outline" onClick={() => {
+              discard();
+              setSelectedTemplateId(switchPending);
+              setSwitchPending(null);
+            }}>
+              Verwerfen & wechseln
+            </Button>
+            <Button onClick={() => {
+              save();
+              setSelectedTemplateId(switchPending);
+              setSwitchPending(null);
+            }}>
+              Speichern & wechseln
             </Button>
           </div>
         </DialogContent>
