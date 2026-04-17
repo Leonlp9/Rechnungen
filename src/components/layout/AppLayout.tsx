@@ -1,13 +1,17 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { NewInvoiceDialog } from '@/components/invoices/NewInvoiceDialog';
 import { ExportDialog } from '@/components/invoices/ExportDialog';
 
+const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice'];
+
 export function AppLayout() {
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const { pathname } = useLocation();
+  const fullHeight = FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r));
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -17,7 +21,7 @@ export function AppLayout() {
           onNewInvoice={() => setNewInvoiceOpen(true)}
           onExport={() => setExportOpen(true)}
         />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className={fullHeight ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto p-6'}>
           <Outlet />
         </main>
       </div>

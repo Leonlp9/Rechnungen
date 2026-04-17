@@ -6,6 +6,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Receipt,
+  FilePlus2,
+  PenSquare,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -15,6 +17,8 @@ import { getVersion } from '@tauri-apps/api/app';
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/invoices', label: 'Alle Rechnungen', icon: FileText },
+  { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2 },
+  { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare },
   { to: '/settings', label: 'Einstellungen', icon: Settings },
 ];
 

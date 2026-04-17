@@ -167,7 +167,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Neue Rechnung</DialogTitle>
         </DialogHeader>

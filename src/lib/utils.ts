@@ -11,6 +11,6 @@ const eurFormatter = new Intl.NumberFormat("de-DE", {
 });
 
 export function fmtCurrency(value: number, privacyMode: boolean): string {
-  if (privacyMode) return "•••• €";
+  if (privacyMode) return "••••";
   return eurFormatter.format(value);
 }

@@ -10,7 +10,7 @@ interface AppState {
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
   darkMode: boolean;
-  setDarkMode: (v: boolean) => void;
+  setDarkMode: (darkMode: boolean) => void;
   privacyMode: boolean;
   togglePrivacyMode: () => void;
 }

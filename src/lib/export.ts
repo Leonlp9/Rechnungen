@@ -60,48 +60,9 @@ export async function exportToZip(invoices: Invoice[], year: number) {
 }
 
 export async function exportAll(invoices: Invoice[], year: number) {
-  const path = await save({
-    defaultPath: `Rechnungen_${year}.zip`,
-    filters: [{ name: 'ZIP', extensions: ['zip'] }],
-  });
-  if (!path) return;
-
-  const files: Record<string, Uint8Array> = {};
-
-  // --- PDFs nach Monat/Kategorie ---
-  for (const inv of invoices) {
-    if (!inv.pdf_path) continue;
-    const monthIdx = inv.month - 1;
-    const monthFolder = `${String(inv.month).padStart(2, '0')}_${MONTH_NAMES[monthIdx]}`;
-    const catFolder = sanitize(CATEGORY_LABELS[inv.category] ?? inv.category);
-    const dateStr = format(new Date(inv.date), 'yyyy-MM-dd', { locale: de });
-    const partnerStr = sanitize(inv.partner);
-    const bruttoStr = fmtEur(inv.brutto).replace(',', '-');
-    const descStr = sanitize(inv.description);
-    const fileName = `${dateStr}_${partnerStr}_${bruttoStr}EUR_${descStr}.pdf`;
-    try {
-      const absPath = await getAbsolutePdfPath(inv.pdf_path);
-      const data = await readFile(absPath);
-      files[`${monthFolder}/${catFolder}/${fileName}`] = data;
-    } catch {
-      // PDF not found – skip
-    }
-  }
-
-  // --- Excel ins Root der ZIP ---
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'Rechnungs-Manager';
-  wb.created = new Date();
-  await buildWorkbook(wb, invoices, year);
-  const xlsxBuffer = await wb.xlsx.writeBuffer();
-  files[`Rechnungen_${year}.xlsx`] = new Uint8Array(xlsxBuffer as ArrayBuffer);
-
-  if (Object.keys(files).length === 0) {
-    throw new Error('Keine Dateien gefunden zum Exportieren.');
-  }
-
-  const zipped = zipSync(files, { level: 0 });
-  await writeFile(path, zipped);
+  // Export both XLSX + ZIP – user picks save path for each
+  await exportToXlsx(invoices, year);
+  await exportToZip(invoices, year);
 }
 
 export async function exportToXlsx(invoices: Invoice[], year: number) {
@@ -114,12 +75,6 @@ export async function exportToXlsx(invoices: Invoice[], year: number) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Rechnungs-Manager';
   wb.created = new Date();
-  await buildWorkbook(wb, invoices, year);
-  const buffer = await wb.xlsx.writeBuffer();
-  await writeFile(path, new Uint8Array(buffer as ArrayBuffer));
-}
-
-async function buildWorkbook(wb: ExcelJS.Workbook, invoices: Invoice[], year: number) {
 
   // --- Sheet 1: Alle Belege ---
   const ws1 = wb.addWorksheet('Alle Belege');
@@ -212,7 +167,10 @@ async function buildWorkbook(wb: ExcelJS.Workbook, invoices: Invoice[], year: nu
   ws4.addRow({ note: `Export erstellt am ${format(new Date(), 'dd.MM.yyyy HH:mm', { locale: de })}` });
   ws4.addRow({ note: `Jahr: ${year}` });
   ws4.addRow({ note: `Anzahl Belege: ${invoices.length}` });
-  ws4.addRow({ note: 'Erstellt mit Rechnungs-Manager' });
+  ws4.addRow({ note: 'Erstellt mit Rechnungs-Manager v0.1.0' });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  await writeFile(path, new Uint8Array(buffer as ArrayBuffer));
 }
 
 function styleHeaderRow(ws: ExcelJS.Worksheet) {
@@ -220,4 +178,3 @@ function styleHeaderRow(ws: ExcelJS.Worksheet) {
   row.font = { bold: true };
   row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
 }
-

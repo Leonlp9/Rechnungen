@@ -28,7 +28,7 @@ export function UpdateDialog({ version, releaseNotes, phase, progress, onConfirm
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && allowClose) onCancel(); }}>
-      <DialogContent className="max-w-sm" showCloseButton={allowClose} onInteractOutside={(e) => { if (!allowClose) e.preventDefault(); }}>
+      <DialogContent className="max-w-sm" onInteractOutside={(e) => { if (!allowClose) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="h-5 w-5 text-primary" />

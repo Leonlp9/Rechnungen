@@ -51,7 +51,7 @@ JSON-Schema:
   "brutto": 0.00,
   "currency": "EUR",
   "type": "einnahme | ausgabe | info",
-  "suggested_category": "einnahmen | erstattungen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | vertraege | sonstiges"
+  "suggested_category": "einnahmen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | vertraege | sonstiges"
 }
 
 === REGELN FÜR "type" ===
@@ -61,8 +61,7 @@ JSON-Schema:
 
 === REGELN FÜR "suggested_category" ===
 Wähle die passendste Kategorie:
-- "einnahmen": NUR wenn type="einnahme" ist. Echte Umsätze/Erlöse des Benutzers (z.B. Rechnungen die er gestellt hat).
-- "erstattungen": Auslagenerstattungen, Rückerstattungen, Kostenübernahmen – der Benutzer bekommt Geld zurück für etwas das er verauslagt hat. type="einnahme".
+- "einnahmen": NUR wenn type="einnahme" ist. Umsätze/Erlöse des Benutzers.
 - "anlagevermoegen_afa": Anschaffungen > 800€ netto, die über Jahre abgeschrieben werden (z.B. Laptop, Möbel, Maschinen).
 - "gwg": Geringwertige Wirtschaftsgüter, Anschaffungen bis 800€ netto (z.B. Monitor, Tastatur, Bürostuhl).
 - "software_abos": Software-Lizenzen, SaaS-Abos, Cloud-Dienste (z.B. Adobe, GitHub, Hosting).
@@ -104,7 +103,7 @@ WICHTIG:
           type: { type: 'STRING', enum: ['einnahme', 'ausgabe', 'info'] },
           suggested_category: {
             type: 'STRING',
-            enum: ['einnahmen', 'erstattungen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'vertraege', 'sonstiges'],
+            enum: ['einnahmen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'vertraege', 'sonstiges'],
           },
         },
         required: ['date', 'description', 'partner', 'netto', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],

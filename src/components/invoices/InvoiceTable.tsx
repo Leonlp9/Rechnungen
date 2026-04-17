@@ -10,7 +10,7 @@ import { CATEGORY_LABELS, TYPE_LABELS, CATEGORIES, INVOICE_TYPES } from '@/types
 import type { Invoice, Category, InvoiceType } from '@/types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ArrowUpDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { fmtCurrency } from '@/lib/utils';
 import { InvoiceContextMenu } from './InvoiceContextMenu';
@@ -83,14 +83,18 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   // Reset to page 1 when filters/search change
   const setFilter = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); setPage(1); };
 
-  const SortHeader = ({ label, field }: { label: string; field: SortKey }) => (
-    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort(field)}>
-      <div className="flex items-center gap-1">
-        {label}
-        <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-      </div>
-    </TableHead>
-  );
+  const SortHeader = ({ label, field }: { label: string; field: SortKey }) => {
+    const active = sortKey === field;
+    const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+    return (
+      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort(field)}>
+        <div className="flex items-center gap-1">
+          {label}
+          <Icon className={`h-3 w-3 ${active ? 'text-foreground' : 'text-muted-foreground'}`} />
+        </div>
+      </TableHead>
+    );
+  };
 
   const hasFilters = (showYearFilter && filterYear) || filterCategory || filterType;
 
