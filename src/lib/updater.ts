@@ -5,6 +5,7 @@ import type { UpdatePhase } from '@/components/UpdateDialog';
 export interface UpdateState {
   open: boolean;
   version: string;
+  releaseNotes?: string;
   phase: UpdatePhase;
   progress: number;
 }
@@ -27,7 +28,7 @@ export async function checkForUpdates(silent = false) {
       return;
     }
     _pendingUpdate = update;
-    _setState?.({ open: true, version: update.version, phase: 'confirm', progress: 0 });
+    _setState?.({ open: true, version: update.version, releaseNotes: update.body ?? undefined, phase: 'confirm', progress: 0 });
   } catch (e) {
     if (!silent) toast.error('Update-Check fehlgeschlagen: ' + String(e));
     console.error('Update check failed:', e);

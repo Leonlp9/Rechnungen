@@ -33,6 +33,7 @@ function App() {
       {updateState.open && (
         <UpdateDialog
           version={updateState.version}
+          releaseNotes={updateState.releaseNotes}
           phase={updateState.phase}
           progress={updateState.progress}
           onConfirm={() => startDownload()}

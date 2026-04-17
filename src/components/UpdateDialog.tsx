@@ -8,13 +8,14 @@ export type UpdatePhase = 'confirm' | 'downloading' | 'done';
 
 interface Props {
   version: string;
+  releaseNotes?: string;
   phase: UpdatePhase;
   progress: number; // 0–100
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function UpdateDialog({ version, phase, progress, onConfirm, onCancel }: Props) {
+export function UpdateDialog({ version, releaseNotes, phase, progress, onConfirm, onCancel }: Props) {
   const [relaunching, setRelaunching] = useState(false);
 
   // prevent closing during download
@@ -27,7 +28,7 @@ export function UpdateDialog({ version, phase, progress, onConfirm, onCancel }: 
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && allowClose) onCancel(); }}>
-      <DialogContent className="max-w-sm" onInteractOutside={(e) => { if (!allowClose) e.preventDefault(); }}>
+      <DialogContent className="max-w-sm" showCloseButton={allowClose} onInteractOutside={(e) => { if (!allowClose) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="h-5 w-5 text-primary" />
@@ -43,6 +44,12 @@ export function UpdateDialog({ version, phase, progress, onConfirm, onCancel }: 
               Version <span className="font-semibold text-foreground">{version}</span> ist verfügbar.
               Möchtest du das Update jetzt herunterladen und installieren?
             </p>
+            {releaseNotes && (
+              <div className="rounded-md border bg-muted/50 p-3 max-h-40 overflow-y-auto">
+                <p className="text-xs font-semibold text-foreground mb-1">Was ist neu?</p>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{releaseNotes}</p>
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={onCancel}>Später</Button>
               <Button onClick={onConfirm}>Jetzt aktualisieren</Button>

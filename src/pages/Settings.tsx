@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getSetting, setSetting } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
+import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
 
 const PROFILE_FIELDS = [
 	{ key: 'profile_name', label: 'Name / Firma' },
@@ -31,6 +32,45 @@ export default function SettingsPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  // --- Dev-Preview für UpdateDialog ---
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewPhase, setPreviewPhase] = useState<UpdatePhase>('confirm');
+  const [previewProgress, setPreviewProgress] = useState(0);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startPreview = (phase: UpdatePhase) => {
+    setPreviewPhase(phase);
+    setPreviewProgress(phase === 'downloading' ? 0 : 0);
+    setPreviewOpen(true);
+    if (phase === 'downloading') {
+      if (progressRef.current) clearInterval(progressRef.current);
+      setPreviewProgress(0);
+      progressRef.current = setInterval(() => {
+        setPreviewProgress((p) => {
+          if (p >= 100) {
+            clearInterval(progressRef.current!);
+            return 100;
+          }
+          return p + 2;
+        });
+      }, 80);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    if (progressRef.current) clearInterval(progressRef.current);
+  };
+
+  // Wenn Download-Simulation fertig → Phase 'done'
+  useEffect(() => {
+    if (previewPhase === 'downloading' && previewProgress >= 100) {
+      const t = setTimeout(() => setPreviewPhase('done'), 400);
+      return () => clearTimeout(t);
+    }
+  }, [previewPhase, previewProgress]);
+  // ------------------------------------
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
@@ -182,6 +222,35 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
-		</div>
+
+      {/* Dev-Preview – nur im Entwicklungsmodus sichtbar */}
+      {import.meta.env.DEV && (
+        <Card className="rounded-xl shadow-sm border-dashed border-yellow-500/60">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <FlaskConical className="h-5 w-5 text-yellow-500" />
+              <CardTitle className="text-base text-yellow-600 dark:text-yellow-400">Dev: UpdateDialog Vorschau</CardTitle>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Nur im Dev-Modus sichtbar.</p>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => startPreview('confirm')}>Phase: confirm</Button>
+            <Button variant="outline" size="sm" onClick={() => startPreview('downloading')}>Phase: downloading (animiert)</Button>
+            <Button variant="outline" size="sm" onClick={() => startPreview('done')}>Phase: done</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {previewOpen && (
+        <UpdateDialog
+          version="1.2.3"
+          releaseNotes={"• Neue Funktion A\n• Bugfix B\n• Performance verbessert"}
+          phase={previewPhase}
+          progress={previewProgress}
+          onConfirm={() => startPreview('downloading')}
+          onCancel={closePreview}
+        />
+      )}
+    </div>
 	);
 }
