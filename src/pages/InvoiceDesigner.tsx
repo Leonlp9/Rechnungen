@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useBlocker } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTemplateStore } from '@/store/templateStore';
-import type { InvoiceTemplate, TemplateElement, ItemsElement, LineElement } from '@/types/template';
-import { CANVAS_W, CANVAS_H } from '@/types/template';
+import type { InvoiceTemplate, TemplateElement, ItemsElement, LineElement, BaseElement } from '@/types/template';
+import { CANVAS_W, CANVAS_H, DEFAULT_FONT_FAMILY } from '@/types/template';
 import { DesignerCanvas } from '@/components/designer/DesignerCanvas';
 import { PropertiesPanel } from '@/components/designer/PropertiesPanel';
 import { VariableManager } from '@/components/designer/VariableManager';
@@ -21,10 +20,10 @@ import { toast } from 'sonner';
 function newId() { return `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
 
 function defaultTextEl(): TemplateElement {
-  return { id: newId(), type: 'text', x: 100, y: 100, width: 200, height: 40, zIndex: 5, content: 'Neuer Text', fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', color: '#111827', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.3 };
+  return { id: newId(), type: 'text', x: 100, y: 100, width: 200, height: 40, zIndex: 5, content: 'Neuer Text', fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', fontFamily: DEFAULT_FONT_FAMILY, color: '#111827', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.3 };
 }
 function defaultVarEl(key = ''): TemplateElement {
-  return { id: newId(), type: 'variable', x: 100, y: 100, width: 200, height: 30, zIndex: 5, variableKey: key, prefix: '', suffix: '', fontSize: 12, fontWeight: 'normal', fontStyle: 'normal', color: '#2563eb', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.3 };
+  return { id: newId(), type: 'variable', x: 100, y: 100, width: 200, height: 30, zIndex: 5, variableKey: key, prefix: '', suffix: '', fontSize: 12, fontWeight: 'normal', fontStyle: 'normal', fontFamily: DEFAULT_FONT_FAMILY, color: '#2563eb', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.3 };
 }
 function defaultRectEl(): TemplateElement {
   return { id: newId(), type: 'rectangle', x: 100, y: 100, width: 200, height: 60, zIndex: 1, backgroundColor: '#e0e7ff', borderColor: '#6366f1', borderWidth: 1, borderRadius: 4 };
@@ -281,6 +280,21 @@ export default function InvoiceDesigner() {
     }
     setSelectedTemplateId(id);
   };
+
+  // ── Ctrl+Wheel zoom ─────────────────────────────────────────────────
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setFitMode('manual');
+      setScale((s) => Math.min(2, Math.max(0.2, +( s + delta).toFixed(1))));
+    };
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, []);
 
   // ── Auto-fit scale ──────────────────────────────────────────────────
   useEffect(() => {
@@ -549,7 +563,8 @@ export default function InvoiceDesigner() {
         {draft && (
           <div className="border-t border-border bg-background px-4 py-1 text-xs text-muted-foreground shrink-0 flex gap-4 items-center">
             <span>A4 – {CANVAS_W}×{CANVAS_H}px</span>
-            {selectedElement && <span>Auswahl: {selectedElement.x},{selectedElement.y} – {selectedElement.width}×{selectedElement.height}px</span>}
+            {selectedElement && selectedElement.type !== 'line' && <span>Auswahl: {(selectedElement as BaseElement).x},{(selectedElement as BaseElement).y} – {(selectedElement as BaseElement).width}×{(selectedElement as BaseElement).height}px</span>}
+            {selectedElement && selectedElement.type === 'line' && <span>Auswahl: Linie ({(selectedElement as LineElement).x1},{(selectedElement as LineElement).y1}) → ({(selectedElement as LineElement).x2},{(selectedElement as LineElement).y2})</span>}
             {isDirty && <span className="text-orange-500 font-medium">● Ungespeicherte Änderungen</span>}
             {/* Zoom + Snap – rechts */}
             <div className="ml-auto flex items-center gap-1.5">

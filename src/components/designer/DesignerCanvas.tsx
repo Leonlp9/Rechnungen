@@ -14,7 +14,7 @@ function computeSnap(
   x: number, y: number, w: number, h: number,
   dragId: string, elements: TemplateElement[],
 ): { x: number; y: number; lines: SnapLine[] } {
-  const others = elements.filter(e => e.id !== dragId);
+  const others = elements.filter(e => e.id !== dragId && e.type !== 'line');
   const lines: SnapLine[] = [];
 
   // X: left / center / right of dragged element vs all edges of others

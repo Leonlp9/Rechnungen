@@ -145,10 +145,27 @@ function renderItemsTable(
   });
 }
 
-function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[]) {  const x = el.x * PX_TO_MM;
-  const y = el.y * PX_TO_MM;
-  const w = el.width * PX_TO_MM;
-  const h = el.height * PX_TO_MM;
+function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[]) {
+  // Line elements have no x/y/width/height – handle them before the common vars
+  if (el.type === 'line') {
+    const ln = el as unknown as import('@/types/template').LineElement;
+    const [r, g, b] = hexToRgb(ln.color || '#111827');
+    doc.setDrawColor(r, g, b);
+    const lw = (ln.thickness || 2) * PX_TO_MM;
+    doc.setLineWidth(lw);
+    if (ln.style === 'dashed') doc.setLineDashPattern([2, 2], 0);
+    else if (ln.style === 'dotted') doc.setLineDashPattern([0.5, 1.5], 0);
+    else doc.setLineDashPattern([], 0);
+    doc.line(ln.x1 * PX_TO_MM, ln.y1 * PX_TO_MM, ln.x2 * PX_TO_MM, ln.y2 * PX_TO_MM);
+    doc.setLineDashPattern([], 0);
+    return;
+  }
+
+  const base = el as import('@/types/template').BaseElement;
+  const x = base.x * PX_TO_MM;
+  const y = base.y * PX_TO_MM;
+  const w = base.width * PX_TO_MM;
+  const h = base.height * PX_TO_MM;
 
   switch (el.type) {
     case 'rectangle': {
@@ -188,19 +205,6 @@ function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, s
     }
     case 'items': {
       renderItemsTable(doc, el as ItemsElement, lineItems || []);
-      break;
-    }
-    case 'line': {
-      const ln = el as unknown as import('@/types/template').LineElement;
-      const [r, g, b] = hexToRgb(ln.color || '#111827');
-      doc.setDrawColor(r, g, b);
-      const lw = (ln.thickness || 2) * PX_TO_MM;
-      doc.setLineWidth(lw);
-      if (ln.style === 'dashed') doc.setLineDashPattern([2, 2], 0);
-      else if (ln.style === 'dotted') doc.setLineDashPattern([0.5, 1.5], 0);
-      else doc.setLineDashPattern([], 0);
-      doc.line(ln.x1 * PX_TO_MM, ln.y1 * PX_TO_MM, ln.x2 * PX_TO_MM, ln.y2 * PX_TO_MM);
-      doc.setLineDashPattern([], 0);
       break;
     }
   }
