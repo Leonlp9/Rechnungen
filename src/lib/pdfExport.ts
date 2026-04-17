@@ -77,7 +77,6 @@ function renderItemsTable(
   const headerTxt = el.headerTextColor || '#ffffff';
   const borderCol = el.borderColor || '#d1d5db';
   const altBg = el.altRowBgColor || '#f8fafc';
-  const summaryBg = el.summaryBgColor || '#1e3a5f';
 
   let cy = el.y * PX_TO_MM;
 
@@ -122,10 +121,8 @@ function renderItemsTable(
     ['left', 'left', 'right', 'right', 'right', 'right']);
 
   // Data rows
-  let netto = 0;
   lineItems.forEach((item, idx) => {
     const total = item.quantity * item.unitPrice;
-    netto += total;
     const bg = idx % 2 === 1 ? altBg : '#ffffff';
     drawRow(
       [
@@ -142,7 +139,7 @@ function renderItemsTable(
   });
 }
 
-function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[], includeMwst?: boolean) {  const x = el.x * PX_TO_MM;
+function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[]) {  const x = el.x * PX_TO_MM;
   const y = el.y * PX_TO_MM;
   const w = el.width * PX_TO_MM;
   const h = el.height * PX_TO_MM;
@@ -200,7 +197,7 @@ export async function generateTemplatePdf(
 
   const sorted = [...template.elements].sort((a, b) => a.zIndex - b.zIndex);
   for (const el of sorted) {
-    renderElement(doc, el, values, lineItems, includeMwst);
+    renderElement(doc, el, values, lineItems);
   }
 
   return doc.output('arraybuffer');

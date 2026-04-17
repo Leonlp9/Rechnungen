@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import React from 'react';
 import { Rnd } from 'react-rnd';
 import type { InvoiceTemplate, TemplateElement, LineItem } from '@/types/template';
@@ -151,7 +151,14 @@ export function DesignerCanvas({
 
         {sorted.map((el) =>
           readOnly ? (
-            <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.width, height: el.height, zIndex: el.zIndex }}>
+            <div key={el.id} style={{
+              position: 'absolute', left: el.x, top: el.y,
+              width: el.width,
+              // items elements grow with content; other elements use fixed height
+              height: el.type === 'items' ? 'auto' : el.height,
+              minHeight: el.type === 'items' ? el.height : undefined,
+              zIndex: el.zIndex,
+            }}>
               <ElementRenderer element={el} variableValues={variableValues} lineItems={lineItems} includeMwst={includeMwst} />
             </div>
           ) : (
