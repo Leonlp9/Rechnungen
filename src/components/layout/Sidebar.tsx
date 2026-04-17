@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -8,11 +8,44 @@ import {
   Receipt,
   FilePlus2,
   PenSquare,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
+
+function useNavHistory() {
+  const location = useLocation();
+  const [idx, setIdx] = useState(() => (window.history.state as { idx?: number })?.idx ?? 0);
+  const [maxIdx, setMaxIdx] = useState(() => (window.history.state as { idx?: number })?.idx ?? 0);
+  const isPop = useRef(false);
+
+  useEffect(() => {
+    const onPop = () => {
+      isPop.current = true;
+      const newIdx = (window.history.state as { idx?: number })?.idx ?? 0;
+      setIdx(newIdx);
+      setMaxIdx((prev) => Math.max(prev, newIdx));
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    const newIdx = (window.history.state as { idx?: number })?.idx ?? 0;
+    if (isPop.current) {
+      isPop.current = false;
+    } else {
+      // push navigation → forward history cleared
+      setIdx(newIdx);
+      setMaxIdx(newIdx);
+    }
+  }, [location]);
+
+  return { canGoBack: idx > 0, canGoForward: idx < maxIdx };
+}
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,6 +59,8 @@ export function Sidebar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const toggle = useAppStore((s) => s.toggleSidebar);
   const [version, setVersion] = useState('');
+  const navigate = useNavigate();
+  const { canGoBack, canGoForward } = useNavHistory();
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
@@ -42,7 +77,27 @@ export function Sidebar() {
       <div className="flex h-14 items-center gap-2 border-b border-border px-4">
         <Receipt className="h-6 w-6 shrink-0 text-primary" />
         {!collapsed && (
-          <span className="text-lg font-semibold tracking-tight">Rechnungen</span>
+          <>
+            <span className="text-lg font-semibold tracking-tight flex-1">Rechnungen</span>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => navigate(-1)}
+                disabled={!canGoBack}
+                title="Zurück"
+                className="rounded p-1 text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => navigate(1)}
+                disabled={!canGoForward}
+                title="Vor"
+                className="rounded p-1 text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </>
         )}
       </div>
 

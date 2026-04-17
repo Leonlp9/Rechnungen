@@ -143,7 +143,7 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
           backgroundColor: t.backgroundColor === 'transparent' ? 'transparent' : t.backgroundColor,
         }}>
           <span style={{
-            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontFamily: t.fontFamily || 'Helvetica, Arial, sans-serif',
             fontSize: t.fontSize,
             fontWeight: t.fontWeight,
             fontStyle: t.fontStyle,
@@ -169,7 +169,7 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
           backgroundColor: v.backgroundColor === 'transparent' ? 'transparent' : v.backgroundColor,
         }}>
           <span style={{
-            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontFamily: v.fontFamily || 'Helvetica, Arial, sans-serif',
             fontSize: v.fontSize,
             fontWeight: v.fontWeight,
             fontStyle: v.fontStyle,

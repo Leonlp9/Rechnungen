@@ -33,6 +33,27 @@ export default function WriteInvoice() {
   const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('page');
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const isResizing = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(320);
+  const handleResizeStart = (e: React.MouseEvent) => {
+    isResizing.current = true;
+    startX.current = e.clientX;
+    startWidth.current = sidebarWidth;
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newW = Math.min(600, Math.max(220, startWidth.current + ev.clientX - startX.current));
+      setSidebarWidth(newW);
+    };
+    const onUp = () => {
+      isResizing.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
   const [includeMwst, setIncludeMwst] = useState(true);
   const template = templates.find((t) => t.id === selectedId) ?? null;
@@ -118,7 +139,7 @@ export default function WriteInvoice() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      <div className="w-80 border-r border-border bg-background overflow-y-auto flex flex-col shrink-0">
+      <div style={{ width: sidebarWidth, minWidth: 220, maxWidth: 600 }} className="border-r border-border bg-background overflow-y-auto flex flex-col shrink-0">
         <div className="p-4 border-b border-border">
           <h2 className="font-bold text-base flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -253,6 +274,12 @@ export default function WriteInvoice() {
           </Button>
         </div>
       </div>
+      {/* Resize Handle */}
+      <div
+        onMouseDown={handleResizeStart}
+        className="w-1.5 cursor-col-resize bg-border hover:bg-primary/40 transition-colors shrink-0 active:bg-primary/60"
+        title="Breite anpassen"
+      />
       {showPreview && (
         <div className="flex-1 overflow-auto bg-muted/20 flex flex-col">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background shrink-0">
@@ -264,23 +291,15 @@ export default function WriteInvoice() {
             <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
             <span className="text-xs text-muted-foreground w-10">{Math.round(previewScale * 100)}%</span>
             <Button
-              variant={fitMode === 'width' ? 'default' : 'outline'}
+              variant={(fitMode === 'width' || fitMode === 'page') ? 'default' : 'outline'}
               size="icon" className="h-7 w-7"
-              title="An Breite anpassen"
-              onClick={() => setFitMode('width')}
+              title={fitMode === 'width' ? 'An Breite anpassen (aktiv) – klicken für Seite' : 'An Seite anpassen (aktiv) – klicken für Breite'}
+              onClick={() => setFitMode((m) => m === 'width' ? 'page' : 'width')}
             >
-              <ArrowLeftRight className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant={fitMode === 'page' ? 'default' : 'outline'}
-              size="icon" className="h-7 w-7"
-              title="An Seite anpassen"
-              onClick={() => setFitMode('page')}
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
+              {fitMode === 'width' ? <ArrowLeftRight className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </Button>
           </div>
-          <div className="flex-1 overflow-auto p-8" ref={previewContainerRef}>
+          <div className="flex-1 overflow-auto p-8 select-text" ref={previewContainerRef}>
             {template ? (
               <div className="space-y-3 w-fit mx-auto">
                 <p className="text-xs text-center text-muted-foreground">Vorschau (Variablen aufgeloest)</p>

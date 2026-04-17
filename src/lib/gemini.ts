@@ -1,7 +1,7 @@
 import { getSetting } from '@/lib/db';
 import type { GeminiResult } from '@/types';
 import type { TemplateElement, ItemsElement } from '@/types/template';
-import { CANVAS_W, CANVAS_H } from '@/types/template';
+import { CANVAS_W, CANVAS_H, DEFAULT_FONT_FAMILY, FONT_FAMILIES } from '@/types/template';
 
 export interface AiTemplateResult {
   name: string;
@@ -94,6 +94,7 @@ POSITIONIERUNGSREGELN
 - zIndex: rectangle im Hintergrund = 1, text/variable/image = 5, Elemente über Rechtecken = 3
 - Farben immer als Hex-Werte (#rrggbb), nie als CSS-Namen
 - lineHeight: Zahl zwischen 1.0 und 2.0
+- fontFamily: Wähle die Schriftart die optisch am besten zum Layout passt. Standard ist "Helvetica, Arial, sans-serif". Mögliche Werte: ${FONT_FAMILIES.map(f => `"${f.value}"`).join(', ')}
 
 Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Blau", "Klassisch Minimalistisch").`;
 
@@ -135,6 +136,11 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
                 fontSize: { type: 'number' },
                 fontWeight: { type: 'string', enum: ['normal', 'bold'] },
                 fontStyle: { type: 'string', enum: ['normal', 'italic'] },
+                fontFamily: {
+                  type: 'string',
+                  description: 'CSS-Schriftart-Stack, z.B. "Helvetica, Arial, sans-serif"',
+                  enum: FONT_FAMILIES.map((f) => f.value),
+                },
                 color: { type: 'string', description: 'Hex-Farbe z.B. #111827' },
                 backgroundColor: { type: 'string', description: 'Hex-Farbe oder "transparent"' },
                 textAlign: { type: 'string', enum: ['left', 'center', 'right'] },
@@ -230,10 +236,10 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
       return { ...base, type: 'items' as const, fontSize: Number(el.fontSize ?? 10), rowHeight: Number(el.rowHeight ?? 24), headerBgColor: String(el.headerBgColor ?? '#1e3a5f'), headerTextColor: String(el.headerTextColor ?? '#ffffff'), borderColor: String(el.borderColor ?? '#d1d5db'), altRowBgColor: String(el.altRowBgColor ?? '#f8fafc'), summaryBgColor: String(el.summaryBgColor ?? '#1e3a5f'), mwstRate: Number(el.mwstRate ?? 19), colWidths: cols } as ItemsElement;
     }
     if (el.type === 'variable') {
-      return { ...base, type: 'variable' as const, variableKey: String(el.variableKey ?? ''), prefix: String(el.prefix ?? ''), suffix: String(el.suffix ?? ''), fontSize: Number(el.fontSize ?? 12), fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal', fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal', color: String(el.color ?? '#2563eb'), backgroundColor: String(el.backgroundColor ?? 'transparent'), textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left', lineHeight: Number(el.lineHeight ?? 1.3) };
+      return { ...base, type: 'variable' as const, variableKey: String(el.variableKey ?? ''), prefix: String(el.prefix ?? ''), suffix: String(el.suffix ?? ''), fontSize: Number(el.fontSize ?? 12), fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal', fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal', fontFamily: String(el.fontFamily ?? DEFAULT_FONT_FAMILY), color: String(el.color ?? '#2563eb'), backgroundColor: String(el.backgroundColor ?? 'transparent'), textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left', lineHeight: Number(el.lineHeight ?? 1.3) };
     }
     // default: text
-    return { ...base, type: 'text' as const, content: String(el.content ?? ''), fontSize: Number(el.fontSize ?? 12), fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal', fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal', color: String(el.color ?? '#111827'), backgroundColor: String(el.backgroundColor ?? 'transparent'), textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left', lineHeight: Number(el.lineHeight ?? 1.3) };
+    return { ...base, type: 'text' as const, content: String(el.content ?? ''), fontSize: Number(el.fontSize ?? 12), fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal', fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal', fontFamily: String(el.fontFamily ?? DEFAULT_FONT_FAMILY), color: String(el.color ?? '#111827'), backgroundColor: String(el.backgroundColor ?? 'transparent'), textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left', lineHeight: Number(el.lineHeight ?? 1.3) };
   });
 
   return { name: parsed.name ?? 'KI-Template', elements };

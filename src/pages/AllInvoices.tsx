@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
 import { InvoiceTable } from '@/components/invoices/InvoiceTable';
@@ -7,20 +8,38 @@ export default function AllInvoices() {
   const invoices = useAppStore((s) => s.invoices);
   const setInvoices = useAppStore((s) => s.setInvoices);
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const selectedYear = searchParams.get('year') ? Number(searchParams.get('year')) : null;
+
+  const setSelectedYear = (year: number | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (year == null) next.delete('year');
+      else next.set('year', String(year));
+      return next;
+    }, { replace: false });
+  };
 
   useEffect(() => {
     getAllInvoices()
       .then((data) => {
         setInvoices(data);
-        // default to current year if available, else latest
-        const curYear = new Date().getFullYear();
-        const years = Array.from(new Set(data.map((i) => i.year))).sort((a, b) => b - a);
-        setSelectedYear(years.includes(curYear) ? curYear : (years[0] ?? curYear));
+        // default to current year if none in URL
+        if (!searchParams.get('year')) {
+          const curYear = new Date().getFullYear();
+          const years = Array.from(new Set(data.map((i) => i.year))).sort((a, b) => b - a);
+          const defaultYear = years.includes(curYear) ? curYear : (years[0] ?? curYear);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set('year', String(defaultYear));
+            return next;
+          }, { replace: true });
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [setInvoices]);
+  }, []);
 
   const years = useMemo(() => {
     const s = new Set(invoices.map((i) => i.year));

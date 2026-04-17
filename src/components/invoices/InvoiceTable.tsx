@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -14,6 +14,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight } from 'l
 import { useAppStore } from '@/store';
 import { fmtCurrency } from '@/lib/utils';
 import { InvoiceContextMenu } from './InvoiceContextMenu';
+import { useState } from 'react';
 
 type SortKey = 'date' | 'partner' | 'category' | 'brutto' | 'type';
 type SortDir = 'asc' | 'desc';
@@ -28,19 +29,38 @@ interface Props {
 export function InvoiceTable({ invoices, showSearch = true, showFilters = true, showYearFilter = true }: Props) {
   const navigate = useNavigate();
   const privacyMode = useAppStore((s) => s.privacyMode);
-  const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('date');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [filterCategory, setFilterCategory] = useState<Category | null>(null);
-  const [filterType, setFilterType] = useState<InvoiceType | null>(null);
-  const [pageSize, setPageSize] = useState(25);
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
 
+  // Read state from URL
+  const search = searchParams.get('q') ?? '';
+  const sortKey = (searchParams.get('sort') as SortKey) ?? 'date';
+  const sortDir = (searchParams.get('dir') as SortDir) ?? 'desc';
+  const filterCategory = (searchParams.get('cat') as Category) ?? null;
+  const filterType = (searchParams.get('type') as InvoiceType) ?? null;
+  const pageSize = Number(searchParams.get('size') ?? 25);
+  const page = Number(searchParams.get('page') ?? 1);
+  const filterYear = searchParams.get('fyear') ? Number(searchParams.get('fyear')) : null;
+
+  const setParam = (key: string, value: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value == null || value === '') next.delete(key);
+      else next.set(key, value);
+      // reset page when filter changes (but not when setting page itself)
+      if (key !== 'page') next.delete('page');
+      return next;
+    }, { replace: true }); // replace=true: Filteränderungen erzeugen keinen eigenen History-Eintrag
+  };
+
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('asc'); }
-    setPage(1);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (sortKey === key) next.set('dir', sortDir === 'asc' ? 'desc' : 'asc');
+      else { next.set('sort', key); next.set('dir', 'asc'); }
+      next.delete('page');
+      return next;
+    }, { replace: true });
   };
 
   const years = useMemo(() => {
@@ -48,7 +68,6 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
     return Array.from(s).sort((a, b) => b - a);
   }, [invoices]);
 
-  const [filterYear, setFilterYear] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
     let list = invoices;
@@ -80,8 +99,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // Reset to page 1 when filters/search change
-  const setFilter = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); setPage(1); };
+  // Reset to page 1 when filters/search change - handled in setParam
 
   const SortHeader = ({ label, field }: { label: string; field: SortKey }) => {
     const active = sortKey === field;
@@ -104,7 +122,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
         <Input
           placeholder="Suche nach Beschreibung, Partner oder Notiz..."
           value={search}
-          onChange={(e) => { setFilter(setSearch)(e.target.value); }}
+          onChange={(e) => { setParam('q', e.target.value || null); }}
           className="max-w-md"
         />
       )}
@@ -113,22 +131,29 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
         <div className="flex flex-wrap gap-2">
           {showYearFilter && years.map((y) => (
             <Button key={y} size="sm" variant={filterYear === y ? 'default' : 'outline'}
-              onClick={() => setFilter(setFilterYear)(filterYear === y ? null : y)}>{y}</Button>
+              onClick={() => setParam('fyear', filterYear === y ? null : String(y))}>{y}</Button>
           ))}
           {CATEGORIES.map((c) => (
             <Button key={c} size="sm" variant={filterCategory === c ? 'default' : 'outline'}
-              onClick={() => setFilter(setFilterCategory)(filterCategory === c ? null : c)}>
+              onClick={() => setParam('cat', filterCategory === c ? null : c)}>
               {CATEGORY_LABELS[c]}
             </Button>
           ))}
           {INVOICE_TYPES.map((t) => (
             <Button key={t} size="sm" variant={filterType === t ? 'default' : 'outline'}
-              onClick={() => setFilter(setFilterType)(filterType === t ? null : t)}>
+              onClick={() => setParam('type', filterType === t ? null : t)}>
               {TYPE_LABELS[t]}
             </Button>
           ))}
           {hasFilters && (
-            <Button size="sm" variant="ghost" onClick={() => { if (showYearFilter) setFilterYear(null); setFilterCategory(null); setFilterType(null); setPage(1); }}>
+            <Button size="sm" variant="ghost" onClick={() => {
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                if (showYearFilter) next.delete('fyear');
+                next.delete('cat'); next.delete('type'); next.delete('page');
+                return next;
+              }, { replace: true });
+            }}>
               <X className="mr-1 h-3 w-3" /> Filter zurücksetzen
             </Button>
           )}
@@ -186,7 +211,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
       <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <span>Zeilen pro Seite:</span>
-          <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+          <Select value={String(pageSize)} onValueChange={(v) => { setParam('size', v); }}>
             <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[15, 25, 50, 100].map((n) => (
@@ -201,17 +226,17 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
         </span>
 
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage <= 1} onClick={() => setPage(1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage <= 1} onClick={() => setParam('page', '1')}>
             <ChevronLeft className="h-3 w-3" /><ChevronLeft className="h-3 w-3 -ml-2" />
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage <= 1} onClick={() => setPage((p) => p - 1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage <= 1} onClick={() => setParam('page', String(safePage - 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="px-2">Seite {safePage} / {totalPages}</span>
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage >= totalPages} onClick={() => setPage((p) => p + 1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage >= totalPages} onClick={() => setParam('page', String(safePage + 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage >= totalPages} onClick={() => setPage(totalPages)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={safePage >= totalPages} onClick={() => setParam('page', String(totalPages))}>
             <ChevronRight className="h-3 w-3" /><ChevronRight className="h-3 w-3 -ml-2" />
           </Button>
         </div>

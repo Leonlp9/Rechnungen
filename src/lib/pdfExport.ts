@@ -1,6 +1,12 @@
 import jsPDF from 'jspdf';
 import type { InvoiceTemplate, TemplateElement, ItemsElement, LineItem } from '@/types/template';
-import { PX_TO_MM } from '@/types/template';
+import { PX_TO_MM, FONT_FAMILIES } from '@/types/template';
+
+function resolvePdfFont(fontFamily?: string): string {
+  if (!fontFamily) return 'helvetica';
+  const match = FONT_FAMILIES.find((f) => f.value === fontFamily);
+  return match ? match.pdfFont : 'helvetica';
+}
 
 function hexToRgb(hex: string): [number, number, number] {
   const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -11,12 +17,12 @@ function isTransparent(c: string) {
   return !c || c === 'transparent' || c === 'none';
 }
 
-function applyTextStyle(doc: jsPDF, el: { fontSize: number; fontWeight: string; fontStyle: string; color: string }) {
+function applyTextStyle(doc: jsPDF, el: { fontSize: number; fontWeight: string; fontStyle: string; color: string; fontFamily?: string }) {
   const style =
     el.fontWeight === 'bold' && el.fontStyle === 'italic' ? 'bolditalic' :
     el.fontWeight === 'bold' ? 'bold' :
     el.fontStyle === 'italic' ? 'italic' : 'normal';
-  doc.setFont('helvetica', style);
+  doc.setFont(resolvePdfFont(el.fontFamily), style);
   doc.setFontSize(el.fontSize);
   const [r, g, b] = hexToRgb(el.color || '#000000');
   doc.setTextColor(r, g, b);
@@ -25,7 +31,7 @@ function applyTextStyle(doc: jsPDF, el: { fontSize: number; fontWeight: string; 
 function renderTextContent(
   doc: jsPDF,
   text: string,
-  el: { fontSize: number; fontWeight: string; fontStyle: string; color: string; backgroundColor: string; textAlign: string; lineHeight: number },
+  el: { fontSize: number; fontWeight: string; fontStyle: string; color: string; backgroundColor: string; textAlign: string; lineHeight: number; fontFamily?: string },
   xMm: number, yMm: number, wMm: number, hMm: number
 ) {
   if (!isTransparent(el.backgroundColor)) {

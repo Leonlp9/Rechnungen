@@ -16,6 +16,7 @@ export interface TextElement extends BaseElement {
   fontSize: number;
   fontWeight: 'normal' | 'bold';
   fontStyle: 'normal' | 'italic';
+  fontFamily: string;
   color: string;
   backgroundColor: string;
   textAlign: 'left' | 'center' | 'right';
@@ -30,11 +31,24 @@ export interface VariableElement extends BaseElement {
   fontSize: number;
   fontWeight: 'normal' | 'bold';
   fontStyle: 'normal' | 'italic';
+  fontFamily: string;
   color: string;
   backgroundColor: string;
   textAlign: 'left' | 'center' | 'right';
   lineHeight: number;
 }
+
+export const FONT_FAMILIES: { label: string; value: string; pdfFont: string }[] = [
+  { label: 'Helvetica (Standard)',     value: 'Helvetica, Arial, sans-serif',           pdfFont: 'helvetica' },
+  { label: 'Arial Narrow',            value: '"Arial Narrow", Arial, sans-serif',       pdfFont: 'helvetica' },
+  { label: 'Verdana',                 value: 'Verdana, Geneva, sans-serif',             pdfFont: 'helvetica' },
+  { label: 'Trebuchet MS',            value: '"Trebuchet MS", sans-serif',              pdfFont: 'helvetica' },
+  { label: 'Times New Roman',         value: '"Times New Roman", Times, serif',         pdfFont: 'times'     },
+  { label: 'Georgia',                 value: 'Georgia, serif',                          pdfFont: 'times'     },
+  { label: 'Courier New',             value: '"Courier New", Courier, monospace',       pdfFont: 'courier'   },
+];
+
+export const DEFAULT_FONT_FAMILY = FONT_FAMILIES[0].value;
 
 export interface ImageElement extends BaseElement {
   type: 'image';

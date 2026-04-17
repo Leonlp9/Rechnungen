@@ -7,6 +7,7 @@ import type {
   TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement, ItemsElement,
   TemplateVariable,
 } from '@/types/template';
+import { FONT_FAMILIES, DEFAULT_FONT_FAMILY } from '@/types/template';
 import { Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
@@ -95,6 +96,25 @@ function TextVariablePanel({ element, variables, onUpdate }: {
         </div>
       )}
       <NumInput label="Schriftgröße" value={element.fontSize ?? 12} onChange={(v) => onUpdate({ fontSize: v })} min={6} max={200} />
+      <div className="space-y-1">
+        <Label className="text-xs">Schriftart</Label>
+        <div className="flex gap-1.5">
+          <Select value={element.fontFamily || DEFAULT_FONT_FAMILY} onValueChange={(v) => onUpdate({ fontFamily: v })}>
+            <SelectTrigger className="h-8 text-xs flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {FONT_FAMILIES.map((f) => (
+                <SelectItem key={f.value} value={f.value}>
+                  <span style={{ fontFamily: f.value }}>{f.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" className="h-8 text-xs px-2 shrink-0"
+            onClick={() => onUpdate({ fontFamily: DEFAULT_FONT_FAMILY })}>
+            Standard
+          </Button>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">Gewicht</Label>

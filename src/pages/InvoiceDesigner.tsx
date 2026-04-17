@@ -61,6 +61,27 @@ export default function InvoiceDesigner() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [switchPending, setSwitchPending] = useState<string | null>(null);
+  const [propsWidth, setPropsWidth] = useState(256);
+  const isResizingProps = useRef(false);
+  const propsResizeStartX = useRef(0);
+  const propsResizeStartW = useRef(256);
+  const handlePropsResizeStart = (e: React.MouseEvent) => {
+    isResizingProps.current = true;
+    propsResizeStartX.current = e.clientX;
+    propsResizeStartW.current = propsWidth;
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizingProps.current) return;
+      const newW = Math.min(600, Math.max(180, propsResizeStartW.current - (ev.clientX - propsResizeStartX.current)));
+      setPropsWidth(newW);
+    };
+    const onUp = () => {
+      isResizingProps.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   // ── Undo / Redo history ─────────────────────────────────────────────
   const MAX_HISTORY = 50;
@@ -398,20 +419,12 @@ export default function InvoiceDesigner() {
                 <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
                 <span className="text-xs text-muted-foreground w-10">{Math.round(scale * 100)}%</span>
                 <Button
-                  variant={fitMode === 'width' ? 'default' : 'outline'}
+                  variant={(fitMode === 'width' || fitMode === 'page') ? 'default' : 'outline'}
                   size="icon" className="h-7 w-7"
-                  title="An Breite anpassen"
-                  onClick={() => setFitMode('width')}
+                  title={fitMode === 'width' ? 'An Breite anpassen (aktiv) – klicken für Seite' : 'An Seite anpassen (aktiv) – klicken für Breite'}
+                  onClick={() => setFitMode((m) => m === 'width' ? 'page' : 'width')}
                 >
-                  <ArrowLeftRight className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant={fitMode === 'page' ? 'default' : 'outline'}
-                  size="icon" className="h-7 w-7"
-                  title="An Seite anpassen"
-                  onClick={() => setFitMode('page')}
-                >
-                  <Maximize2 className="h-3.5 w-3.5" />
+                  {fitMode === 'width' ? <ArrowLeftRight className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                 </Button>
                 <div className="h-5 w-px bg-border" />
                 {/* Snap toggle */}
@@ -460,7 +473,13 @@ export default function InvoiceDesigner() {
       </div>
 
       {/* ── Right: Properties ── */}
-      <div className="w-64 border-l border-border bg-background shrink-0 overflow-y-auto">
+      {/* Resize Handle */}
+      <div
+        onMouseDown={handlePropsResizeStart}
+        className="w-1.5 cursor-col-resize bg-border hover:bg-primary/40 transition-colors shrink-0 active:bg-primary/60"
+        title="Breite anpassen"
+      />
+      <div style={{ width: propsWidth, minWidth: 180, maxWidth: 600 }} className="border-l border-border bg-background shrink-0 overflow-y-auto">
         <div className="p-3 border-b border-border">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Eigenschaften</span>
         </div>
