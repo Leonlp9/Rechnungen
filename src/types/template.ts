@@ -1,4 +1,4 @@
-export type ElementType = 'text' | 'variable' | 'image' | 'rectangle' | 'items';
+export type ElementType = 'text' | 'variable' | 'image' | 'rectangle' | 'items' | 'line';
 
 export interface BaseElement {
   id: string;
@@ -78,12 +78,26 @@ export interface ItemsElement extends BaseElement {
   colWidths: [number, number, number, number, number, number];
 }
 
+export interface LineElement {
+  id: string;
+  type: 'line';
+  zIndex: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  thickness: number;
+  style: 'solid' | 'dashed' | 'dotted';
+}
+
 export type TemplateElement =
   | TextElement
   | VariableElement
   | ImageElement
   | RectangleElement
-  | ItemsElement;
+  | ItemsElement
+  | LineElement;
 
 /** A single invoice line item used in WriteInvoice */
 export interface LineItem {

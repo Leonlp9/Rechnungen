@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTemplateStore } from '@/store/templateStore';
-import type { InvoiceTemplate, TemplateElement, ItemsElement } from '@/types/template';
+import type { InvoiceTemplate, TemplateElement, ItemsElement, LineElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { DesignerCanvas } from '@/components/designer/DesignerCanvas';
 import { PropertiesPanel } from '@/components/designer/PropertiesPanel';
@@ -14,7 +14,7 @@ import type { AiTemplateResult } from '@/lib/gemini';
 import { DEFAULT_RECHNUNG } from '@/lib/defaultTemplates';
 import {
   Plus, Trash2, Copy, Type, Variable, Image, Square, Sliders, FileText, CheckSquare,
-  Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2, ArrowLeftRight, Maximize2,
+  Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2, ArrowLeftRight, Maximize2, Minus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,6 +42,9 @@ function defaultItemsEl(): ItemsElement {
     colWidths: [0.07, 0.38, 0.1, 0.1, 0.15, 0.2],
   };
 }
+function defaultLineEl(): LineElement {
+  return { id: newId(), type: 'line', zIndex: 3, x1: 40, y1: 300, x2: 754, y2: 300, color: '#d1d5db', thickness: 1, style: 'solid' };
+}
 
 export default function InvoiceDesigner() {
   const navigate = useNavigate();
@@ -60,7 +63,10 @@ export default function InvoiceDesigner() {
   const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('page');
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
+  const [templateListOpen, setTemplateListOpen] = useState(true);
   const [switchPending, setSwitchPending] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const [propsWidth, setPropsWidth] = useState(256);
   const isResizingProps = useRef(false);
   const propsResizeStartX = useRef(0);
@@ -299,20 +305,58 @@ export default function InvoiceDesigner() {
   return (
     <div className="flex h-full overflow-hidden bg-muted/30">
       {/* ── Left: Template list ── */}
-      <div className="w-52 border-r border-border bg-background flex flex-col shrink-0">
-        <div className="p-3 border-b border-border">
-          <Button size="sm" className="w-full text-xs" onClick={() => setNewTemplateDialogOpen(true)}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Neues Template
-          </Button>
+      <div className={`${templateListOpen ? 'w-52' : 'w-8'} border-r border-border bg-background flex flex-col shrink-0 transition-all duration-200 overflow-hidden`}>
+        {/* Collapse toggle */}
+        <div className={`flex items-center border-b border-border shrink-0 ${templateListOpen ? 'p-3 gap-2' : 'p-1 justify-center'}`}>
+          {templateListOpen && (
+            <Button size="sm" className="flex-1 text-xs" onClick={() => setNewTemplateDialogOpen(true)}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Neues Template
+            </Button>
+          )}
+          <button
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            title={templateListOpen ? 'Panel zuklappen' : 'Panel aufklappen'}
+            onClick={() => setTemplateListOpen(o => !o)}
+          >
+            {templateListOpen
+              ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            }
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className={`flex-1 overflow-y-auto p-2 space-y-1 ${templateListOpen ? '' : 'hidden'}`}>
           {templates.map((t) => (
             <div key={t.id}
               className={`group flex items-center gap-1 rounded-lg px-2 py-2 cursor-pointer transition-colors text-xs ${selectedTemplateId === t.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}
               onClick={() => switchTemplate(t.id)}
+              onDoubleClick={(e) => { e.stopPropagation(); setRenamingId(t.id); setRenameValue(t.name); }}
+              onContextMenu={(e) => { e.preventDefault(); setRenamingId(t.id); setRenameValue(t.name); }}
             >
               <FileText className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              <span className="flex-1 truncate">{t.name}</span>
+              {renamingId === t.id ? (
+                <input
+                  autoFocus
+                  className="flex-1 text-xs bg-background border border-primary rounded px-1 py-0 outline-none min-w-0"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      recordHistory();
+                      setDraft((d) => d && d.id === t.id ? { ...d, name: renameValue } : d);
+                      setRenamingId(null);
+                    }
+                    if (e.key === 'Escape') setRenamingId(null);
+                  }}
+                  onBlur={() => {
+                    recordHistory();
+                    setDraft((d) => d && d.id === t.id ? { ...d, name: renameValue } : d);
+                    setRenamingId(null);
+                  }}
+                />
+              ) : (
+                <span className="flex-1 truncate" title="Doppelklick zum Umbenennen">{t.name}</span>
+              )}
               {selectedTemplateId === t.id && isDirty && (
                 <span className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0" title="Ungespeichert" />
               )}
@@ -332,7 +376,7 @@ export default function InvoiceDesigner() {
             </div>
           ))}
         </div>
-        <div className="p-2 border-t border-border">
+        <div className={`p-2 border-t border-border ${templateListOpen ? '' : 'hidden'}`}>
           <Button variant="ghost" size="sm" className="w-full text-xs justify-start" onClick={() => navigate('/write-invoice')}>
             <CheckSquare className="mr-2 h-3.5 w-3.5" /> Rechnung schreiben
           </Button>
@@ -341,106 +385,145 @@ export default function InvoiceDesigner() {
 
       {/* ── Center ── */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 border-b border-border bg-background px-4 py-2 shrink-0 flex-wrap">
+        {/* Ribbon Toolbar */}
+        <div className="border-b border-border bg-background shrink-0 select-none">
           {draft ? (
-            <>
-              <Input
-                value={draft.name}
-                onChange={(e) => {
-                  recordHistory();
-                  setDraft((d) => d ? { ...d, name: e.target.value } : d);
-                }}
-                className="h-8 w-48 text-sm font-medium"
-              />
-              <div className="h-5 w-px bg-border" />
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => addDraftElement(defaultTextEl())}>
-                <Type className="h-3.5 w-3.5" /> Text
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => addDraftElement(defaultVarEl(draft.variables[0]?.key))}>
-                <Variable className="h-3.5 w-3.5" /> Variable
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => addDraftElement(defaultRectEl())}>
-                <Square className="h-3.5 w-3.5" /> Rechteck
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => addDraftElement(defaultImgEl())}>
-                <Image className="h-3.5 w-3.5" /> Bild
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => addDraftElement(defaultItemsEl())}>
-                <Table2 className="h-3.5 w-3.5" /> Tabelle
-              </Button>
-              <div className="h-5 w-px bg-border" />
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setVarManagerOpen(true)}>
-                <Sliders className="h-3.5 w-3.5" /> Variablen
-              </Button>
-              <div className="h-5 w-px bg-border" />
-              {/* Undo / Redo */}
-              <Button
-                variant="outline" size="icon" className="h-8 w-8"
-                title={`Rückgängig (Strg+Z)${historySize > 0 ? ` – ${historySize} Schritt${historySize !== 1 ? 'e' : ''}` : ''}`}
-                disabled={historySize === 0}
-                onClick={undo}
-              >
-                <Undo2 className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="outline" size="icon" className="h-8 w-8"
-                title={`Wiederholen (Strg+Shift+Z)${futureSize > 0 ? ` – ${futureSize} Schritt${futureSize !== 1 ? 'e' : ''}` : ''}`}
-                disabled={futureSize === 0}
-                onClick={redo}
-              >
-                <Redo2 className="h-3.5 w-3.5" />
-              </Button>
+            <div className="flex items-stretch overflow-x-auto">
 
-              <div className="ml-auto flex items-center gap-2 flex-wrap">
-                {/* Builtin reset */}
-                {draft.isBuiltin && (
-                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50"
-                    onClick={() => restoreBuiltin(draft.id)}>
-                    <RefreshCcw className="h-3.5 w-3.5" /> Standard wiederherstellen
-                  </Button>
-                )}
-                {/* Save / Discard */}
-                {isDirty && (
-                  <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" onClick={discard}>
-                    <RotateCcw className="h-3.5 w-3.5" /> Verwerfen
-                  </Button>
-                )}
-                <Button size="sm" className="h-8 text-xs gap-1.5" onClick={save} disabled={!isDirty}>
-                  <Save className="h-3.5 w-3.5" /> {isDirty ? 'Speichern*' : 'Gespeichert'}
-                </Button>
-                <div className="h-5 w-px bg-border" />
-                {/* Zoom */}
-                <span className="text-xs text-muted-foreground">Zoom</span>
-                <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1))); }}>−</Button>
-                <input type="range" min={20} max={200} value={Math.round(scale * 100)}
-                  onChange={(e) => { setFitMode('manual'); setScale(Number(e.target.value) / 100); }}
-                  className="w-24 h-1.5 accent-primary" />
-                <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
-                <span className="text-xs text-muted-foreground w-10">{Math.round(scale * 100)}%</span>
-                <Button
-                  variant={(fitMode === 'width' || fitMode === 'page') ? 'default' : 'outline'}
-                  size="icon" className="h-7 w-7"
-                  title={fitMode === 'width' ? 'An Breite anpassen (aktiv) – klicken für Seite' : 'An Seite anpassen (aktiv) – klicken für Breite'}
-                  onClick={() => setFitMode((m) => m === 'width' ? 'page' : 'width')}
-                >
-                  {fitMode === 'width' ? <ArrowLeftRight className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                </Button>
-                <div className="h-5 w-px bg-border" />
-                {/* Snap toggle */}
-                <Button
-                  variant={snapEnabled ? 'default' : 'outline'}
-                  size="icon"
-                  className="h-7 w-7"
-                  title={snapEnabled ? 'Snapping aktiv (klicken zum Deaktivieren)' : 'Snapping deaktiviert (klicken zum Aktivieren)'}
-                  onClick={() => setSnapEnabled(s => !s)}
-                >
-                  <Magnet className="h-3.5 w-3.5" />
-                </Button>
+              {/* ── Gruppe: Datei ── */}
+              <div className="flex flex-col items-center justify-between px-3 py-1.5 border-r border-border min-w-fit gap-1">
+                <div className="flex items-end gap-1">
+                  {/* Save */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Button
+                      size="sm"
+                      className={`h-10 w-14 flex-col gap-0.5 text-[10px] px-1 ${isDirty ? '' : 'opacity-60'}`}
+                      onClick={save} disabled={!isDirty}
+                      title="Speichern (Strg+S)"
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>{isDirty ? 'Speichern' : 'Gespeichert'}</span>
+                    </Button>
+                  </div>
+                  {/* Discard */}
+                  {isDirty && (
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Button variant="outline" size="sm"
+                        className="h-10 w-14 flex-col gap-0.5 text-[10px] px-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                        onClick={discard} title="Änderungen verwerfen"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        <span>Verwerfen</span>
+                      </Button>
+                    </div>
+                  )}
+                  {/* Reset Builtin */}
+                  {draft.isBuiltin && (
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Button variant="outline" size="sm"
+                        className="h-10 w-16 flex-col gap-0.5 text-[10px] px-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                        onClick={() => restoreBuiltin(draft.id)} title="Standard wiederherstellen"
+                      >
+                        <RefreshCcw className="h-4 w-4" />
+                        <span>Standard</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 pt-0.5">Datei</span>
               </div>
-            </>
+
+              {/* ── Gruppe: Bearbeiten ── */}
+              <div className="flex flex-col items-center justify-between px-3 py-1.5 border-r border-border min-w-fit gap-1">
+                <div className="flex items-end gap-1">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-10 w-12 flex-col gap-0.5 text-[10px] px-1"
+                      title={`Rückgängig (Strg+Z)${historySize > 0 ? ` – ${historySize} Schritte` : ''}`}
+                      disabled={historySize === 0} onClick={undo}
+                    >
+                      <Undo2 className="h-4 w-4" />
+                      <span>Zurück</span>
+                    </Button>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-10 w-12 flex-col gap-0.5 text-[10px] px-1"
+                      title={`Wiederholen (Strg+Shift+Z)${futureSize > 0 ? ` – ${futureSize} Schritte` : ''}`}
+                      disabled={futureSize === 0} onClick={redo}
+                    >
+                      <Redo2 className="h-4 w-4" />
+                      <span>Vor</span>
+                    </Button>
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 pt-0.5">Bearbeiten</span>
+              </div>
+
+              {/* ── Gruppe: Einfügen ── */}
+              <div className="flex flex-col items-center justify-between px-3 py-1.5 border-r border-border min-w-fit gap-1">
+                <div className="flex flex-col gap-1">
+                  {/* Zeile 1 */}
+                  <div className="flex gap-1">
+                    {[
+                      { icon: <Type className="h-4 w-4" />, label: 'Text', action: () => addDraftElement(defaultTextEl()) },
+                      { icon: <Variable className="h-4 w-4" />, label: 'Variable', action: () => addDraftElement(defaultVarEl(draft.variables[0]?.key)) },
+                      { icon: <Square className="h-4 w-4" />, label: 'Rechteck', action: () => addDraftElement(defaultRectEl()) },
+                    ].map(({ icon, label, action }) => (                      <div key={label} className="flex flex-col items-center gap-0.5">
+                        <Button variant="outline" size="sm"
+                          className="h-10 w-14 flex-col gap-0.5 text-[10px] px-1 hover:bg-primary/10 hover:border-primary/50 hover:text-primary"
+                          onClick={action}>
+                          {icon}
+                          <span>{label}</span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Zeile 2 */}
+                  <div className="flex gap-1">
+                    {[
+                      { icon: <Image className="h-4 w-4" />, label: 'Bild', action: () => addDraftElement(defaultImgEl()) },
+                      { icon: <Table2 className="h-4 w-4" />, label: 'Positionen', action: () => addDraftElement(defaultItemsEl()) },
+                      { icon: <Minus className="h-4 w-4" />, label: 'Linie', action: () => addDraftElement(defaultLineEl()) },
+                    ].map(({ icon, label, action }) => (
+                      <div key={label} className="flex flex-col items-center gap-0.5">
+                        <Button variant="outline" size="sm"
+                          className="h-10 w-14 flex-col gap-0.5 text-[10px] px-1 hover:bg-primary/10 hover:border-primary/50 hover:text-primary"
+                          onClick={action}>
+                          {icon}
+                          <span>{label}</span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 pt-0.5">Einfügen</span>
+              </div>
+
+              {/* ── Gruppe: Variablen ── */}
+              <div className="flex flex-col items-center justify-between px-3 py-1.5 border-r border-border min-w-fit gap-1">
+                <div className="flex items-end gap-1">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-10 w-16 flex-col gap-0.5 text-[10px] px-1"
+                      onClick={() => setVarManagerOpen(true)}
+                    >
+                      <Sliders className="h-4 w-4" />
+                      <span>Verwalten</span>
+                    </Button>
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 pt-0.5">Variablen</span>
+              </div>
+
+
+
+            </div>
           ) : (
-            <span className="text-xs text-muted-foreground">Kein Template ausgewählt</span>
+            <div className="px-4 py-3 text-xs text-muted-foreground">Kein Template ausgewählt</div>
           )}
         </div>
 
@@ -467,7 +550,36 @@ export default function InvoiceDesigner() {
           <div className="border-t border-border bg-background px-4 py-1 text-xs text-muted-foreground shrink-0 flex gap-4 items-center">
             <span>A4 – {CANVAS_W}×{CANVAS_H}px</span>
             {selectedElement && <span>Auswahl: {selectedElement.x},{selectedElement.y} – {selectedElement.width}×{selectedElement.height}px</span>}
-            {isDirty && <span className="ml-auto text-orange-500 font-medium">● Ungespeicherte Änderungen</span>}
+            {isDirty && <span className="text-orange-500 font-medium">● Ungespeicherte Änderungen</span>}
+            {/* Zoom + Snap – rechts */}
+            <div className="ml-auto flex items-center gap-1.5">
+              <Button
+                variant={snapEnabled ? 'default' : 'outline'}
+                size="icon" className="h-6 w-6"
+                title={snapEnabled ? 'Snapping aktiv' : 'Snapping aus'}
+                onClick={() => setSnapEnabled(s => !s)}
+              >
+                <Magnet className="h-3 w-3" />
+              </Button>
+              <div className="h-3.5 w-px bg-border" />
+              <Button
+                variant={(fitMode === 'width' || fitMode === 'page') ? 'default' : 'outline'}
+                size="icon" className="h-6 w-6"
+                title={fitMode === 'width' ? 'An Breite anpassen (aktiv) – klicken für Seite' : 'An Seite anpassen (aktiv) – klicken für Breite'}
+                onClick={() => setFitMode((m) => m === 'width' ? 'page' : 'width')}
+              >
+                {fitMode === 'width' ? <ArrowLeftRight className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+              </Button>
+              <div className="h-3.5 w-px bg-border" />
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-xs"
+                onClick={() => { setFitMode('manual'); setScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1))); }}>−</Button>
+              <input type="range" min={20} max={200} value={Math.round(scale * 100)}
+                onChange={(e) => { setFitMode('manual'); setScale(Number(e.target.value) / 100); }}
+                className="w-24 h-1 accent-primary cursor-pointer" />
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-xs"
+                onClick={() => { setFitMode('manual'); setScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
+              <span className="w-9 text-right tabular-nums">{Math.round(scale * 100)}%</span>
+            </div>
           </div>
         )}
       </div>

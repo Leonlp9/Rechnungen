@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import React from 'react';
 import { Rnd } from 'react-rnd';
-import type { InvoiceTemplate, TemplateElement, LineItem } from '@/types/template';
+import type { InvoiceTemplate, TemplateElement, LineElement, LineItem } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { ElementRenderer } from './ElementRenderer';
 
@@ -88,6 +88,12 @@ function buildResizeHandles(
   );
 }
 
+type LineDrag =
+  | { kind: 'none' }
+  | { kind: 'body'; id: string; sx: number; sy: number; ox1: number; oy1: number; ox2: number; oy2: number }
+  | { kind: 'p1';   id: string; sx: number; sy: number; ox1: number; oy1: number }
+  | { kind: 'p2';   id: string; sx: number; sy: number; ox2: number; oy2: number };
+
 export function DesignerCanvas({
   template, selectedId, onSelect, onUpdate, scale, variableValues, readOnly, snapEnabled = true,
   lineItems, includeMwst,
@@ -96,6 +102,7 @@ export function DesignerCanvas({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [resizeHoveredId, setResizeHoveredId] = useState<string | null>(null);
   const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
+  const lineDragRef = useRef<LineDrag>({ kind: 'none' });
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === containerRef.current) onSelect(null);
@@ -112,7 +119,33 @@ export function DesignerCanvas({
     return () => window.removeEventListener('keydown', handler);
   }, [selectedId, readOnly]);
 
+  // ── Line drag mouse handlers ───────────────────────────────────────────
+  useEffect(() => {
+    if (readOnly) return;
+    const onMove = (e: MouseEvent) => {
+      const drag = lineDragRef.current;
+      if (drag.kind === 'none') return;
+      const dx = (e.clientX - drag.sx) / scale;
+      const dy = (e.clientY - drag.sy) / scale;
+      const ln = template.elements.find(el => el.id === drag.id) as LineElement | undefined;
+      if (!ln) return;
+      if (drag.kind === 'body') {
+        onUpdate({ ...ln, x1: Math.round(drag.ox1 + dx), y1: Math.round(drag.oy1 + dy), x2: Math.round(drag.ox2 + dx), y2: Math.round(drag.oy2 + dy) } as unknown as TemplateElement);
+      } else if (drag.kind === 'p1') {
+        onUpdate({ ...ln, x1: Math.round(drag.ox1 + dx), y1: Math.round(drag.oy1 + dy) } as unknown as TemplateElement);
+      } else if (drag.kind === 'p2') {
+        onUpdate({ ...ln, x2: Math.round(drag.ox2 + dx), y2: Math.round(drag.oy2 + dy) } as unknown as TemplateElement);
+      }
+    };
+    const onUp = () => { lineDragRef.current = { kind: 'none' }; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [readOnly, scale, template.elements, onUpdate]);
+
   const sorted = [...template.elements].sort((a, b) => a.zIndex - b.zIndex);
+  const lineEls = sorted.filter(el => el.type === 'line') as unknown as LineElement[];
+  const nonLineEls = sorted.filter(el => el.type !== 'line');
 
   return (
     <div style={{ width: CANVAS_W * scale, height: CANVAS_H * scale, flexShrink: 0 }}>
@@ -149,12 +182,12 @@ export function DesignerCanvas({
           )
         )}
 
-        {sorted.map((el) =>
+        {/* ── Non-line elements via Rnd ── */}
+        {nonLineEls.map((el) =>
           readOnly ? (
             <div key={el.id} style={{
               position: 'absolute', left: el.x, top: el.y,
               width: el.width,
-              // items elements grow with content; other elements use fixed height
               height: el.type === 'items' ? 'auto' : el.height,
               minHeight: el.type === 'items' ? el.height : undefined,
               zIndex: el.zIndex,
@@ -183,26 +216,29 @@ export function DesignerCanvas({
                 });
               }}
               onDragStop={(_e, d) => {
+                setSnapLines([]);
                 if (snapEnabled) {
                   const snapped = computeSnap(d.x, d.y, el.width, el.height, el.id, template.elements);
-                  onUpdate({ ...el, x: snapped.x, y: snapped.y });
+                  if (snapped.x !== el.x || snapped.y !== el.y) {
+                    onUpdate({ ...el, x: snapped.x, y: snapped.y });
+                  }
                 } else {
-                  onUpdate({ ...el, x: Math.round(d.x), y: Math.round(d.y) });
+                  const nx = Math.round(d.x), ny = Math.round(d.y);
+                  if (nx !== el.x || ny !== el.y) {
+                    onUpdate({ ...el, x: nx, y: ny });
+                  }
                 }
-                setSnapLines([]);
               }}
-              onResizeStop={(_e, _dir, ref, _delta, pos) =>
-                onUpdate({
-                  ...el,
-                  x: Math.round(pos.x), y: Math.round(pos.y),
-                  width: Math.round(parseInt(ref.style.width)),
-                  height: Math.round(parseInt(ref.style.height)),
-                })
-              }
+              onResizeStop={(_e, _dir, ref, _delta, pos) => {
+                const nx = Math.round(pos.x), ny = Math.round(pos.y);
+                const nw = Math.round(parseInt(ref.style.width)), nh = Math.round(parseInt(ref.style.height));
+                if (nx !== el.x || ny !== el.y || nw !== el.width || nh !== el.height) {
+                  onUpdate({ ...el, x: nx, y: ny, width: nw, height: nh });
+                }
+              }}
               enableResizing={!readOnly}
               disableDragging={readOnly}
             >
-              {/* Inner wrapper to capture hover without breaking Rnd drag */}
               <div
                 style={{ width: '100%', height: '100%' }}
                 onMouseEnter={() => setHoveredId(el.id)}
@@ -219,6 +255,87 @@ export function DesignerCanvas({
             </Rnd>
           )
         )}
+
+        {/* ── Line elements as SVG overlay ── */}
+        <svg
+          style={{ position: 'absolute', left: 0, top: 0, width: CANVAS_W, height: CANVAS_H, pointerEvents: 'none', zIndex: 8000 }}
+        >
+          {lineEls.map(ln => {
+            const isSelected = ln.id === selectedId;
+            const isHov = hoveredId === ln.id;
+            const thickness = ln.thickness || 2;
+            const color = ln.color || '#111827';
+            const dashArray =
+              ln.style === 'dashed' ? `${thickness * 4},${thickness * 3}` :
+              ln.style === 'dotted' ? `${thickness},${thickness * 2}` :
+              undefined;
+            return (
+              <g key={ln.id}>
+                {/* Invisible thick hit area for body drag */}
+                {!readOnly && (
+                  <line
+                    x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
+                    stroke="transparent" strokeWidth={Math.max(14, thickness + 10)}
+                    style={{ pointerEvents: 'all', cursor: 'move' }}
+                    onMouseEnter={() => setHoveredId(ln.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      onSelect(ln.id);
+                      lineDragRef.current = { kind: 'body', id: ln.id, sx: e.clientX, sy: e.clientY, ox1: ln.x1, oy1: ln.y1, ox2: ln.x2, oy2: ln.y2 };
+                    }}
+                  />
+                )}
+                {/* Visible line */}
+                <line
+                  x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
+                  stroke={isSelected ? '#2563eb' : isHov ? '#94a3b8' : color}
+                  strokeWidth={isSelected ? Math.max(thickness, 2) : thickness}
+                  strokeDasharray={dashArray}
+                  strokeLinecap="round"
+                  style={{ pointerEvents: 'none' }}
+                />
+                {/* Actual color line on top when selected */}
+                {isSelected && (
+                  <line
+                    x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
+                    stroke={color} strokeWidth={thickness}
+                    strokeDasharray={dashArray} strokeLinecap="round"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
+                {/* Selection outline */}
+                {isSelected && (
+                  <line
+                    x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
+                    stroke="#2563eb" strokeWidth={thickness + 4}
+                    strokeOpacity={0.3} strokeLinecap="round"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
+                {/* Endpoint handles (only when selected & not readOnly) */}
+                {isSelected && !readOnly && (
+                  <>
+                    <circle cx={ln.x1} cy={ln.y1} r={7} fill="white" stroke="#2563eb" strokeWidth={2}
+                      style={{ pointerEvents: 'all', cursor: 'crosshair' }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        lineDragRef.current = { kind: 'p1', id: ln.id, sx: e.clientX, sy: e.clientY, ox1: ln.x1, oy1: ln.y1 };
+                      }}
+                    />
+                    <circle cx={ln.x2} cy={ln.y2} r={7} fill="white" stroke="#2563eb" strokeWidth={2}
+                      style={{ pointerEvents: 'all', cursor: 'crosshair' }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        lineDragRef.current = { kind: 'p2', id: ln.id, sx: e.clientX, sy: e.clientY, ox2: ln.x2, oy2: ln.y2 };
+                      }}
+                    />
+                  </>
+                )}
+              </g>
+            );
+          })}
+        </svg>
       </div>
     </div>
   );

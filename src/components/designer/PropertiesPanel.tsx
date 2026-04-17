@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type {
-  TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement, ItemsElement,
+  TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement, ItemsElement, LineElement,
   TemplateVariable,
 } from '@/types/template';
 import { FONT_FAMILIES, DEFAULT_FONT_FAMILY } from '@/types/template';
@@ -155,8 +155,33 @@ function TextVariablePanel({ element, variables, onUpdate }: {
   );
 }
 
-function RectPanel({ element, onUpdate }: { element: RectangleElement; onUpdate: (p: Partial<TemplateElement>) => void }) {
+function LinePanel({ element, onUpdate }: { element: LineElement; onUpdate: (p: Partial<TemplateElement>) => void }) {
   return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <NumInput label="X1 (px)" value={element.x1} onChange={(v) => onUpdate({ x1: v } as Partial<TemplateElement>)} min={0} />
+        <NumInput label="Y1 (px)" value={element.y1} onChange={(v) => onUpdate({ y1: v } as Partial<TemplateElement>)} min={0} />
+        <NumInput label="X2 (px)" value={element.x2} onChange={(v) => onUpdate({ x2: v } as Partial<TemplateElement>)} min={0} />
+        <NumInput label="Y2 (px)" value={element.y2} onChange={(v) => onUpdate({ y2: v } as Partial<TemplateElement>)} min={0} />
+      </div>
+      <ColorInput label="Farbe" value={element.color || '#111827'} onChange={(v) => onUpdate({ color: v } as Partial<TemplateElement>)} />
+      <NumInput label="Stärke (px)" value={element.thickness ?? 2} onChange={(v) => onUpdate({ thickness: v } as Partial<TemplateElement>)} min={1} max={20} />
+      <div className="space-y-1">
+        <Label className="text-xs">Stil</Label>
+        <Select value={element.style || 'solid'} onValueChange={(v) => onUpdate({ style: v as LineElement['style'] } as Partial<TemplateElement>)}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="solid">Durchgezogen</SelectItem>
+            <SelectItem value="dashed">Gestrichelt</SelectItem>
+            <SelectItem value="dotted">Gepunktet</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </>
+  );
+}
+
+function RectPanel({ element, onUpdate }: { element: RectangleElement; onUpdate: (p: Partial<TemplateElement>) => void }) {  return (
     <>
       <ColorInput label="Füllfarbe" value={element.backgroundColor || 'transparent'} onChange={(v) => onUpdate({ backgroundColor: v })} />
       <ColorInput label="Rahmenfarbe" value={element.borderColor || 'transparent'} onChange={(v) => onUpdate({ borderColor: v })} />
@@ -246,7 +271,7 @@ export function PropertiesPanel({ element, variables, onUpdate, onDelete }: Prop
   }
 
   const patch = (p: Partial<TemplateElement>) => onUpdate({ ...element, ...p } as TemplateElement);
-  const typeLabel = element.type === 'text' ? 'Text' : element.type === 'variable' ? 'Variable' : element.type === 'image' ? 'Bild' : element.type === 'items' ? 'Positionen-Tabelle' : 'Rechteck';
+  const typeLabel = element.type === 'text' ? 'Text' : element.type === 'variable' ? 'Variable' : element.type === 'image' ? 'Bild' : element.type === 'items' ? 'Positionen' : element.type === 'line' ? 'Linie' : 'Rechteck';
 
   return (
     <div className="p-3 space-y-4 text-sm overflow-y-auto">
@@ -256,25 +281,39 @@ export function PropertiesPanel({ element, variables, onUpdate, onDelete }: Prop
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <NumInput label="X (px)" value={element.x} onChange={(v) => patch({ x: v })} min={0} />
-        <NumInput label="Y (px)" value={element.y} onChange={(v) => patch({ y: v })} min={0} />
-        <NumInput label="Breite" value={element.width} onChange={(v) => patch({ width: Math.max(1, v) })} min={1} />
-        <NumInput label="Höhe" value={element.height} onChange={(v) => patch({ height: Math.max(1, v) })} min={1} />
-      </div>
-      <div className="flex items-center gap-2">
-        <NumInput label="Ebene (z-index)" value={element.zIndex} onChange={(v) => patch({ zIndex: v })} min={0} />
-        <div className="flex flex-col gap-1 mt-5">
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => patch({ zIndex: element.zIndex + 1 })}><ChevronUp className="h-3 w-3" /></Button>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => patch({ zIndex: Math.max(0, element.zIndex - 1) })}><ChevronDown className="h-3 w-3" /></Button>
+      {element.type !== 'line' && (
+        <div className="grid grid-cols-2 gap-2">
+          <NumInput label="X (px)" value={element.x} onChange={(v) => patch({ x: v })} min={0} />
+          <NumInput label="Y (px)" value={element.y} onChange={(v) => patch({ y: v })} min={0} />
+          <NumInput label="Breite" value={element.width} onChange={(v) => patch({ width: Math.max(1, v) })} min={1} />
+          <NumInput label="Höhe" value={element.height} onChange={(v) => patch({ height: Math.max(1, v) })} min={1} />
         </div>
-      </div>
+      )}
+      {element.type !== 'line' && (
+        <div className="flex items-center gap-2">
+          <NumInput label="Ebene (z-index)" value={element.zIndex} onChange={(v) => patch({ zIndex: v })} min={0} />
+          <div className="flex flex-col gap-1 mt-5">
+            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => patch({ zIndex: element.zIndex + 1 })}><ChevronUp className="h-3 w-3" /></Button>
+            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => patch({ zIndex: Math.max(0, element.zIndex - 1) })}><ChevronDown className="h-3 w-3" /></Button>
+          </div>
+        </div>
+      )}
+      {element.type === 'line' && (
+        <div className="flex items-center gap-2">
+          <NumInput label="Ebene (z-index)" value={element.zIndex} onChange={(v) => patch({ zIndex: v })} min={0} />
+          <div className="flex flex-col gap-1 mt-5">
+            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => patch({ zIndex: element.zIndex + 1 })}><ChevronUp className="h-3 w-3" /></Button>
+            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => patch({ zIndex: Math.max(0, element.zIndex - 1) })}><ChevronDown className="h-3 w-3" /></Button>
+          </div>
+        </div>
+      )}
       {(element.type === 'text' || element.type === 'variable') && (
         <TextVariablePanel element={element as TextElement | VariableElement} variables={variables} onUpdate={patch} />
       )}
       {element.type === 'rectangle' && <RectPanel element={element as RectangleElement} onUpdate={patch} />}
       {element.type === 'image' && <ImagePanel element={element as ImageElement} onUpdate={patch} />}
       {element.type === 'items' && <ItemsPanel element={element as ItemsElement} onUpdate={patch} />}
+      {element.type === 'line' && <LinePanel element={element as LineElement} onUpdate={patch} />}
     </div>
   );
 }

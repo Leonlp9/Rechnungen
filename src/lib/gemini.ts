@@ -1,6 +1,6 @@
 import { getSetting } from '@/lib/db';
 import type { GeminiResult } from '@/types';
-import type { TemplateElement, ItemsElement } from '@/types/template';
+import type { TemplateElement, ItemsElement, LineElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H, DEFAULT_FONT_FAMILY, FONT_FAMILIES } from '@/types/template';
 
 export interface AiTemplateResult {
@@ -55,14 +55,18 @@ ELEMENTTYPEN
    └─────────────────────┴─────────────────────────────────────────────────────┘
    "prefix" und "suffix" sind optionale Texte vor/nach dem Wert, z.B. prefix="IBAN: " oder suffix=" €"
 
-3. "rectangle" – Hintergrundrechteck, farbiger Balken, Linie, Rahmen
-   Verwenden für: Kopfzeilenbalken, Trennlinien (height: 1-3), Box-Hintergründe, farbige Akzente
+3. "rectangle" – Hintergrundrechteck, farbiger Balken, Rahmen
+   Verwenden für: Kopfzeilenbalken, Box-Hintergründe, farbige Akzente
 
 4. "image" – Bildplatzhalter (src bleibt immer leer "")
    Verwenden NUR wenn im Original ein Logo oder Bild sichtbar ist. Der User fügt später sein Bild ein.
 
 5. "items" – Die Positionstabelle (genau EINMAL, falls eine Tabelle mit Leistungspositionen vorhanden)
    Enthält Kopfzeile (Nr., Beschreibung, Menge, Einheit, Einzelpreis, Gesamtpreis) + automatische Zusammenfassung.
+
+6. "line" – Eine gerade Linie zwischen zwei Punkten
+   Verwenden für: Trennlinien, horizontale Striche unter Überschriften, dekorative Linien.
+   Hat KEIN x/y/width/height, sondern x1,y1 (Startpunkt) und x2,y2 (Endpunkt) in Pixeln.
 
 ═══════════════════════════════════════════════════════
 MAPPING-REGELN (was wird zu welchem Typ?)
@@ -84,7 +88,8 @@ MAPPING-REGELN (was wird zu welchem Typ?)
 - Felder wie "Netto:", "MwSt. (19%):", "Gesamt:" → text (statische Labels!)
 - Positionstabelle → items
 - Logos, Bilder → image
-- Farbige Balken, Trennlinien, Boxen → rectangle
+- Farbige Balken, Boxen → rectangle
+- Trennlinien, horizontale Striche → line
 
 ═══════════════════════════════════════════════════════
 POSITIONIERUNGSREGELN
@@ -126,11 +131,17 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
               type: 'object',
               required: ['type', 'x', 'y', 'width', 'height', 'zIndex'],
               properties: {
-                type: { type: 'string', enum: ['text', 'variable', 'rectangle', 'image', 'items'] },
-                x: { type: 'number', description: 'X-Position in Pixeln' },
-                y: { type: 'number', description: 'Y-Position in Pixeln' },
-                width: { type: 'number', description: 'Breite in Pixeln' },
-                height: { type: 'number', description: 'Höhe in Pixeln' },
+                type: { type: 'string', enum: ['text', 'variable', 'rectangle', 'image', 'items', 'line'] },
+                x: { type: 'number', description: 'X-Position in Pixeln (nicht für type=line)' },
+                y: { type: 'number', description: 'Y-Position in Pixeln (nicht für type=line)' },
+                width: { type: 'number', description: 'Breite in Pixeln (nicht für type=line)' },
+                height: { type: 'number', description: 'Höhe in Pixeln (nicht für type=line)' },
+                // line-specific
+                x1: { type: 'number', description: 'Nur für type=line: X-Koordinate Startpunkt' },
+                y1: { type: 'number', description: 'Nur für type=line: Y-Koordinate Startpunkt' },
+                x2: { type: 'number', description: 'Nur für type=line: X-Koordinate Endpunkt' },
+                y2: { type: 'number', description: 'Nur für type=line: Y-Koordinate Endpunkt' },
+                thickness: { type: 'number', description: 'Nur für type=line: Linienstärke in px (z.B. 1 oder 2)' },
                 zIndex: { type: 'integer', description: '1 = Hintergrund, 5 = Vordergrund' },
                 // text & variable shared
                 fontSize: { type: 'number' },
@@ -234,6 +245,18 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
     if (el.type === 'items') {
       const cols = Array.isArray(el.colWidths) ? el.colWidths as [number,number,number,number,number,number] : [0.07, 0.38, 0.1, 0.1, 0.15, 0.2] as [number,number,number,number,number,number];
       return { ...base, type: 'items' as const, fontSize: Number(el.fontSize ?? 10), rowHeight: Number(el.rowHeight ?? 24), headerBgColor: String(el.headerBgColor ?? '#1e3a5f'), headerTextColor: String(el.headerTextColor ?? '#ffffff'), borderColor: String(el.borderColor ?? '#d1d5db'), altRowBgColor: String(el.altRowBgColor ?? '#f8fafc'), summaryBgColor: String(el.summaryBgColor ?? '#1e3a5f'), mwstRate: Number(el.mwstRate ?? 19), colWidths: cols } as ItemsElement;
+    }
+    if (el.type === 'line') {
+      return {
+        id: newId(),
+        type: 'line' as const,
+        zIndex: Number(el.zIndex ?? 3),
+        x1: Number(el.x1 ?? 40), y1: Number(el.y1 ?? 200),
+        x2: Number(el.x2 ?? 754), y2: Number(el.y2 ?? 200),
+        color: String(el.color ?? '#d1d5db'),
+        thickness: Number(el.thickness ?? 1),
+        style: (el.style as LineElement['style']) ?? 'solid',
+      } as unknown as TemplateElement;
     }
     if (el.type === 'variable') {
       return { ...base, type: 'variable' as const, variableKey: String(el.variableKey ?? ''), prefix: String(el.prefix ?? ''), suffix: String(el.suffix ?? ''), fontSize: Number(el.fontSize ?? 12), fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal', fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal', fontFamily: String(el.fontFamily ?? DEFAULT_FONT_FAMILY), color: String(el.color ?? '#2563eb'), backgroundColor: String(el.backgroundColor ?? 'transparent'), textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left', lineHeight: Number(el.lineHeight ?? 1.3) };
