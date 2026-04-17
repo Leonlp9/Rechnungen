@@ -13,6 +13,7 @@ import { de } from 'date-fns/locale';
 import { ArrowUpDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { fmtCurrency } from '@/lib/utils';
+import { InvoiceContextMenu } from './InvoiceContextMenu';
 
 type SortKey = 'date' | 'partner' | 'category' | 'brutto' | 'type';
 type SortDir = 'asc' | 'desc';
@@ -34,6 +35,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   const [filterType, setFilterType] = useState<InvoiceType | null>(null);
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
+  const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -151,7 +153,8 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
             ) : (
               paginated.map((inv) => (
                 <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => navigate(`/invoices/${inv.id}`)}>
+                  onClick={() => navigate(`/invoices/${inv.id}`)}
+                  onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ invoice: inv, x: e.clientX, y: e.clientY }); }}>
                   <TableCell>{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</TableCell>
                   <TableCell>{inv.partner}</TableCell>
                   <TableCell className="max-w-[200px] truncate">{inv.description}</TableCell>
@@ -209,6 +212,15 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
           </Button>
         </div>
       </div>
+
+      {ctxMenu && (
+        <InvoiceContextMenu
+          invoice={ctxMenu.invoice}
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </div>
   );
 }

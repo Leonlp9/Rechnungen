@@ -21,6 +21,9 @@ try {
 // Check for updates silently on startup
 setTimeout(() => checkForUpdates(true), 3000);
 
+// Disable browser context menu globally
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />

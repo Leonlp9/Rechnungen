@@ -7,24 +7,17 @@ import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
 import { Euro, TrendingUp, TrendingDown, FileText } from 'lucide-react';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { CATEGORY_LABELS, TYPE_LABELS } from '@/types';
+import type { Invoice } from '@/types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { fmtCurrency } from '@/lib/utils';
+import { InvoiceContextMenu } from '@/components/invoices/InvoiceContextMenu';
 
 export default function Dashboard() {
   const invoices = useAppStore((s) => s.invoices);
@@ -34,6 +27,7 @@ export default function Dashboard() {
   const privacyMode = useAppStore((s) => s.privacyMode);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
 
   useEffect(() => {
     getAllInvoices()
@@ -125,7 +119,9 @@ export default function Dashboard() {
             </TableHeader>
             <TableBody>
               {lastTen.map((inv) => (
-                <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/invoices/${inv.id}`)}>
+                <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => navigate(`/invoices/${inv.id}`)}
+                  onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ invoice: inv, x: e.clientX, y: e.clientY }); }}>
                   <TableCell>{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</TableCell>
                   <TableCell>{inv.partner}</TableCell>
                   <TableCell>{CATEGORY_LABELS[inv.category]}</TableCell>
@@ -139,6 +135,15 @@ export default function Dashboard() {
           </Table>
         )}
       </div>
+
+      {ctxMenu && (
+        <InvoiceContextMenu
+          invoice={ctxMenu.invoice}
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </div>
   );
 }
