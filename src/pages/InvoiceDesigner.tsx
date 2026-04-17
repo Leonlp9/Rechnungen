@@ -14,7 +14,7 @@ import type { AiTemplateResult } from '@/lib/gemini';
 import { DEFAULT_RECHNUNG } from '@/lib/defaultTemplates';
 import {
   Plus, Trash2, Copy, Type, Variable, Image, Square, Sliders, FileText, CheckSquare,
-  Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2,
+  Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2, ArrowLeftRight, Maximize2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -57,6 +57,8 @@ export default function InvoiceDesigner() {
   const [varManagerOpen, setVarManagerOpen] = useState(false);
   const [newTemplateDialogOpen, setNewTemplateDialogOpen] = useState(false);
   const [scale, setScale] = useState(0.65);
+  const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('width');
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [switchPending, setSwitchPending] = useState<string | null>(null);
 
@@ -253,6 +255,26 @@ export default function InvoiceDesigner() {
     setSelectedTemplateId(id);
   };
 
+  // ── Auto-fit scale ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (fitMode === 'manual') return;
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const compute = () => {
+      const pw = container.clientWidth - 64;
+      const ph = container.clientHeight - 64;
+      if (fitMode === 'width') {
+        setScale(Math.max(0.1, pw / CANVAS_W));
+      } else {
+        setScale(Math.max(0.1, Math.min(pw / CANVAS_W, ph / CANVAS_H)));
+      }
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [fitMode]);
+
   return (
     <div className="flex h-full overflow-hidden bg-muted/30">
       {/* ── Left: Template list ── */}
@@ -369,12 +391,28 @@ export default function InvoiceDesigner() {
                 <div className="h-5 w-px bg-border" />
                 {/* Zoom */}
                 <span className="text-xs text-muted-foreground">Zoom</span>
-                <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => setScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1)))}>−</Button>
+                <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1))); }}>−</Button>
                 <input type="range" min={20} max={200} value={Math.round(scale * 100)}
-                  onChange={(e) => setScale(Number(e.target.value) / 100)}
+                  onChange={(e) => { setFitMode('manual'); setScale(Number(e.target.value) / 100); }}
                   className="w-24 h-1.5 accent-primary" />
-                <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => setScale((s) => Math.min(2, +(s + 0.1).toFixed(1)))}>+</Button>
+                <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
                 <span className="text-xs text-muted-foreground w-10">{Math.round(scale * 100)}%</span>
+                <Button
+                  variant={fitMode === 'width' ? 'default' : 'outline'}
+                  size="icon" className="h-7 w-7"
+                  title="An Breite anpassen"
+                  onClick={() => setFitMode('width')}
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant={fitMode === 'page' ? 'default' : 'outline'}
+                  size="icon" className="h-7 w-7"
+                  title="An Seite anpassen"
+                  onClick={() => setFitMode('page')}
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                </Button>
                 <div className="h-5 w-px bg-border" />
                 {/* Snap toggle */}
                 <Button
@@ -394,7 +432,7 @@ export default function InvoiceDesigner() {
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" ref={canvasContainerRef}>
           <div style={{ padding: '2rem', minWidth: 'fit-content', minHeight: 'fit-content', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
             {draft ? (
               <DesignerCanvas

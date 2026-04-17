@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,9 +11,10 @@ import { getSetting } from '@/lib/db';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
-import { FileDown, Eye, EyeOff, FileText, Plus, Trash2, ReceiptText } from 'lucide-react';
+import { FileDown, Eye, EyeOff, FileText, Plus, Trash2, ReceiptText, ArrowLeftRight, Maximize2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { LineItem, ItemsElement } from '@/types/template';
+import { CANVAS_W, CANVAS_H } from '@/types/template';
 const SETTINGS_KEYS = [
   'profile_name', 'profile_address', 'profile_email', 'profile_phone',
   'profile_tax_number', 'profile_vat_id', 'profile_iban', 'profile_bic', 'profile_business_type',
@@ -29,6 +30,8 @@ export default function WriteInvoice() {
   const [settingsValues, setSettingsValues] = useState<Record<string, string>>({});
   const [showPreview, setShowPreview] = useState(true);
   const [previewScale, setPreviewScale] = useState(0.65);
+  const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('width');
+  const previewContainerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
   const [includeMwst, setIncludeMwst] = useState(true);
@@ -93,6 +96,26 @@ export default function WriteInvoice() {
       total: fmtVal(brutto),
     }));
   }, [netto, mwstAmt, brutto, includeMwst, hasItemsTable]);
+  // Auto-fit scale
+  useEffect(() => {
+    if (fitMode === 'manual') return;
+    const container = previewContainerRef.current;
+    if (!container) return;
+    const compute = () => {
+      const pw = container.clientWidth - 64;
+      const ph = container.clientHeight - 64;
+      if (fitMode === 'width') {
+        setPreviewScale(Math.max(0.1, pw / CANVAS_W));
+      } else {
+        setPreviewScale(Math.max(0.1, Math.min(pw / CANVAS_W, ph / CANVAS_H)));
+      }
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [fitMode, showPreview]);
+
   return (
     <div className="flex h-full overflow-hidden">
       <div className="w-80 border-r border-border bg-background overflow-y-auto flex flex-col shrink-0">
@@ -234,14 +257,30 @@ export default function WriteInvoice() {
         <div className="flex-1 overflow-auto bg-muted/20 flex flex-col">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background shrink-0">
             <span className="text-xs text-muted-foreground">Zoom</span>
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => setPreviewScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1)))}>-</Button>
+            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1))); }}>-</Button>
             <input type="range" min={20} max={200} value={Math.round(previewScale * 100)}
-              onChange={(e) => setPreviewScale(Number(e.target.value) / 100)}
+              onChange={(e) => { setFitMode('manual'); setPreviewScale(Number(e.target.value) / 100); }}
               className="w-28 h-1.5 accent-primary" />
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => setPreviewScale((s) => Math.min(2, +(s + 0.1).toFixed(1)))}>+</Button>
+            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
             <span className="text-xs text-muted-foreground w-10">{Math.round(previewScale * 100)}%</span>
+            <Button
+              variant={fitMode === 'width' ? 'default' : 'outline'}
+              size="icon" className="h-7 w-7"
+              title="An Breite anpassen"
+              onClick={() => setFitMode('width')}
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={fitMode === 'page' ? 'default' : 'outline'}
+              size="icon" className="h-7 w-7"
+              title="An Seite anpassen"
+              onClick={() => setFitMode('page')}
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
           </div>
-          <div className="flex-1 overflow-auto p-8">
+          <div className="flex-1 overflow-auto p-8" ref={previewContainerRef}>
             {template ? (
               <div className="space-y-3 w-fit mx-auto">
                 <p className="text-xs text-center text-muted-foreground">Vorschau (Variablen aufgeloest)</p>
