@@ -191,7 +191,6 @@ export async function generateTemplatePdf(
   template: InvoiceTemplate,
   values: Record<string, string>,
   lineItems?: LineItem[],
-  includeMwst?: boolean,
 ): Promise<ArrayBuffer> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 

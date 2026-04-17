@@ -67,7 +67,7 @@ export default function WriteInvoice() {
     if (!template) return;
     try {
       setExporting(true);
-      const ab = await generateTemplatePdf(template, values, hasItemsTable ? lineItems : undefined, includeMwst);
+      const ab = await generateTemplatePdf(template, values, hasItemsTable ? lineItems : undefined);
       const suggested = (values['doc_number'] || 'Rechnung').replace(/[^a-zA-Z0-9_-]/g, '_');
       const path = await saveDialog({ defaultPath: `${suggested}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
       if (!path) return;
