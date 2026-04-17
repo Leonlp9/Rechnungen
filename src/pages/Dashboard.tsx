@@ -3,17 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { CategoryDonut } from '@/components/dashboard/CategoryDonut';
+import { SonderausgabenCard } from '@/components/dashboard/SonderausgabenCard';
 import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
-import { Euro, TrendingUp, TrendingDown, FileText } from 'lucide-react';
+import { Euro, TrendingUp, TrendingDown, FileText, Calculator } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { CATEGORY_LABELS, TYPE_LABELS } from '@/types';
-import type { Invoice } from '@/types';
+import { CATEGORY_LABELS, TYPE_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
+import type { Invoice, Category } from '@/types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { fmtCurrency } from '@/lib/utils';
@@ -56,6 +57,16 @@ export default function Dashboard() {
   const ausgaben = yearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
   const saldo = einnahmen - ausgaben;
 
+  // Betriebsergebnis = Einnahmen minus NUR Betriebsausgaben (ohne Sonderausgaben & Privat)
+  const nichtBetrieblich: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
+  const betriebsausgaben = yearInvoices
+    .filter((i) => i.type === 'ausgabe' && !nichtBetrieblich.includes(i.category))
+    .reduce((s, i) => s + i.brutto, 0);
+  const betriebsergebnis = einnahmen - betriebsausgaben;
+  const sonderausgabenGesamt = yearInvoices
+    .filter((i) => i.type === 'ausgabe' && nichtBetrieblich.includes(i.category))
+    .reduce((s, i) => s + i.brutto, 0);
+
   const prevEinnahmen = prevYearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
   const prevAusgaben = prevYearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
 
@@ -90,16 +101,18 @@ export default function Dashboard() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <KPICard title="Einnahmen YTD" value={fmtCurrency(einnahmen, privacyMode)} delta={privacyMode ? undefined : deltaEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
         <KPICard title="Ausgaben YTD" value={fmtCurrency(ausgaben, privacyMode)} delta={privacyMode ? undefined : deltaAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
-        <KPICard title="Saldo YTD" value={fmtCurrency(saldo, privacyMode)} delta={privacyMode ? undefined : deltaSaldo} icon={<Euro className="h-4 w-4 text-primary" />} />
+        <KPICard title="Saldo YTD" value={fmtCurrency(saldo, privacyMode)} delta={privacyMode ? undefined : deltaSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Tatsächlich verfügbares Geld: Einnahmen minus alle Ausgaben (inkl. Krankenkasse, Spenden, Privat)" />
+        <KPICard title="Betriebsergebnis" value={fmtCurrency(betriebsergebnis, privacyMode)} icon={<Calculator className="h-4 w-4 text-violet-600" />} tooltip={`Steuerlich relevantes Ergebnis: nur Betriebsausgaben abgezogen. Sonderausgaben & Privat (${fmtCurrency(sonderausgabenGesamt, privacyMode)}) nicht enthalten.`} />
         <KPICard title="Belege (30 Tage)" value={String(recentCount)} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <RevenueChart invoices={yearInvoices} privacyMode={privacyMode} />
         <CategoryDonut invoices={yearInvoices} privacyMode={privacyMode} />
+        <SonderausgabenCard invoices={yearInvoices} privacyMode={privacyMode} />
       </div>
 
       <div className="rounded-xl border bg-card p-6 shadow-sm">

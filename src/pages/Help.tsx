@@ -155,15 +155,53 @@ const ARTICLES: HelpArticle[] = [
         </p>
         <Section title="Kategorieübersicht">
           <div className="space-y-3 text-sm">
+            <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Einnahmen</p>
             {[
               { name: 'Einnahmen', color: 'bg-green-500/15 text-green-700 dark:text-green-400', desc: 'Alle Zahlungseingänge, Honorare, Verkäufe.' },
               { name: 'Erstattungen / Auslagen', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', desc: 'Erstattete Auslagen wie Reisekosten.' },
+            ].map(({ name, color, desc }) => (
+              <div key={name} className="flex items-start gap-3">
+                <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${color}`}>{name}</span>
+                <span className="text-muted-foreground">{desc}</span>
+              </div>
+            ))}
+            <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground pt-2">Betriebsausgaben</p>
+            {[
               { name: 'Anlagevermögen / AfA', color: 'bg-purple-500/15 text-purple-700 dark:text-purple-400', desc: 'Wirtschaftsgüter mit Nutzungsdauer >1 Jahr (z.B. Laptop), werden abgeschrieben.' },
               { name: 'GWG', color: 'bg-orange-500/15 text-orange-700 dark:text-orange-400', desc: 'Geringwertige Wirtschaftsgüter bis 800 € netto – sofort abziehbar.' },
-              { name: 'Software & Abos', color: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400', desc: 'Lizenzkosten, SaaS-Abos, App-Subscriptions.' },
-              { name: 'Fremdleistungen', color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400', desc: 'Unterauftragnehmer, externe Dienstleister.' },
-              { name: 'Verträge', color: 'bg-pink-500/15 text-pink-700 dark:text-pink-400', desc: 'Dauerverträge wie Miete, Versicherungen, Leasing.' },
+              { name: 'Software & Abos', color: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400', desc: 'Lizenzkosten, SaaS-Abos, App-Subscriptions, Cloud-Dienste.' },
+              { name: 'Fremdleistungen', color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400', desc: 'Unterauftragnehmer, externe Dienstleister, Freelancer.' },
+              { name: 'Bürobedarf & Material', color: 'bg-slate-500/15 text-slate-700 dark:text-slate-400', desc: 'Büromaterial, Druckerpatronen, Kleinmaterial.' },
+              { name: 'Reisekosten', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen.' },
+              { name: 'Marketing & Werbung', color: 'bg-pink-500/15 text-pink-700 dark:text-pink-400', desc: 'Online-Werbung, Drucksachen, Messen, PR-Maßnahmen.' },
+              { name: 'Weiterbildung & Fachliteratur', color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400', desc: 'Kurse, Seminare, Fachbücher, Konferenztickets.' },
+              { name: 'Miete & Raumkosten', color: 'bg-lime-500/15 text-lime-700 dark:text-lime-400', desc: 'Büro-, Co-Working- oder Lagermiete.' },
+              { name: 'Versicherungen (Betrieb)', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', desc: 'Betriebliche Versicherungen, Haftpflicht, Inventarversicherung.' },
+              { name: 'Fahrzeugkosten', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-400', desc: 'KFZ-Kosten, Benzin, Leasing, Reparaturen (betrieblich).' },
+              { name: 'Telefon & Internet', color: 'bg-sky-500/15 text-sky-700 dark:text-sky-400', desc: 'Mobilfunk, Festnetz, Internet für den Betrieb.' },
+              { name: 'Verträge', color: 'bg-violet-500/15 text-violet-700 dark:text-violet-400', desc: 'Dokumente ohne direkten Zahlungsbetrag (Typ: Info).' },
               { name: 'Sonstiges', color: 'bg-muted text-muted-foreground', desc: 'Alles, was in keine andere Kategorie passt.' },
+            ].map(({ name, color, desc }) => (
+              <div key={name} className="flex items-start gap-3">
+                <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${color}`}>{name}</span>
+                <span className="text-muted-foreground">{desc}</span>
+              </div>
+            ))}
+            <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground pt-2">Sonderausgaben <span className="normal-case">(kein regulärer Betriebsaufwand)</span></p>
+            {[
+              { name: 'Spenden (ausgezahlt)', color: 'bg-rose-500/15 text-rose-700 dark:text-rose-400', desc: 'Geldspenden an gemeinnützige Organisationen (type=Ausgabe). Steuerlich absetzbar in der Einkommensteuer, aber KEIN Betriebsaufwand. → Twitch-Subs, Gaming-Subs etc. sind KEINE Spenden – dafür gibt es "Privat".' },
+              { name: 'Spenden (empfangen)', color: 'bg-green-500/15 text-green-700 dark:text-green-400', desc: 'Erhaltene Donations/Spenden (z.B. Streaming, Crowdfunding) sind ganz normale Einnahmen – type=Einnahme, Kategorie=Einnahmen. Sie erhöhen dein Saldo und Betriebsergebnis.' },
+              { name: 'Krankenversicherung', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', desc: 'Beiträge zur gesetzlichen oder privaten Kranken- und Pflegeversicherung. Senkt dein Saldo (Geld geht raus), aber NICHT das Betriebsergebnis.' },
+              { name: 'Sozialversicherung / Altersvorsorge', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-400', desc: 'Rentenversicherung, Berufsgenossenschaft, berufsständische Versorgungswerke, private Altersvorsorge.' },
+            ].map(({ name, color, desc }) => (
+              <div key={name} className="flex items-start gap-3">
+                <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${color}`}>{name}</span>
+                <span className="text-muted-foreground">{desc}</span>
+              </div>
+            ))}
+            <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground pt-2">Privat <span className="normal-case">(weder Betriebsausgabe noch steuerlich absetzbar)</span></p>
+            {[
+              { name: 'Privat (nicht absetzbar)', color: 'bg-gray-500/15 text-gray-600 dark:text-gray-400', desc: 'Rein private Ausgaben ohne Geschäftsbezug: Twitch-Subs, Netflix, Spotify, private Einkäufe, Gaming-Abos, private Restaurantbesuche. Diese senken dein Saldo, sind aber steuerlich komplett irrelevant.' },
             ].map(({ name, color, desc }) => (
               <div key={name} className="flex items-start gap-3">
                 <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${color}`}>{name}</span>

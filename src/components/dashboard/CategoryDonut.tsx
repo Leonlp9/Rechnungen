@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Invoice } from '@/types';
-import { CATEGORY_LABELS, type Category } from '@/types';
+import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, type Category } from '@/types';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316'];
 
@@ -19,6 +19,7 @@ export function CategoryDonut({ invoices, privacyMode }: Props) {
     const map = new Map<string, number>();
     for (const inv of invoices) {
       if (inv.type !== 'ausgabe') continue;
+      if (SONDERAUSGABEN_CATEGORIES.includes(inv.category as Category)) continue;
       map.set(inv.category, (map.get(inv.category) ?? 0) + inv.brutto);
     }
     return Array.from(map.entries())

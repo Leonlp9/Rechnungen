@@ -1,19 +1,27 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 
 interface KPICardProps {
   title: string;
   value: string;
   delta?: number;
   icon?: React.ReactNode;
+  tooltip?: string;
 }
 
-export function KPICard({ title, value, delta, icon }: KPICardProps) {
+export function KPICard({ title, value, delta, icon, tooltip }: KPICardProps) {
   return (
     <Card className="rounded-xl shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+          {title}
+          {tooltip && (
+            <span title={tooltip} className="cursor-help text-muted-foreground/60 hover:text-muted-foreground">
+              <Info className="h-3 w-3" />
+            </span>
+          )}
+        </CardTitle>
         {icon}
       </CardHeader>
       <CardContent>
@@ -30,4 +38,3 @@ export function KPICard({ title, value, delta, icon }: KPICardProps) {
     </Card>
   );
 }
-
