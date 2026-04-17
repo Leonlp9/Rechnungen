@@ -1,6 +1,5 @@
 import { Search, Plus, Moon, Sun, Download, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useAppStore } from '@/store';
 
 interface TopbarProps {
@@ -13,6 +12,7 @@ export function Topbar({ onNewInvoice, onExport }: TopbarProps) {
   const setDarkMode = useAppStore((s) => s.setDarkMode);
   const privacyMode = useAppStore((s) => s.privacyMode);
   const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
+  const setSearchOpen = useAppStore((s) => s.setSearchOpen);
 
   const toggleDark = () => {
     const next = !darkMode;
@@ -22,10 +22,16 @@ export function Topbar({ onNewInvoice, onExport }: TopbarProps) {
 
   return (
     <header className="flex h-14 items-center gap-4 border-b border-border bg-background px-6">
-      <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Suchen..." className="pl-9" />
-      </div>
+      <button
+        onClick={() => setSearchOpen(true)}
+        className="relative flex flex-1 max-w-md items-center gap-2 rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      >
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="flex-1 text-left">Suchen…</span>
+        <kbd className="hidden sm:flex items-center gap-0.5 rounded border border-border bg-background px-1.5 text-[10px]">
+          Ctrl K
+        </kbd>
+      </button>
 
       <div className="ml-auto flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={togglePrivacyMode} title={privacyMode ? 'Beträge einblenden' : 'Beträge ausblenden'}>
@@ -46,3 +52,5 @@ export function Topbar({ onNewInvoice, onExport }: TopbarProps) {
     </header>
   );
 }
+
+

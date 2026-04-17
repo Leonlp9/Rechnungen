@@ -13,6 +13,8 @@ interface AppState {
   setDarkMode: (darkMode: boolean) => void;
   privacyMode: boolean;
   togglePrivacyMode: () => void;
+  searchOpen: boolean;
+  setSearchOpen: (open: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -28,6 +30,8 @@ export const useAppStore = create<AppState>()(
       setDarkMode: (darkMode) => set({ darkMode }),
       privacyMode: false,
       togglePrivacyMode: () => set((s) => ({ privacyMode: !s.privacyMode })),
+      searchOpen: false,
+      setSearchOpen: (searchOpen) => set({ searchOpen }),
     }),
     {
       name: 'rechnungs-manager-settings',

@@ -10,6 +10,7 @@ import {
   PenSquare,
   ArrowLeft,
   ArrowRight,
+  HelpCircle,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,7 @@ const NAV_ITEMS = [
   { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2 },
   { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare },
   { to: '/settings', label: 'Einstellungen', icon: Settings },
+  { to: '/help', label: 'Hilfe', icon: HelpCircle },
 ];
 
 export function Sidebar() {
