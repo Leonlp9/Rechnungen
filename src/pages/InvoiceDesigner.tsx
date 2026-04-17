@@ -288,9 +288,9 @@ export default function InvoiceDesigner() {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
       setFitMode('manual');
-      setScale((s) => Math.min(5, Math.max(0.2, +( s + delta).toFixed(1))));
+      setScale((s) => Math.min(5, Math.max(0.2, +(s * factor).toFixed(2))));
     };
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);

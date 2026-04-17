@@ -117,6 +117,21 @@ export default function WriteInvoice() {
       total: fmtVal(brutto),
     }));
   }, [netto, mwstAmt, brutto, includeMwst, hasItemsTable]);
+  // Ctrl+Wheel zoom
+  useEffect(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      setFitMode('manual');
+      setPreviewScale((s) => Math.min(5, Math.max(0.2, +(s * factor).toFixed(2))));
+    };
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, []);
+
   // Auto-fit scale
   useEffect(() => {
     if (fitMode === 'manual') return;
@@ -284,11 +299,11 @@ export default function WriteInvoice() {
         <div className="flex-1 overflow-auto bg-muted/20 flex flex-col">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background shrink-0">
             <span className="text-xs text-muted-foreground">Zoom</span>
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.max(0.2, +(s - 0.1).toFixed(1))); }}>-</Button>
-            <input type="range" min={20} max={200} value={Math.round(previewScale * 100)}
+            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.max(0.2, +(s * 0.9).toFixed(2))); }}>-</Button>
+            <input type="range" min={20} max={500} value={Math.round(previewScale * 100)}
               onChange={(e) => { setFitMode('manual'); setPreviewScale(Number(e.target.value) / 100); }}
               className="w-28 h-1.5 accent-primary" />
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.min(2, +(s + 0.1).toFixed(1))); }}>+</Button>
+            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.min(5, +(s * 1.1).toFixed(2))); }}>+</Button>
             <span className="text-xs text-muted-foreground w-10">{Math.round(previewScale * 100)}%</span>
             <Button
               variant={(fitMode === 'width' || fitMode === 'page') ? 'default' : 'outline'}
