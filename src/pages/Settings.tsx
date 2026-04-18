@@ -6,10 +6,25 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2 } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
+
+import {
+  LayoutDashboard, FileText, FilePlus2, PenSquare, ListTodo, Mail, Settings as SettingsIcon, HelpCircle,
+} from 'lucide-react';
+
+const NAV_ITEMS_CONFIG = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/invoices', label: 'Alle Rechnungen', icon: FileText },
+  { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2 },
+  { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare },
+  { to: '/lists', label: 'Listen', icon: ListTodo },
+  { to: '/gmail', label: 'Gmail', icon: Mail },
+  { to: '/settings', label: 'Einstellungen', icon: SettingsIcon },
+  { to: '/help', label: 'Hilfe', icon: HelpCircle },
+];
 
 const PROFILE_FIELDS = [
 	{ key: 'profile_name', label: 'Name / Firma' },
@@ -34,6 +49,8 @@ export default function SettingsPage() {
 	const setTheme = useAppStore((s) => s.setTheme);
 	const animations = useAppStore((s) => s.animations);
 	const setAnimations = useAppStore((s) => s.setAnimations);
+	const hiddenNavItems = useAppStore((s) => s.hiddenNavItems);
+	const toggleNavItem = useAppStore((s) => s.toggleNavItem);
 	const [profile, setProfile] = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
@@ -546,6 +563,41 @@ export default function SettingsPage() {
 			</div>
 		</CardContent>
 	</Card>
+
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Navigation className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">Navigation</CardTitle>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Wähle, welche Tabs in der Seitenleiste sichtbar sein sollen.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {NAV_ITEMS_CONFIG.map(({ to, label, icon: Icon }) => {
+            const isVisible = !hiddenNavItems.includes(to);
+            const isSettings = to === '/settings';
+            return (
+              <div key={to} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{label}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSettings}
+                  onClick={() => toggleNavItem(to)}
+                  className="min-w-24"
+                >
+                  {isVisible ? 'Ausblenden' : 'Einblenden'}
+                </Button>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
 
       <Card className="rounded-xl shadow-sm">
         <CardHeader>

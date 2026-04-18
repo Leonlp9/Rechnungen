@@ -64,6 +64,7 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const toggle = useAppStore((s) => s.toggleSidebar);
+  const hiddenNavItems = useAppStore((s) => s.hiddenNavItems);
   const [version, setVersion] = useState('');
   const navigate = useNavigate();
   const { canGoBack, canGoForward } = useNavHistory();
@@ -109,7 +110,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 p-2">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+        {NAV_ITEMS.filter(({ to }) => !hiddenNavItems.includes(to)).map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

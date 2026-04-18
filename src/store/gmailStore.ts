@@ -7,6 +7,7 @@ export interface GmailAccount {
   token: GmailToken;
   emails: GmailMessage[];
   nextPageToken?: string;
+  readEmailIds: string[];
 }
 
 interface GmailState {
@@ -22,6 +23,7 @@ interface GmailState {
   setActiveIndex: (i: number) => void;
   updateAccountToken: (email: string, token: GmailToken) => void;
   updateAccountEmails: (email: string, emails: GmailMessage[], nextPageToken?: string) => void;
+  markEmailAsRead: (accountEmail: string, messageId: string) => void;
 
   // active account helpers (derived)
   setSelectedEmail: (email: GmailMessage | null) => void;
@@ -43,10 +45,11 @@ export const useGmailStore = create<GmailState>()(
           const idx = s.accounts.findIndex((a) => a.email === account.email);
           if (idx >= 0) {
             const accounts = [...s.accounts];
-            accounts[idx] = account;
+            // preserve existing readEmailIds
+            accounts[idx] = { ...account, readEmailIds: s.accounts[idx].readEmailIds ?? [] };
             return { accounts, activeIndex: idx };
           }
-          return { accounts: [...s.accounts, account], activeIndex: s.accounts.length };
+          return { accounts: [...s.accounts, { ...account, readEmailIds: [] }], activeIndex: s.accounts.length };
         }),
 
       removeAccount: (email) =>
@@ -73,6 +76,23 @@ export const useGmailStore = create<GmailState>()(
           ),
         })),
 
+      markEmailAsRead: (accountEmail, messageId) =>
+        set((s) => ({
+          accounts: s.accounts.map((a) =>
+            a.email === accountEmail
+              ? {
+                  ...a,
+                  readEmailIds: a.readEmailIds.includes(messageId)
+                    ? a.readEmailIds
+                    : [...a.readEmailIds, messageId],
+                  emails: a.emails.map((e) =>
+                    e.id === messageId ? { ...e, isUnread: false } : e
+                  ),
+                }
+              : a
+          ),
+        })),
+
       setSelectedEmail: (selectedEmail) => set({ selectedEmail }),
       setLoading: (isLoading) => set({ isLoading }),
       setFetchingDetail: (isFetchingDetail) => set({ isFetchingDetail }),
@@ -85,9 +105,9 @@ export const useGmailStore = create<GmailState>()(
           .map((a) => ({
             email: a.email,
             token: a.token,
-            // Persist up to 50 emails per account as cache
             emails: a.emails.slice(0, 50),
             nextPageToken: a.nextPageToken,
+            readEmailIds: a.readEmailIds ?? [],
           })),
         activeIndex: state.activeIndex,
       }),

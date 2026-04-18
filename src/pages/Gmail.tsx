@@ -3,8 +3,9 @@ import { useGmailStore, selectActiveAccount } from '@/store/gmailStore';
 import { GmailLogin } from '@/components/gmail/GmailLogin';
 import { EmailList } from '@/components/gmail/EmailList';
 import { EmailDetail } from '@/components/gmail/EmailDetail';
+import { ComposeDialog } from '@/components/gmail/ComposeDialog';
 import { Button } from '@/components/ui/button';
-import { LogOut, UserPlus, ChevronDown, Check } from 'lucide-react';
+import { LogOut, UserPlus, ChevronDown, Check, PenSquare } from 'lucide-react';
 import { startOAuthFlow, fetchUserEmail, revokeToken } from '@/lib/gmail';
 import { toast } from 'sonner';
 import {
@@ -24,6 +25,7 @@ export default function GmailPage() {
   const removeAccount = useGmailStore((s) => s.removeAccount);
   const setSelectedEmail = useGmailStore((s) => s.setSelectedEmail);
   const [addingAccount, setAddingAccount] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   // No accounts at all → show login screen
   if (accounts.length === 0) {
@@ -35,7 +37,7 @@ export default function GmailPage() {
     try {
       const token = await startOAuthFlow();
       const email = await fetchUserEmail(token.access_token);
-      addOrUpdateAccount({ email, token, emails: [] });
+      addOrUpdateAccount({ email, token, emails: [], readEmailIds: [] });
       toast.success(`${email} hinzugefügt!`);
     } catch (e: any) {
       toast.error('Anmeldung fehlgeschlagen: ' + (e?.message ?? String(e)));
@@ -56,7 +58,13 @@ export default function GmailPage() {
     <div className="flex h-full flex-col">
       {/* Toolbar */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-        <h1 className="text-base font-semibold">Gmail</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-semibold">Gmail</h1>
+          <Button size="sm" onClick={() => setComposeOpen(true)} className="gap-1.5">
+            <PenSquare className="h-3.5 w-3.5" />
+            Schreiben
+          </Button>
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Account switcher */}
@@ -108,9 +116,11 @@ export default function GmailPage() {
           <EmailList />
         </div>
         <div className="flex-1 overflow-hidden">
-          <EmailDetail />
+          <EmailDetail onReply={() => setComposeOpen(true)} />
         </div>
       </div>
+
+      <ComposeDialog open={composeOpen} onClose={() => setComposeOpen(false)} />
     </div>
   );
 }

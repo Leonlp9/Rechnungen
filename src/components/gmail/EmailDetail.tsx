@@ -4,11 +4,12 @@ import { fetchEmailDetail, fetchAttachmentData, getValidToken } from '@/lib/gmai
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
-import { Loader2, FileText, Download, Eye } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Reply } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatFull } from '@/lib/emailDate';
 import { AttachmentPreview } from './AttachmentPreview';
 import { NewInvoiceDialog } from '@/components/invoices/NewInvoiceDialog';
+import { ComposeDialog } from './ComposeDialog';
 
 function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -16,7 +17,7 @@ function formatBytes(n: number) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function EmailDetail() {
+export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
   const activeAccount = useGmailStore(selectActiveAccount);
   const updateAccountToken = useGmailStore((s) => s.updateAccountToken);
   const selectedEmail = useGmailStore((s) => s.selectedEmail);
@@ -32,6 +33,7 @@ export function EmailDetail() {
   const [importDialog, setImportDialog] = useState<{
     pdfPath: string; pdfName: string;
   } | null>(null);
+  const [replyOpen, setReplyOpen] = useState(false);
 
   // When selectedEmail changes and has no body yet → fetch detail
   useEffect(() => {
@@ -122,9 +124,15 @@ export function EmailDetail() {
       <div className="flex h-full flex-col overflow-hidden">
         {/* Header */}
         <div className="border-b border-border px-6 py-4">
-          <h2 className="text-lg font-semibold leading-tight">
-            {selectedEmail.subject || '(kein Betreff)'}
-          </h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-lg font-semibold leading-tight">
+              {selectedEmail.subject || '(kein Betreff)'}
+            </h2>
+            <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setReplyOpen(true)}>
+              <Reply className="h-3.5 w-3.5" />
+              Antworten
+            </Button>
+          </div>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span><span className="font-medium text-foreground">Von:</span> {selectedEmail.from}</span>
             <span>{formatFull(selectedEmail.date)}</span>
@@ -218,6 +226,19 @@ export function EmailDetail() {
           onClose={() => setImportDialog(null)}
           initialPdfPath={importDialog.pdfPath}
           initialPdfName={importDialog.pdfName}
+        />
+      )}
+
+      {replyOpen && selectedEmail && (
+        <ComposeDialog
+          open={replyOpen}
+          onClose={() => setReplyOpen(false)}
+          replyTo={{
+            to: selectedEmail.from,
+            subject: selectedEmail.subject,
+            messageId: selectedEmail.id,
+            threadId: selectedEmail.threadId,
+          }}
         />
       )}
     </>

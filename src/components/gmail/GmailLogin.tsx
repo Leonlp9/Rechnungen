@@ -15,7 +15,7 @@ export function GmailLogin() {
     try {
       const token = await startOAuthFlow();
       const email = await fetchUserEmail(token.access_token);
-      addOrUpdateAccount({ email, token, emails: [] });
+      addOrUpdateAccount({ email, token, emails: [], readEmailIds: [] });
       toast.success(`${email} erfolgreich verbunden!`);
     } catch (e: any) {
       toast.error('Anmeldung fehlgeschlagen: ' + (e?.message ?? String(e)));
@@ -52,7 +52,7 @@ export function GmailLogin() {
             )}
           </Button>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Es werden nur Lesezugriffe auf dein Gmail-Postfach angefordert.
+            Es werden Lese-, Schreib- und Sendezugriffe auf dein Gmail-Postfach angefordert (zum Lesen, Antworten und Verfassen von E-Mails).
           </p>
         </CardContent>
       </Card>

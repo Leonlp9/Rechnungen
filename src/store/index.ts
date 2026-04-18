@@ -21,6 +21,9 @@ interface AppState {
   togglePrivacyMode: () => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+  hiddenNavItems: string[];
+  setHiddenNavItems: (items: string[]) => void;
+  toggleNavItem: (path: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -42,10 +45,18 @@ export const useAppStore = create<AppState>()(
       togglePrivacyMode: () => set((s) => ({ privacyMode: !s.privacyMode })),
       searchOpen: false,
       setSearchOpen: (searchOpen) => set({ searchOpen }),
+      hiddenNavItems: [],
+      setHiddenNavItems: (hiddenNavItems) => set({ hiddenNavItems }),
+      toggleNavItem: (path) =>
+        set((s) => ({
+          hiddenNavItems: s.hiddenNavItems.includes(path)
+            ? s.hiddenNavItems.filter((p) => p !== path)
+            : [...s.hiddenNavItems, path],
+        })),
     }),
     {
       name: 'rechnungs-manager-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems }),
     }
   )
 );

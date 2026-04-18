@@ -51,6 +51,7 @@ export interface GmailMessage {
   bodyText: string;
   attachments: GmailAttachment[];
   hasAttachment: boolean;
+  isUnread: boolean;
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -154,7 +155,7 @@ export async function startOAuthFlow(): Promise<GmailToken> {
       client_id: GMAIL_CLIENT_ID,
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email',
+      scope: 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email',
       access_type: 'offline',
       prompt: 'consent',
       code_challenge: codeChallenge,
@@ -270,6 +271,7 @@ export async function fetchEmails(
       const hasAttachment =
         mimeType.startsWith('multipart/mixed') ||
         mimeType.startsWith('multipart/related');
+      const isUnread = Array.isArray(msg.labelIds) && msg.labelIds.includes('UNREAD');
       return {
         id: msg.id,
         threadId: msg.threadId,
@@ -281,6 +283,7 @@ export async function fetchEmails(
         bodyText: '',
         attachments: [],
         hasAttachment,
+        isUnread,
       } as GmailMessage;
     })
   );
@@ -301,6 +304,7 @@ export async function fetchEmailDetail(
   const headers: { name: string; value: string }[] = msg.payload?.headers ?? [];
   const attachments: GmailAttachment[] = [];
   const { html, text } = extractParts(msg.payload, attachments);
+  const isUnread = Array.isArray(msg.labelIds) && msg.labelIds.includes('UNREAD');
 
   return {
     id: msg.id,
@@ -313,7 +317,86 @@ export async function fetchEmailDetail(
     bodyText: text,
     attachments,
     hasAttachment: attachments.length > 0,
+    isUnread,
   };
+}
+
+export async function sendEmail(
+  accessToken: string,
+  to: string,
+  subject: string,
+  bodyHtml: string,
+  fromEmail: string,
+  replyToMessageId?: string,
+  replyToThreadId?: string
+): Promise<void> {
+  const boundary = `boundary_${Date.now().toString(36)}`;
+  // Strip HTML for plain text fallback
+  const bodyText = bodyHtml.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+
+  const lines = [
+    `From: ${fromEmail}`,
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  ];
+  if (replyToMessageId) {
+    lines.push(`In-Reply-To: ${replyToMessageId}`);
+    lines.push(`References: ${replyToMessageId}`);
+  }
+  lines.push(
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    bodyText,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    bodyHtml,
+    '',
+    `--${boundary}--`,
+  );
+  const raw = lines.join('\r\n');
+
+  const encoded = btoa(unescape(encodeURIComponent(raw)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(replyToThreadId ? { raw: encoded, threadId: replyToThreadId } : { raw: encoded }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message ?? 'E-Mail konnte nicht gesendet werden');
+  }
+}
+
+export async function markMessageAsRead(
+  accessToken: string,
+  messageId: string
+): Promise<void> {
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
+    }
+  );
 }
 
 export async function fetchAttachmentData(
