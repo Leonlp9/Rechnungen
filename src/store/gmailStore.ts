@@ -31,7 +31,7 @@ interface GmailState {
 
 export const useGmailStore = create<GmailState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       accounts: [],
       activeIndex: 0,
       selectedEmail: null,
@@ -81,9 +81,14 @@ export const useGmailStore = create<GmailState>()(
       name: 'gmail-auth-v2',
       partialize: (state) => ({
         accounts: state.accounts
-          // drop old accounts stored without a real email
           .filter((a) => a.email && a.email !== 'Unbekannt')
-          .map((a) => ({ email: a.email, token: a.token, emails: [] })),
+          .map((a) => ({
+            email: a.email,
+            token: a.token,
+            // Persist up to 50 emails per account as cache
+            emails: a.emails.slice(0, 50),
+            nextPageToken: a.nextPageToken,
+          })),
         activeIndex: state.activeIndex,
       }),
     }
