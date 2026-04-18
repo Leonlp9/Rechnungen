@@ -1,15 +1,20 @@
 import { useMemo } from 'react';
 import {
-  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart';
 import type { Invoice } from '@/types';
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -17,23 +22,27 @@ const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'S
 const fmtEur = (v: number) =>
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 
+const chartConfig = {
+  Einnahmen: { label: 'Einnahmen', color: 'var(--color-emerald-500, #22c55e)' },
+  Ausgaben:  { label: 'Ausgaben',  color: 'var(--color-red-500, #ef4444)' },
+} satisfies ChartConfig;
+
 interface Props {
   invoices: Invoice[];
   privacyMode?: boolean;
 }
 
 export function RevenueChart({ invoices, privacyMode }: Props) {
-  const data = useMemo(() => {
-    return MONTH_SHORT.map((name, idx) => {
+  const data = useMemo(() =>
+    MONTH_SHORT.map((name, idx) => {
       const m = idx + 1;
       const mi = invoices.filter((i) => i.month === m);
       return {
         name,
         Einnahmen: mi.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0),
-        Ausgaben: mi.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0),
+        Ausgaben:  mi.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0),
       };
-    });
-  }, [invoices]);
+    }), [invoices]);
 
   return (
     <Card className="rounded-xl shadow-sm">
@@ -41,17 +50,46 @@ export function RevenueChart({ invoices, privacyMode }: Props) {
         <CardTitle className="text-base">Einnahmen vs. Ausgaben</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
+        <ChartContainer config={chartConfig} className="h-[280px] w-full">
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="name" className="text-xs" />
-            <YAxis tickFormatter={(v) => privacyMode ? '••••' : fmtEur(v)} className="text-xs" width={80} />
-            <Tooltip formatter={(v) => privacyMode ? '••••' : fmtEur(Number(v))} />
-            <Legend />
-            <Line type="monotone" dataKey="Einnahmen" stroke="#22c55e" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="Ausgaben" stroke="#ef4444" strokeWidth={2} dot={false} />
+            <CartesianGrid vertical={false} className="stroke-border/50" />
+            <XAxis
+              dataKey="name"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12 }}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12 }}
+              width={80}
+              tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))}
+                />
+              }
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Line
+              type="monotone"
+              dataKey="Einnahmen"
+              stroke="var(--color-Einnahmen)"
+              strokeWidth={2}
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="Ausgaben"
+              stroke="var(--color-Ausgaben)"
+              strokeWidth={2}
+              dot={false}
+            />
           </LineChart>
-        </ResponsiveContainer>
+        </ChartContainer>
       </CardContent>
     </Card>
   );

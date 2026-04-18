@@ -1,21 +1,25 @@
 import { useMemo } from 'react';
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart';
 import type { Invoice } from '@/types';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 const fmtEur = (v: number) =>
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
+const chartConfig = {
+  Einnahmen: { label: 'Einnahmen', color: 'var(--color-emerald-500, #22c55e)' },
+  Ausgaben:  { label: 'Ausgaben',  color: 'var(--color-red-500, #ef4444)' },
+} satisfies ChartConfig;
 
 interface Props {
   invoices: Invoice[];
@@ -34,7 +38,7 @@ export function Last28DaysChart({ invoices, privacyMode }: Props) {
         name: (27 - i) % 7 === 0 ? format(day, 'dd.MM', { locale: de }) : '',
         fullDate: format(day, 'dd.MM.yyyy', { locale: de }),
         Einnahmen: dayInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0),
-        Ausgaben: dayInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0),
+        Ausgaben:  dayInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0),
       };
     });
   }, [invoices]);
@@ -45,22 +49,36 @@ export function Last28DaysChart({ invoices, privacyMode }: Props) {
         <CardTitle className="text-base">Letzte 28 Tage</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={data} barGap={1}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="name" className="text-xs" />
-            <YAxis tickFormatter={(v) => privacyMode ? '••••' : fmtEur(v)} className="text-xs" width={80} />
-            <Tooltip
-              labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate ?? ''}
-              formatter={(v) => privacyMode ? '••••' : fmtEur(Number(v))}
+        <ChartContainer config={chartConfig} className="h-[280px] w-full">
+          <BarChart data={data} barGap={2}>
+            <CartesianGrid vertical={false} className="stroke-border/50" />
+            <XAxis
+              dataKey="name"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12 }}
             />
-            <Legend />
-            <Bar dataKey="Einnahmen" fill="#22c55e" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Ausgaben" fill="#ef4444" radius={[3, 3, 0, 0]} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12 }}
+              width={80}
+              tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelKey="fullDate"
+                  formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))}
+                />
+              }
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="Einnahmen" fill="var(--color-Einnahmen)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Ausgaben"  fill="var(--color-Ausgaben)"  radius={[3, 3, 0, 0]} />
           </BarChart>
-        </ResponsiveContainer>
+        </ChartContainer>
       </CardContent>
     </Card>
   );
 }
-

@@ -1,6 +1,14 @@
 import { useMemo } from 'react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart';
 import type { Invoice } from '@/types';
 import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, type Category } from '@/types';
 
@@ -23,12 +31,17 @@ export function CategoryDonut({ invoices, privacyMode }: Props) {
       map.set(inv.category, (map.get(inv.category) ?? 0) + inv.brutto);
     }
     return Array.from(map.entries())
-      .map(([cat, value]) => ({
-        name: CATEGORY_LABELS[cat as Category] ?? cat,
-        value,
-      }))
+      .map(([cat, value]) => ({ name: CATEGORY_LABELS[cat as Category] ?? cat, value, cat }))
       .sort((a, b) => b.value - a.value);
   }, [invoices]);
+
+  const chartConfig = useMemo(
+    () =>
+      Object.fromEntries(
+        data.map((d, i) => [d.name, { label: d.name, color: COLORS[i % COLORS.length] }])
+      ) as ChartConfig,
+    [data]
+  );
 
   return (
     <Card className="rounded-xl shadow-sm">
@@ -41,25 +54,33 @@ export function CategoryDonut({ invoices, privacyMode }: Props) {
             Keine Ausgaben vorhanden.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
+          <ChartContainer config={chartConfig} className="h-[280px] w-full">
             <PieChart>
               <Pie
                 data={data}
+                dataKey="value"
+                nameKey="name"
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
                 outerRadius={100}
-                dataKey="value"
                 paddingAngle={2}
               >
                 {data.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} strokeWidth={0} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => privacyMode ? '••••' : fmtEur(Number(v))} />
-              <Legend />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    formatter={(value) => (privacyMode ? '€€€€' : fmtEur(Number(value)))}
+                    nameKey="name"
+                  />
+                }
+              />
+              <ChartLegend content={<ChartLegendContent nameKey="name" />} />
             </PieChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         )}
       </CardContent>
     </Card>
