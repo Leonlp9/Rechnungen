@@ -32,6 +32,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ── Gmail-Credentials aus GitHub Secrets als .env ────────────────────
+      - name: Create .env from secrets
+        shell: bash
+        run: |
+          echo "VITE_GMAIL_CLIENT_ID=${{ secrets.VITE_GMAIL_CLIENT_ID }}" >> .env
+          echo "VITE_GMAIL_CLIENT_SECRET=${{ secrets.VITE_GMAIL_CLIENT_SECRET }}" >> .env
+
+
+
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
         run: |

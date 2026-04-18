@@ -12,6 +12,7 @@ import {
   ArrowRight,
   HelpCircle,
   ListTodo,
+  Mail,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -55,6 +56,7 @@ const NAV_ITEMS = [
   { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2 },
   { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare },
   { to: '/lists', label: 'Listen', icon: ListTodo },
+  { to: '/gmail', label: 'Gmail', icon: Mail },
   { to: '/settings', label: 'Einstellungen', icon: Settings },
   { to: '/help', label: 'Hilfe', icon: HelpCircle },
 ];

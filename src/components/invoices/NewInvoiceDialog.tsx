@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -46,9 +46,11 @@ type FormData = z.infer<typeof schema>;
 interface Props {
   open: boolean;
   onClose: () => void;
+  initialPdfPath?: string;
+  initialPdfName?: string;
 }
 
-export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
+export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initialPdfName }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState('');
@@ -82,6 +84,18 @@ export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
     setSaving(false);
     form.reset();
   };
+
+  // Pre-fill when opened with a PDF from Gmail import
+  useEffect(() => {
+    if (isOpen && initialPdfPath) {
+      setPdfPath(initialPdfPath);
+      setPdfName(initialPdfName ?? initialPdfPath.split(/[\\/]/).pop() ?? 'document.pdf');
+      readPdfAsBase64(initialPdfPath)
+        .then((b64) => setPdfDataUrl(`data:application/pdf;base64,${b64}`))
+        .catch(() => setPdfDataUrl(null));
+      setStep(2);
+    }
+  }, [isOpen, initialPdfPath]);
 
   const handleClose = () => {
     reset();

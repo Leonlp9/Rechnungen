@@ -27,6 +27,9 @@
     "fs:allow-write-file",
     "updater:default",
     "process:allow-restart",
+    "oauth:default",
+    "oauth:allow-start",
+    "oauth:allow-cancel",
     {
       "identifier": "fs:scope",
       "allow": [
