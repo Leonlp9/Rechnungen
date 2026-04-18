@@ -8,7 +8,7 @@ import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { AIChatFloat } from '@/components/chat/AIChatFloat';
 import { useAppStore } from '@/store';
 
-const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice'];
+const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists'];
 
 export function AppLayout() {
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);

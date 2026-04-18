@@ -8,6 +8,7 @@ import InvoiceDetail from "@/components/invoices/InvoiceDetail";
 import WriteInvoice from "@/pages/WriteInvoice";
 import InvoiceDesigner from "@/pages/InvoiceDesigner";
 import HelpPage from "@/pages/Help";
+import ListsPage from "@/pages/Lists";
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/updater";
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
       { path: "/invoices/:id", element: <InvoiceDetail /> },
       { path: "/write-invoice", element: <WriteInvoice /> },
       { path: "/invoice-designer", element: <InvoiceDesigner /> },
+      { path: "/lists", element: <ListsPage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/help", element: <HelpPage /> },
     ],

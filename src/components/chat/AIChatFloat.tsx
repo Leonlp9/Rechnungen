@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, Minus } from 'lucide-react';
 import { useChatStore } from '@/store/chatStore';
@@ -31,6 +31,24 @@ export function AIChatFloat() {
     if (position.x !== 0 || position.y !== 0) return position;
     return { x: window.innerWidth - DEFAULT_W - MARGIN, y: window.innerHeight - DEFAULT_H - MARGIN };
   });
+
+  // Re-render on window resize + clamp open window back into viewport
+  const [, setWinSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const onResize = () => {
+      setWinSize({ w: window.innerWidth, h: window.innerHeight });
+      setSize((prev) => ({
+        w: Math.min(prev.w, window.innerWidth),
+        h: Math.min(prev.h, window.innerHeight),
+      }));
+      setPos((prev) => ({
+        x: Math.max(0, Math.min(prev.x, window.innerWidth  - size.w)),
+        y: Math.max(0, Math.min(prev.y, window.innerHeight - size.h)),
+      }));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [size.w, size.h]);
 
   // ── Drag ──────────────────────────────────────────
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);

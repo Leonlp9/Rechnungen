@@ -52,6 +52,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState('');
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const setInvoices = useAppStore((s) => s.setInvoices);
@@ -76,6 +77,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
     setStep(1);
     setPdfPath(null);
     setPdfName('');
+    setPdfDataUrl(null);
     setAiLoading(false);
     setSaving(false);
     form.reset();
@@ -95,6 +97,13 @@ export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
       if (result) {
         setPdfPath(result as string);
         setPdfName((result as string).split(/[\\/]/).pop() ?? 'document.pdf');
+        // load preview
+        try {
+          const base64 = await readPdfAsBase64(result as string);
+          setPdfDataUrl(`data:application/pdf;base64,${base64}`);
+        } catch {
+          setPdfDataUrl(null);
+        }
         setStep(2);
       }
     } catch (e) {
@@ -167,7 +176,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className={step === 2 ? 'max-w-[90vw] w-[90vw] max-h-[92vh] overflow-hidden' : 'max-w-lg'}>
         <DialogHeader>
           <DialogTitle>Neue Rechnung</DialogTitle>
         </DialogHeader>
@@ -189,104 +198,123 @@ export function NewInvoiceDialog({ open: isOpen, onClose }: Props) {
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
-            {/* PDF info + AI button */}
-            <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-3">
-              <div className="flex items-center gap-2 text-sm">
-                <FileText className="h-4 w-4" />
-                <span className="truncate max-w-[300px]">{pdfName}</span>
-              </div>
-              <Button
-                onClick={handleAiAnalyze}
-                disabled={aiLoading}
-                className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600"
-              >
-                {aiLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                {aiLoading ? 'Analysiere...' : '✨ KI-Erfassung'}
-              </Button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Datum</Label>
-                <Input type="date" {...form.register('date')} />
-                {form.formState.errors.date && <p className="text-xs text-destructive">{form.formState.errors.date.message}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Partner</Label>
-                <Input {...form.register('partner')} />
-                {form.formState.errors.partner && <p className="text-xs text-destructive">{form.formState.errors.partner.message}</p>}
-              </div>
-
-              <div className="col-span-2 space-y-1.5">
-                <Label>Beschreibung</Label>
-                <Input {...form.register('description')} />
-                {form.formState.errors.description && <p className="text-xs text-destructive">{form.formState.errors.description.message}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Netto</Label>
-                <Input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>USt</Label>
-                <Input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Brutto</Label>
-                <Input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Währung</Label>
-                <Input {...form.register('currency')} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Typ</Label>
-                <Select value={form.watch('type')} onValueChange={(v) => form.setValue('type', v as 'einnahme' | 'ausgabe' | 'info')}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {INVOICE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Kategorie</Label>
-                <Select value={form.watch('category')} onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="col-span-2 space-y-1.5">
-                <Label>Notiz</Label>
-                <Input {...form.register('note')} />
-              </div>
-
-              <div className="col-span-2 flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={handleClose}>Abbrechen</Button>
-                <Button type="submit" disabled={saving}>
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Speichern
+          <div className="flex gap-4 h-[78vh]">
+            {/* Left: form */}
+            <div className="flex-1 min-w-0 overflow-y-auto pr-1 space-y-4">
+              {/* PDF info + AI button */}
+              <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <FileText className="h-4 w-4" />
+                  <span className="truncate max-w-[200px]">{pdfName}</span>
+                </div>
+                <Button
+                  onClick={handleAiAnalyze}
+                  disabled={aiLoading}
+                  className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600"
+                >
+                  {aiLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  {aiLoading ? 'Analysiere...' : '✨ KI-Erfassung'}
                 </Button>
               </div>
-            </form>
+
+              {/* Form */}
+              <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Datum</Label>
+                  <Input type="date" {...form.register('date')} />
+                  {form.formState.errors.date && <p className="text-xs text-destructive">{form.formState.errors.date.message}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Partner</Label>
+                  <Input {...form.register('partner')} />
+                  {form.formState.errors.partner && <p className="text-xs text-destructive">{form.formState.errors.partner.message}</p>}
+                </div>
+
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Beschreibung</Label>
+                  <Input {...form.register('description')} />
+                  {form.formState.errors.description && <p className="text-xs text-destructive">{form.formState.errors.description.message}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Netto</Label>
+                  <Input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>USt</Label>
+                  <Input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Brutto</Label>
+                  <Input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Währung</Label>
+                  <Input {...form.register('currency')} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Typ</Label>
+                  <Select value={form.watch('type')} onValueChange={(v) => form.setValue('type', v as 'einnahme' | 'ausgabe' | 'info')}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {INVOICE_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Kategorie</Label>
+                  <Select value={form.watch('category')} onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Notiz</Label>
+                  <Input {...form.register('note')} />
+                </div>
+
+                <div className="col-span-2 flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" onClick={handleClose}>Abbrechen</Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Speichern
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            {/* Right: PDF preview */}
+            <div className="w-[45%] shrink-0 rounded-lg border overflow-hidden bg-muted/30 flex flex-col">
+              <div className="text-xs text-muted-foreground px-3 py-1.5 border-b font-medium">Vorschau</div>
+              {pdfDataUrl ? (
+                <iframe
+                  src={pdfDataUrl}
+                  className="flex-1 w-full"
+                  title="PDF Vorschau"
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                  Keine Vorschau verfügbar
+                </div>
+              )}
+            </div>
           </div>
         )}
       </DialogContent>

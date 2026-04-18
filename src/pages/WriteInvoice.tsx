@@ -15,6 +15,7 @@ import { FileDown, Eye, EyeOff, FileText, Plus, Trash2, ReceiptText, ArrowLeftRi
 import { format } from 'date-fns';
 import type { LineItem, ItemsElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
+import { SaveInvoiceDialog } from '@/components/invoices/SaveInvoiceDialog';
 const SETTINGS_KEYS = [
   'profile_name', 'profile_address', 'profile_email', 'profile_phone',
   'profile_tax_number', 'profile_vat_id', 'profile_iban', 'profile_bic', 'profile_business_type',
@@ -33,6 +34,8 @@ export default function WriteInvoice() {
   const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('page');
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveDialogPrefill, setSaveDialogPrefill] = useState<{ partner: string; date: string; description: string; netto: number; ust: number; brutto: number } | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const isResizing = useRef(false);
   const startX = useRef(0);
@@ -56,6 +59,7 @@ export default function WriteInvoice() {
   };
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
   const [includeMwst, setIncludeMwst] = useState(true);
+  const [simpleMode, setSimpleMode] = useState(false);
   const template = templates.find((t) => t.id === selectedId) ?? null;
   const itemsEl = template?.elements.find((e) => e.type === 'items') as ItemsElement | undefined;
   const hasItemsTable = !!itemsEl;
@@ -91,12 +95,22 @@ export default function WriteInvoice() {
     if (!template) return;
     try {
       setExporting(true);
-      const ab = await generateTemplatePdf(template, values, hasItemsTable ? lineItems : undefined);
+      const ab = await generateTemplatePdf(template, values, hasItemsTable ? lineItems : undefined, simpleMode);
       const suggested = (values['doc_number'] || 'Rechnung').replace(/[^a-zA-Z0-9_-]/g, '_');
       const path = await saveDialog({ defaultPath: `${suggested}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
       if (!path) return;
       await writeFile(path, new Uint8Array(ab));
       toast.success('PDF gespeichert!');
+      // Ask user if they want to add to invoice list
+      setSaveDialogPrefill({
+        partner: values['receiver_name'] ?? '',
+        date: values['doc_date'] ?? format(new Date(), 'dd.MM.yyyy'),
+        description: values['doc_number'] ?? suggested,
+        netto,
+        ust: mwstAmt,
+        brutto,
+      });
+      setSaveDialogOpen(true);
     } catch (e) {
       toast.error('Fehler: ' + String(e));
     } finally {
@@ -201,10 +215,16 @@ export default function WriteInvoice() {
                       <ReceiptText className="h-4 w-4 text-primary" />
                       Positionen
                     </CardTitle>
-                    <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                      <input type="checkbox" checked={includeMwst} onChange={(e) => setIncludeMwst(e.target.checked)} className="accent-primary" />
-                      MwSt. ({mwstRate} %)
-                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none" title="Nur Bezeichnung & Betrag, ohne Menge/Einheit/Einzelpreis">
+                        <input type="checkbox" checked={simpleMode} onChange={(e) => setSimpleMode(e.target.checked)} className="accent-primary" />
+                        Einfach
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                        <input type="checkbox" checked={includeMwst} onChange={(e) => setIncludeMwst(e.target.checked)} className="accent-primary" />
+                        MwSt. ({mwstRate} %)
+                      </label>
+                    </div>
                   </CardHeader>
                   <CardContent className="px-3 pb-4 space-y-2">
                     {lineItems.map((item, idx) => (
@@ -213,25 +233,35 @@ export default function WriteInvoice() {
                           <span className="text-[10px] text-muted-foreground w-4 shrink-0">{idx + 1}.</span>
                           <Input value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })}
                             placeholder="Bezeichnung" className="h-7 text-xs flex-1" />
+                          {simpleMode && (
+                            <Input
+                              type="number" min={0} step={0.01}
+                              value={item.unitPrice}
+                              onChange={(e) => updateItem(item.id, { quantity: 1, unit: '', unitPrice: parseFloat(e.target.value) || 0 })}
+                              placeholder="Betrag" className="h-7 text-xs text-right w-24"
+                            />
+                          )}
                           <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity shrink-0"
                             onClick={() => removeItem(item.id)} title="Entfernen">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <div className="flex gap-1 items-center pl-5">
-                          <Input type="number" min={0} step={0.01} value={item.quantity}
-                            onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                            placeholder="Menge" className="h-7 text-xs text-right w-14" />
-                          <Input value={item.unit} onChange={(e) => updateItem(item.id, { unit: e.target.value })}
-                            placeholder="Einh." className="h-7 text-xs w-12" />
-                          <span className="text-xs text-muted-foreground">x</span>
-                          <Input type="number" min={0} step={0.01} value={item.unitPrice}
-                            onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                            placeholder="0,00" className="h-7 text-xs text-right w-20" />
-                          <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">
-                            = {fmt(item.quantity * item.unitPrice)}
-                          </span>
-                        </div>
+                        {!simpleMode && (
+                          <div className="flex gap-1 items-center pl-5">
+                            <Input type="number" min={0} step={0.01} value={item.quantity}
+                              onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
+                              placeholder="Menge" className="h-7 text-xs text-right w-14" />
+                            <Input value={item.unit} onChange={(e) => updateItem(item.id, { unit: e.target.value })}
+                              placeholder="Einh." className="h-7 text-xs w-12" />
+                            <span className="text-xs text-muted-foreground">x</span>
+                            <Input type="number" min={0} step={0.01} value={item.unitPrice}
+                              onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
+                              placeholder="0,00" className="h-7 text-xs text-right w-20" />
+                            <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">
+                              = {fmt(item.quantity * item.unitPrice)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ))}
                     <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1" onClick={addItem}>
@@ -327,6 +357,7 @@ export default function WriteInvoice() {
                   variableValues={values}
                   lineItems={hasItemsTable ? lineItems : undefined}
                   includeMwst={includeMwst}
+                  simpleMode={simpleMode}
                   readOnly
                 />
               </div>
@@ -335,6 +366,13 @@ export default function WriteInvoice() {
             )}
           </div>
         </div>
+      )}
+      {saveDialogOpen && saveDialogPrefill && (
+        <SaveInvoiceDialog
+          open={saveDialogOpen}
+          onClose={() => setSaveDialogOpen(false)}
+          prefill={saveDialogPrefill}
+        />
       )}
     </div>
   );

@@ -11,15 +11,14 @@ interface Props {
   isResizeHovered?: boolean;
   lineItems?: LineItem[];
   includeMwst?: boolean;
+  simpleMode?: boolean;
 }
 
-export function ElementRenderer({ element: el, variableValues, isSelected, isHovered, isResizeHovered, lineItems }: Props) {
+export function ElementRenderer({ element: el, variableValues, isSelected, isHovered, isResizeHovered, lineItems, simpleMode }: Props) {
   // ── Items table – handled before the discriminated-union switch ──────────
   if (el.type === 'items') {
     const it = el as ItemsElement;
     const fs = it.fontSize || 10;
-    const cols: number[] = (it.colWidths as unknown as number[]) || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
-    const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
     const headerBg  = it.headerBgColor  || '#1e3a5f';
     const headerTxt = it.headerTextColor || '#ffffff';
     const border    = it.borderColor    || '#d1d5db';
@@ -29,6 +28,44 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
       n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
 
     const isLive = Array.isArray(lineItems) && lineItems.length > 0;
+
+    // Simple mode: only Bezeichnung + Betrag (2 columns)
+    if (simpleMode) {
+      const simpleCols = [0.78, 0.22];
+      const simpleHeaders = ['Bezeichnung', 'Betrag'];
+      const simpleRows: string[][] = isLive
+        ? lineItems!.map((item) => [
+            item.description || '',
+            fmtNum(item.unitPrice),
+          ])
+        : [
+            ['Beispielposition', '100,00 \u20ac'],
+            ['Weitere Position', '200,00 \u20ac'],
+          ];
+
+      return (
+        <div style={{ position: 'relative', width: '100%', fontFamily: 'Helvetica, Arial, sans-serif', fontSize: fs, boxSizing: 'border-box', outline: isSelected ? '2px solid #2563eb' : isResizeHovered ? '2px dashed #2563eb' : isHovered ? '1.5px dashed #94a3b8' : 'none', outlineOffset: '-1px' }}>
+          <div style={{ display: 'flex', backgroundColor: headerBg, color: headerTxt, fontWeight: 'bold' }}>
+            {simpleHeaders.map((h, i) => (
+              <div key={i} style={{ width: `${simpleCols[i] * 100}%`, padding: '4px 6px', borderRight: i < simpleHeaders.length - 1 ? '1px solid rgba(255,255,255,0.2)' : 'none', textAlign: i === 1 ? 'right' : 'left', fontSize: fs, boxSizing: 'border-box' }}>{h}</div>
+            ))}
+          </div>
+          {simpleRows.map((row, ri) => (
+            <div key={ri} style={{ display: 'flex', backgroundColor: ri % 2 === 1 ? altBg : '#ffffff', borderBottom: `1px solid ${border}` }}>
+              {row.map((cell, ci) => (
+                <div key={ci} style={{ width: `${simpleCols[ci] * 100}%`, padding: '4px 6px', borderRight: ci < row.length - 1 ? `1px solid ${border}` : 'none', textAlign: ci === 1 ? 'right' : 'left', fontSize: fs, color: '#111827', boxSizing: 'border-box' }}>{cell}</div>
+              ))}
+            </div>
+          ))}
+          {!isLive && (
+            <div style={{ position: 'absolute', top: 2, right: 4, fontSize: 9, color: headerBg, opacity: 0.6, fontWeight: 'bold', pointerEvents: 'none' }}>POSITIONS-TABELLE</div>
+          )}
+        </div>
+      );
+    }
+
+    const cols: number[] = (it.colWidths as unknown as number[]) || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
+    const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
     const rows: string[][] = isLive
       ? lineItems!.map((item, idx) => [
           String(idx + 1),

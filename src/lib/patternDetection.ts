@@ -55,7 +55,7 @@ export function detectPatterns(invoices: Invoice[]): DetectedPattern[] {
   const patterns: DetectedPattern[] = [];
 
   for (const [, group] of groups) {
-    if (group.length < 3) continue;
+    if (group.length < 2) continue;
 
     // Sort by date ascending
     const sorted = [...group].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -82,14 +82,16 @@ export function detectPatterns(invoices: Invoice[]): DetectedPattern[] {
     const fixedAmount = outlierRatio <= 0.30;
 
     // Confidence: based on count, amount consistency (penalize only if many outliers) and regularity
-    const countScore = Math.min(1, (group.length - 2) / 8);
+    // countScore starts low for 2 occurrences (min 2 needed) and grows with more data
+    const countScore = Math.min(1, (group.length - 1) / 9); // 2→0.11, 3→0.22, 10→1.0
     // Amount score: high if outlier ratio is low, gradually penalized
     const amountScore = Math.max(0, 1 - outlierRatio * 2);
     const gapVariance = gaps.length > 1
       ? gaps.reduce((s, g) => s + Math.abs(g - medianGap), 0) / gaps.length / medianGap
       : 0;
-    const regularityScore = Math.max(0, 1 - gapVariance);
-    const confidence = Math.round(((countScore * 0.3 + amountScore * 0.3 + regularityScore * 0.4)) * 100) / 100;
+    // For 2 occurrences there's only 1 gap so regularity can't be measured – apply penalty
+    const regularityScore = gaps.length === 1 ? 0.4 : Math.max(0, 1 - gapVariance);
+    const confidence = Math.round(((countScore * 0.35 + amountScore * 0.25 + regularityScore * 0.40)) * 100) / 100;
 
     const last = sorted[sorted.length - 1];
     const lastDate = new Date(last.date);

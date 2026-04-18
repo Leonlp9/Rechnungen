@@ -60,6 +60,7 @@ interface Props {
   snapEnabled?: boolean;
   lineItems?: LineItem[];
   includeMwst?: boolean;
+  simpleMode?: boolean;
 }
 
 /** Cursor styles for each resize handle direction */
@@ -96,7 +97,7 @@ type LineDrag =
 
 export function DesignerCanvas({
   template, selectedId, onSelect, onUpdate, scale, variableValues, readOnly, snapEnabled = true,
-  lineItems, includeMwst,
+  lineItems, simpleMode,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -192,7 +193,7 @@ export function DesignerCanvas({
               minHeight: el.type === 'items' ? el.height : undefined,
               zIndex: el.zIndex,
             }}>
-              <ElementRenderer element={el} variableValues={variableValues} lineItems={lineItems} includeMwst={includeMwst} />
+              <ElementRenderer element={el} variableValues={variableValues} lineItems={lineItems} simpleMode={simpleMode} />
             </div>
           ) : (
             <Rnd
@@ -250,6 +251,7 @@ export function DesignerCanvas({
                   isSelected={el.id === selectedId}
                   isHovered={hoveredId === el.id && el.id !== selectedId}
                   isResizeHovered={resizeHoveredId === el.id}
+                  simpleMode={simpleMode}
                 />
               </div>
             </Rnd>

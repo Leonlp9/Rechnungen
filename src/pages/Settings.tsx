@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2 } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
@@ -551,10 +551,60 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-base">Über</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Rechnungs-Manager</p>
-          <p className="text-sm text-muted-foreground">Version: <span className="font-mono font-medium text-foreground">{version ? `v${version}` : '...'}</span></p>
-          <p className="text-sm text-muted-foreground">Tauri + React + TypeScript</p>
+        <CardContent className="space-y-4">
+          {/* App-Info */}
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Code2 className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Rechnungs-Manager</p>
+              <p className="text-xs text-muted-foreground">Version: <span className="font-mono font-medium text-foreground">{version ? `v${version}` : '...'}</span></p>
+              <p className="text-xs text-muted-foreground mt-0.5">Tauri · React · TypeScript · SQLite</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-border" />
+
+          {/* Entwickler-Info */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Entwickler</p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-sm">
+                L
+              </div>
+              <div>
+                <p className="text-sm font-medium">Leon Rabe</p>
+                <p className="text-xs text-muted-foreground">Softwareentwicklung · Freelancer</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Links */}
+          <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Links</p>
+            <a
+              href="https://github.com/Leonlp9/Rechnungen"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <GitBranch className="h-4 w-4 shrink-0" />
+              <span>github.com/Leonlp9/Rechnungen</span>
+              <ExternalLink className="h-3 w-3 opacity-60 ml-auto" />
+            </a>
+            <a
+              href="https://github.com/Leonlp9"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <GitBranch className="h-4 w-4 shrink-0" />
+              <span>github.com/Leonlp9</span>
+              <ExternalLink className="h-3 w-3 opacity-60 ml-auto" />
+            </a>
+          </div>
+
           <Button
             variant="outline"
             onClick={async () => {

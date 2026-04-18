@@ -1,8 +1,9 @@
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage as ChatMessageType } from '@/store/chatStore';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Copy, Check } from 'lucide-react';
 import { useAppStore } from '@/store';
 
 interface Props {
@@ -16,6 +17,14 @@ export function ChatMessage({ message, onFollowUp }: Props) {
   const darkMode = useAppStore((s) => s.darkMode);
   const isUser = message.role === 'user';
   const isGlass = theme === 'liquid-glass';
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
 
   const glassFollowUpStyle = isGlass ? {
     backdropFilter: 'blur(10px) saturate(140%)',
@@ -40,77 +49,99 @@ export function ChatMessage({ message, onFollowUp }: Props) {
 
       {/* Content */}
       <div className={cn('flex flex-col gap-1.5 max-w-[85%]', isUser ? 'items-end' : 'items-start')}>
-        <div className={cn(
-          'rounded-2xl px-3 py-2 text-sm',
-          isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-            : 'bg-muted text-foreground rounded-tl-sm'
-        )}>
-          {isUser ? (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
-          ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-              <ReactMarkdown
-                components={{
-                  a({ href, children }) {
-                    // nav: prefix OR any relative path → in-app navigation
-                    const route = href?.startsWith('nav:')
-                      ? href.slice(4)
-                      : href?.startsWith('/')
-                        ? href
-                        : null;
-                    if (route) {
+        {/* Bubble + copy button wrapper */}
+        <div className={cn('relative group', isUser ? 'self-end' : 'self-start w-full')}>
+          <div className={cn(
+            'rounded-2xl px-3 py-2 text-sm select-text',
+            isUser
+              ? 'bg-primary text-primary-foreground rounded-tr-sm'
+              : 'bg-muted text-foreground rounded-tl-sm'
+          )}>
+            {isUser ? (
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <ReactMarkdown
+                  components={{
+                    a({ href, children }) {
+                      // nav: prefix OR any relative path → in-app navigation
+                      const route = href?.startsWith('nav:')
+                        ? href.slice(4)
+                        : href?.startsWith('/')
+                          ? href
+                          : null;
+                      if (route) {
+                        return (
+                          <button
+                            onClick={() => navigate(route)}
+                            className="text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer font-medium inline"
+                          >
+                            {children}
+                          </button>
+                        );
+                      }
+                      // External links: open in default browser via Tauri opener, NOT window.open
                       return (
                         <button
-                          onClick={() => navigate(route)}
-                          className="text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer font-medium inline"
+                          onClick={() => {
+                            if (href) {
+                              import('@tauri-apps/plugin-opener')
+                                .then(({ openUrl }) => openUrl(href))
+                                .catch(() => {});
+                            }
+                          }}
+                          className="text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer inline"
                         >
                           {children}
                         </button>
                       );
-                    }
-                    // External links: open in default browser via Tauri opener, NOT window.open
-                    return (
-                      <button
-                        onClick={() => {
-                          if (href) {
-                            import('@tauri-apps/plugin-opener')
-                              .then(({ openUrl }) => openUrl(href))
-                              .catch(() => {});
-                          }
-                        }}
-                        className="text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer inline"
-                      >
-                        {children}
-                      </button>
-                    );
-                  },
-                  p({ children }) {
-                    return <p className="mb-2 last:mb-0">{children}</p>;
-                  },
-                  ul({ children }) {
-                    return <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>;
-                  },
-                  ol({ children }) {
-                    return <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>;
-                  },
-                  code({ children }) {
-                    return <code className="bg-background/50 px-1 py-0.5 rounded text-xs font-mono">{children}</code>;
-                  },
-                  strong({ children }) {
-                    return <strong className="font-semibold">{children}</strong>;
-                  },
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
-            </div>
+                    },
+                    p({ children }) {
+                      return <p className="mb-2 last:mb-0">{children}</p>;
+                    },
+                    ul({ children }) {
+                      return <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>;
+                    },
+                    ol({ children }) {
+                      return <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>;
+                    },
+                    code({ children }) {
+                      return <code className="bg-background/50 px-1 py-0.5 rounded text-xs font-mono">{children}</code>;
+                    },
+                    strong({ children }) {
+                      return <strong className="font-semibold">{children}</strong>;
+                    },
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
+          </div>
+
+          {/* Copy button – only for AI messages, appears on hover */}
+          {!isUser && message.content && (
+            <button
+              onClick={handleCopy}
+              className={cn(
+                'absolute -bottom-2 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs',
+                'border border-border bg-background text-muted-foreground shadow-sm',
+                'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+                'hover:text-foreground hover:bg-muted',
+              )}
+              title="Kopieren"
+            >
+              {copied
+                ? <><Check className="h-3 w-3 text-green-500" /><span className="text-green-500">Kopiert</span></>
+                : <><Copy className="h-3 w-3" /><span>Kopieren</span></>
+              }
+            </button>
           )}
         </div>
 
         {/* Follow-up suggestions */}
         {!isUser && message.followUps && message.followUps.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1">
+          <div className="flex flex-wrap gap-1.5 mt-2">
             {message.followUps.map((q, i) => (
               <button
                 key={i}
@@ -132,9 +163,3 @@ export function ChatMessage({ message, onFollowUp }: Props) {
     </div>
   );
 }
-
-
-
-
-
-

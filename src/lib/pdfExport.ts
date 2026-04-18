@@ -70,15 +70,13 @@ function renderItemsTable(
   doc: jsPDF,
   el: ItemsElement,
   lineItems: LineItem[],
+  simpleMode = false,
 ) {
   const x = el.x * PX_TO_MM;
   const w = el.width * PX_TO_MM;
   const rowH = (el.rowHeight || 24) * PX_TO_MM;
   const headerH = rowH * 1.25;
   const fs = el.fontSize || 10;
-  const cols = el.colWidths || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
-  const colW = cols.map((c) => c * w);
-  const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
   const headerBg = el.headerBgColor || '#1e3a5f';
   const headerTxt = el.headerTextColor || '#ffffff';
   const borderCol = el.borderColor || '#d1d5db';
@@ -88,6 +86,7 @@ function renderItemsTable(
 
   const drawRow = (
     cells: string[],
+    colWidths: number[],
     rowHeight: number,
     bgColor: string | null,
     textColor: string,
@@ -106,7 +105,7 @@ function renderItemsTable(
 
     let cx = x;
     cells.forEach((cell, i) => {
-      const cw = colW[i];
+      const cw = colWidths[i];
       if (i > 0) {
         doc.setDrawColor(br, bg2, bb);
         doc.setLineWidth(0.2);
@@ -122,11 +121,29 @@ function renderItemsTable(
     cy += rowHeight;
   };
 
-  // Header
-  drawRow(headers, headerH, headerBg, headerTxt, true,
+  if (simpleMode) {
+    // Simple mode: Bezeichnung + Betrag only
+    const simpleCols = [w * 0.78, w * 0.22];
+    drawRow(['Bezeichnung', 'Betrag'], simpleCols, headerH, headerBg, headerTxt, true, ['left', 'right']);
+    lineItems.forEach((item, idx) => {
+      const bg = idx % 2 === 1 ? altBg : '#ffffff';
+      drawRow(
+        [item.description || '', fmt(item.unitPrice)],
+        simpleCols, rowH, bg, '#111827', false,
+        ['left', 'right'],
+      );
+    });
+    return;
+  }
+
+  // Full mode (original)
+  const cols = el.colWidths || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
+  const colW = cols.map((c) => c * w);
+  const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
+
+  drawRow(headers, colW, headerH, headerBg, headerTxt, true,
     ['left', 'left', 'right', 'right', 'right', 'right']);
 
-  // Data rows
   lineItems.forEach((item, idx) => {
     const total = item.quantity * item.unitPrice;
     const bg = idx % 2 === 1 ? altBg : '#ffffff';
@@ -139,13 +156,13 @@ function renderItemsTable(
         fmt(item.unitPrice),
         fmt(total),
       ],
-      rowH, bg, '#111827', false,
+      colW, rowH, bg, '#111827', false,
       ['left', 'left', 'right', 'right', 'right', 'right'],
     );
   });
 }
 
-function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[]) {
+function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[], simpleMode = false) {
   // Line elements have no x/y/width/height – handle them before the common vars
   if (el.type === 'line') {
     const ln = el as unknown as import('@/types/template').LineElement;
@@ -204,7 +221,7 @@ function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, s
       break;
     }
     case 'items': {
-      renderItemsTable(doc, el as ItemsElement, lineItems || []);
+      renderItemsTable(doc, el as ItemsElement, lineItems || [], simpleMode);
       break;
     }
   }
@@ -214,12 +231,13 @@ export async function generateTemplatePdf(
   template: InvoiceTemplate,
   values: Record<string, string>,
   lineItems?: LineItem[],
+  simpleMode = false,
 ): Promise<ArrayBuffer> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
   const sorted = [...template.elements].sort((a, b) => a.zIndex - b.zIndex);
   for (const el of sorted) {
-    renderElement(doc, el, values, lineItems);
+    renderElement(doc, el, values, lineItems, simpleMode);
   }
 
   return doc.output('arraybuffer');
