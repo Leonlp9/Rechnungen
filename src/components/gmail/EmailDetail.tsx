@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useGmailStore, selectActiveAccount } from '@/store/gmailStore';
 import { fetchEmailDetail, fetchAttachmentData, getValidToken } from '@/lib/gmail';
+import { imapFetchEmailDetail } from '@/lib/imap';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
@@ -41,10 +42,15 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
     let cancelled = false;
     (async () => {
       try {
-        const at = await getValidToken(activeAccount.token, (t) =>
-          updateAccountToken(activeAccount.email, t)
-        );
-        const detail = await fetchEmailDetail(at, selectedEmail.id);
+        let detail;
+        if (activeAccount.type === 'imap' && activeAccount.imapConfig) {
+          detail = await imapFetchEmailDetail(activeAccount.imapConfig, activeAccount.email, selectedEmail.id);
+        } else {
+          const at = await getValidToken(activeAccount.token!, (t) =>
+            updateAccountToken(activeAccount.email, t)
+          );
+          detail = await fetchEmailDetail(at, selectedEmail.id);
+        }
         if (!cancelled) { setSelectedEmail(detail); setFetchingDetail(false); }
       } catch (e: any) {
         if (!cancelled) {
@@ -58,9 +64,18 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
 
   const getToken = async () => {
     if (!activeAccount) throw new Error('Kein aktives Konto');
-    return getValidToken(activeAccount.token, (t) =>
+    return getValidToken(activeAccount.token!, (t) =>
       updateAccountToken(activeAccount.email, t)
     );
+  };
+
+  const getAttachmentBase64 = async (attachmentId: string): Promise<string> => {
+    // IMAP: attachment data is already embedded in the message
+    const att = selectedEmail?.attachments.find((a) => a.id === attachmentId);
+    if (att?.dataBase64) return att.dataBase64;
+    // Gmail: fetch from API
+    const at = await getToken();
+    return fetchAttachmentData(at, selectedEmail!.id, attachmentId);
   };
 
   const handleIframeLoad = () => {
@@ -81,8 +96,7 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
   const openPreview = async (attachmentId: string, filename: string, mimeType: string) => {
     setPreviewLoading(attachmentId);
     try {
-      const at = await getToken();
-      const base64 = await fetchAttachmentData(at, selectedEmail!.id, attachmentId);
+      const base64 = await getAttachmentBase64(attachmentId);
       setPreviewAttachment({ filename, base64, mimeType });
     } catch (e: any) {
       toast.error('Vorschau fehlgeschlagen: ' + (e?.message ?? String(e)));
@@ -94,8 +108,7 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
   const importPdf = async (attachmentId: string, filename: string) => {
     const id = toast.loading(`Importiere ${filename}…`);
     try {
-      const at = await getToken();
-      const base64 = await fetchAttachmentData(at, selectedEmail!.id, attachmentId);
+      const base64 = await getAttachmentBase64(attachmentId);
       const path = await invoke<string>('save_pdf_attachment', { filename, dataBase64: base64 });
       toast.dismiss(id);
       toast.success(`${filename} gespeichert!`);

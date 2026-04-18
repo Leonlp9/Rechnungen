@@ -1,28 +1,11 @@
-import { Mail, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { startOAuthFlow, fetchUserEmail } from '@/lib/gmail';
-import { useGmailStore } from '@/store/gmailStore';
-import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { AddMailboxDialog } from './AddMailboxDialog';
 import { useState } from 'react';
 
 export function GmailLogin() {
-  const addOrUpdateAccount = useGmailStore((s) => s.addOrUpdateAccount);
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = async () => {
-    setLoading(true);
-    try {
-      const token = await startOAuthFlow();
-      const email = await fetchUserEmail(token.access_token);
-      addOrUpdateAccount({ email, token, emails: [], readEmailIds: [] });
-      toast.success(`${email} erfolgreich verbunden!`);
-    } catch (e: any) {
-      toast.error('Anmeldung fehlgeschlagen: ' + (e?.message ?? String(e)));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex h-full items-center justify-center p-8">
@@ -31,31 +14,23 @@ export function GmailLogin() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Mail className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Gmail verbinden</CardTitle>
+          <CardTitle className="text-2xl">Postfach verbinden</CardTitle>
           <CardDescription>
-            Melde dich mit deinem Google-Konto an, um deine E-Mails zu sehen und PDF-Anhänge direkt
-            als Rechnungen zu importieren.
+            Verbinde dein E-Mail-Konto, um Nachrichten zu lesen und PDF-Anhänge als Rechnungen zu importieren.
+            Unterstützt Gmail (OAuth), Outlook, iCloud, Yahoo und jeden eigenen IMAP-Server.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={handleLogin} disabled={loading} className="w-full" size="lg">
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Warte auf Browser…
-              </>
-            ) : (
-              <>
-                <Mail className="mr-2 h-4 w-4" />
-                Mit Google anmelden
-              </>
-            )}
+          <Button onClick={() => setOpen(true)} className="w-full" size="lg">
+            <Mail className="mr-2 h-4 w-4" />
+            Postfach hinzufügen
           </Button>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Es werden Lese-, Schreib- und Sendezugriffe auf dein Gmail-Postfach angefordert (zum Lesen, Antworten und Verfassen von E-Mails).
+            Für IMAP-Konten werden deine Zugangsdaten nur lokal auf deinem Gerät gespeichert.
           </p>
         </CardContent>
       </Card>
+      <AddMailboxDialog open={open} onClose={() => setOpen(false)} />
     </div>
   );
 }

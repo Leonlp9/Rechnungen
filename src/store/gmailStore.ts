@@ -2,11 +2,25 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { GmailToken, GmailMessage } from '@/lib/gmail';
 
+export type MailAccountType = 'gmail' | 'imap';
+
+export interface ImapConfig {
+  imapHost: string;
+  imapPort: number;
+  smtpHost: string;
+  smtpPort: number;
+  password: string;
+}
+
 export interface GmailAccount {
+  type?: MailAccountType; // defaults to 'gmail' for backward compat
   email: string;
-  token: GmailToken;
+  token?: GmailToken;      // gmail only
+  imapConfig?: ImapConfig; // imap only
   emails: GmailMessage[];
-  nextPageToken?: string;
+  nextPageToken?: string;  // gmail pagination
+  imapPage?: number;       // imap pagination
+  imapHasMore?: boolean;
   readEmailIds: string[];
 }
 
@@ -103,10 +117,14 @@ export const useGmailStore = create<GmailState>()(
         accounts: state.accounts
           .filter((a) => a.email && a.email !== 'Unbekannt')
           .map((a) => ({
+            type: a.type ?? 'gmail',
             email: a.email,
             token: a.token,
+            imapConfig: a.imapConfig,
             emails: a.emails.slice(0, 50),
             nextPageToken: a.nextPageToken,
+            imapPage: a.imapPage,
+            imapHasMore: a.imapHasMore,
             readEmailIds: a.readEmailIds ?? [],
           })),
         activeIndex: state.activeIndex,
@@ -117,7 +135,5 @@ export const useGmailStore = create<GmailState>()(
 
 // Selector helpers
 export const selectActiveAccount = (s: GmailState) => s.accounts[s.activeIndex] ?? null;
-
-
 
 

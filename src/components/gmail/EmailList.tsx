@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGmailStore, selectActiveAccount } from '@/store/gmailStore';
 import { fetchEmails, getValidToken, markMessageAsRead } from '@/lib/gmail';
+import { imapFetchEmails, imapMarkRead } from '@/lib/imap';
 import { toast } from 'sonner';
 import { Loader2, Paperclip, RefreshCw, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -82,16 +83,29 @@ export function EmailList() {
   const unreadCount = emails.filter((e) => isEmailUnread(e.id, e.isUnread)).length;
 
   const getAT = () =>
-    getValidToken(activeAccount.token, (t) => updateAccountToken(activeAccount.email, t));
+    getValidToken(activeAccount.token!, (t) => updateAccountToken(activeAccount.email, t));
+
+  const isImap = activeAccount.type === 'imap';
 
   const load = async (silent = false, customFilter?: AdvancedFilter) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const at = await getAT();
-      const q = buildQuery(customFilter ?? filter);
-      const { messages, nextPageToken } = await fetchEmails(at, 30, undefined, q || undefined);
-      updateAccountEmails(activeAccount.email, messages, nextPageToken);
+      if (isImap && activeAccount.imapConfig) {
+        const { messages, hasMore } = await imapFetchEmails(activeAccount.imapConfig, activeAccount.email, 1);
+        updateAccountEmails(activeAccount.email, messages, undefined);
+        // store hasMore in account
+        useGmailStore.setState((s) => ({
+          accounts: s.accounts.map((a) =>
+            a.email === activeAccount.email ? { ...a, imapPage: 1, imapHasMore: hasMore } : a
+          ),
+        }));
+      } else {
+        const at = await getAT();
+        const q = buildQuery(customFilter ?? filter);
+        const { messages, nextPageToken } = await fetchEmails(at, 30, undefined, q || undefined);
+        updateAccountEmails(activeAccount.email, messages, nextPageToken);
+      }
     } catch (e: any) {
       if (!silent)
         toast.error('E-Mails konnten nicht geladen werden: ' + (e?.message ?? String(e)));
@@ -106,13 +120,13 @@ export function EmailList() {
     load(emails.length > 0);
   }, [activeAccount.email]);
 
-  // Infinite scroll: Wenn Sentinel sichtbar → mehr laden
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
+    const hasMore = isImap ? activeAccount.imapHasMore : !!nextPageToken;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && nextPageToken && !loadingMore) {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
           loadMore();
         }
       },
@@ -120,16 +134,27 @@ export function EmailList() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [nextPageToken, loadingMore, activeAccount.email]);
+  }, [nextPageToken, activeAccount.imapHasMore, loadingMore, activeAccount.email]);
 
   const loadMore = async () => {
-    if (!nextPageToken) return;
+    if (!nextPageToken && !activeAccount.imapHasMore) return;
     setLoadingMore(true);
     try {
-      const at = await getAT();
-      const q = buildQuery(filter);
-      const { messages, nextPageToken: newToken } = await fetchEmails(at, 30, nextPageToken, q || undefined);
-      updateAccountEmails(activeAccount.email, [...emails, ...messages], newToken);
+      if (isImap && activeAccount.imapConfig) {
+        const nextPage = (activeAccount.imapPage ?? 1) + 1;
+        const { messages, hasMore } = await imapFetchEmails(activeAccount.imapConfig, activeAccount.email, nextPage);
+        updateAccountEmails(activeAccount.email, [...emails, ...messages], undefined);
+        useGmailStore.setState((s) => ({
+          accounts: s.accounts.map((a) =>
+            a.email === activeAccount.email ? { ...a, imapPage: nextPage, imapHasMore: hasMore } : a
+          ),
+        }));
+      } else {
+        const at = await getAT();
+        const q = buildQuery(filter);
+        const { messages, nextPageToken: newToken } = await fetchEmails(at, 30, nextPageToken, q || undefined);
+        updateAccountEmails(activeAccount.email, [...emails, ...messages], newToken);
+      }
     } catch (e: any) {
       toast.error('Fehler beim Laden: ' + (e?.message ?? String(e)));
     } finally {
@@ -154,11 +179,13 @@ export function EmailList() {
   const selectEmail = (email: (typeof emails)[0]) => {
     setSelectedEmail(email);
     setFetchingDetail(true);
-    // Lokal als gelesen markieren
     markEmailAsRead(activeAccount.email, email.id);
-    // In Gmail als gelesen markieren (fire & forget, kein await nötig)
     if (email.isUnread !== false) {
-      getAT().then((at) => markMessageAsRead(at, email.id)).catch(() => {});
+      if (isImap && activeAccount.imapConfig) {
+        imapMarkRead(activeAccount.imapConfig, activeAccount.email, email.id).catch(() => {});
+      } else {
+        getAT().then((at) => markMessageAsRead(at, email.id)).catch(() => {});
+      }
     }
   };
 
@@ -190,7 +217,7 @@ export function EmailList() {
           )}
           <Popover open={popoverOpen} onOpenChange={(o) => { setPopoverOpen(o); if (o) setDraftFilter(filter); }}>
             <PopoverTrigger asChild>
-              <Button size="icon" variant={active ? 'default' : 'ghost'} title="Erweiterte Suche">
+              <Button size="icon" variant={active ? 'default' : 'ghost'} title="Erweiterte Suche" disabled={isImap}>
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
@@ -347,7 +374,7 @@ export function EmailList() {
         {/* Infinite scroll sentinel */}
         <div ref={sentinelRef} className="py-3 flex justify-center">
           {loadingMore && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          {!nextPageToken && emails.length > 0 && (
+          {!nextPageToken && !activeAccount.imapHasMore && emails.length > 0 && (
             <p className="text-xs text-muted-foreground">Keine weiteren E-Mails</p>
           )}
         </div>

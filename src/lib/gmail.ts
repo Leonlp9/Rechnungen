@@ -38,6 +38,7 @@ export interface GmailAttachment {
   filename: string;
   mimeType: string;
   size: number;
+  dataBase64?: string; // pre-fetched for IMAP accounts
 }
 
 export interface GmailMessage {

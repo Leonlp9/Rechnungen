@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useGmailStore, selectActiveAccount } from '@/store/gmailStore';
 import { sendEmail, getValidToken } from '@/lib/gmail';
+import { smtpSendEmail } from '@/lib/imap';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,9 +95,20 @@ export function ComposeDialog({ open, onClose, replyTo }: ComposeDialogProps) {
     if (!subject.trim()) { toast.error('Bitte einen Betreff angeben.'); return; }
     setSending(true);
     try {
-      const at = await getValidToken(activeAccount.token, (t) => updateAccountToken(activeAccount.email, t));
       const html = editor.getHTML();
-      await sendEmail(at, to.trim(), subject.trim(), html, activeAccount.email, replyTo?.messageId, replyTo?.threadId);
+      if (activeAccount.type === 'imap' && activeAccount.imapConfig) {
+        await smtpSendEmail(
+          activeAccount.imapConfig,
+          activeAccount.email,
+          activeAccount.email,
+          to.trim(),
+          subject.trim(),
+          html
+        );
+      } else {
+        const at = await getValidToken(activeAccount.token!, (t) => updateAccountToken(activeAccount.email, t));
+        await sendEmail(at, to.trim(), subject.trim(), html, activeAccount.email, replyTo?.messageId, replyTo?.threadId);
+      }
       toast.success('E-Mail gesendet!');
       onClose();
     } catch (e: any) {
