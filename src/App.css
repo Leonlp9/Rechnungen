@@ -412,6 +412,56 @@
   -webkit-backdrop-filter: blur(8px) saturate(130%);
 }
 
+/* AI Chat Float – Liquid Glass */
+.liquid-glass .ai-chat-float {
+  backdrop-filter: blur(20px) saturate(160%) brightness(1.08) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(160%) brightness(1.08) !important;
+  background: oklch(1 0 0 / 45%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.40) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.14),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.80),
+    inset 0 0 12px rgba(255, 255, 255, 0.45) !important;
+}
+.liquid-glass.dark .ai-chat-float {
+  backdrop-filter: blur(20px) saturate(170%) brightness(1.15) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(170%) brightness(1.15) !important;
+  background: oklch(1 0 0 / 9%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.30),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 0 12px rgba(255, 255, 255, 0.06) !important;
+}
+.liquid-glass .ai-chat-fab {
+  backdrop-filter: blur(14px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
+  background: oklch(0.52 0.22 265 / 72%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.38) !important;
+  box-shadow:
+    0 4px 18px oklch(0.52 0.22 265 / 40%),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.50) !important;
+}
+.liquid-glass.dark .ai-chat-fab {
+  background: oklch(0.65 0.22 265 / 58%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow:
+    0 4px 20px oklch(0.65 0.22 265 / 38%),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.18) !important;
+}
+.liquid-glass .ai-chat-header {
+  background: oklch(1 0 0 / 22%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.liquid-glass.dark .ai-chat-header {
+  background: oklch(1 0 0 / 8%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10) !important;
+}
+
 /* ══════════════════════════════════════════
    Aurora Borealis Theme (Light)
    ══════════════════════════════════════════ */

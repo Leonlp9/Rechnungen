@@ -77,6 +77,7 @@ export function ForecastList({ invoices, privacyMode }: Props) {
                 params.set('q', f.pattern.partner);
                 params.set('cat', f.pattern.category);
                 params.set('type', f.pattern.type);
+                params.set('fyear', 'all');
                 navigate(`/invoices?${params.toString()}`);
               }}
               title="Quell-Rechnungen anzeigen"

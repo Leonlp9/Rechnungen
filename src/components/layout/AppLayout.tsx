@@ -5,6 +5,7 @@ import { Topbar } from './Topbar';
 import { NewInvoiceDialog } from '@/components/invoices/NewInvoiceDialog';
 import { ExportDialog } from '@/components/invoices/ExportDialog';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
+import { AIChatFloat } from '@/components/chat/AIChatFloat';
 import { useAppStore } from '@/store';
 
 const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice'];
@@ -47,6 +48,7 @@ export function AppLayout() {
       <NewInvoiceDialog open={newInvoiceOpen} onClose={() => setNewInvoiceOpen(false)} />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <AIChatFloat />
     </div>
   );
 }

@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useChatStore } from '@/store/chatStore';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -34,6 +35,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   const privacyMode = useAppStore((s) => s.privacyMode);
   const [searchParams, setSearchParams] = useSearchParams();
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
+  const setVisibleInvoiceIds = useChatStore((s) => s.setVisibleInvoiceIds);
 
   // Read state from URL
   const search = searchParams.get('q') ?? '';
@@ -111,6 +113,11 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // Keep chat store in sync with visible invoices
+  useEffect(() => {
+    setVisibleInvoiceIds(paginated.map((i) => String(i.id)));
+  }, [paginated.length, safePage]);
 
   const SortHeader = ({ label, field }: { label: string; field: SortKey }) => {
     const active = sortKey === field;

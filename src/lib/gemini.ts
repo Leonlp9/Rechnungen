@@ -1,5 +1,135 @@
 import { getSetting } from '@/lib/db';
 import type { GeminiResult } from '@/types';
+import { HELP_CONTENT_TEXT } from '@/lib/helpContent';
+
+// ─── AI Chat ────────────────────────────────────────────────────────────────
+
+export interface GeminiChatMessage {
+  role: 'user' | 'model';
+  parts: [{ text: string }];
+}
+
+export interface ChatResponse {
+  answer: string;
+  followUps: string[];
+  title?: string;
+}
+
+/**
+ * Sends a chat message to Gemini with optional page context.
+ * @param history Previous messages (role=user/model)
+ * @param pageContext Stringified context of what the user currently sees
+ * @param isFirstMessage Whether this is the first message in the session (for title generation)
+ * @param pdfBase64 Optional PDF attachment (base64)
+ */
+export async function sendChatMessage(
+  history: GeminiChatMessage[],
+  pageContext: string,
+  isFirstMessage: boolean,
+  pdfBase64?: string | null,
+): Promise<ChatResponse> {
+  const apiKey = await getSetting('gemini_api_key');
+  if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt. Bitte unter Einstellungen eingeben.');
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  const systemPrompt = `Du bist ein hilfreicher KI-Assistent für den Rechnungs-Manager. Du kennst dich perfekt mit Buchhaltung, Steuern und dem Rechnungs-Manager aus.
+
+## Hilfe-Dokumentation (immer aktuell):
+${HELP_CONTENT_TEXT}
+
+## Aktueller Seitenkontext (was der Nutzer gerade sieht):
+${pageContext || 'Kein spezifischer Kontext verfügbar.'}
+
+## Deine Aufgaben:
+- Beantworte Fragen des Nutzers hilfreich und präzise auf Deutsch.
+- Nutze die Kontextdaten um spezifische, personalisierte Antworten zu geben.
+- Du kannst Navigations-Links zu anderen Seiten der App einfügen mit der Syntax: [Linktext](/route)
+  Verfügbare Routen: / (Dashboard), /invoices (Alle Rechnungen), /invoices/ID (Rechnungsdetail mit konkreter ID), /write-invoice (Rechnung schreiben), /invoice-designer (Designer), /settings (Einstellungen), /help (Hilfe)
+  WICHTIG: Nutze IMMER relative Pfade mit führendem / (z.B. /invoices). Einzelne Rechnungen kannst du direkt verlinken: wenn im Kontext z.B. "[ID:42]" steht, dann verlinke mit [Partnername](/invoices/42). Nie absolute URLs für App-Navigation.
+
+- Auf der Rechnungsseite (/invoices) kannst du Filter als URL-Parameter setzen:
+  • q=Suchbegriff        → Freitext-Suche nach Partner/Beschreibung
+  • type=einnahme        → Typ-Filter (einnahme | ausgabe | info), mehrere mit Komma: type=einnahme,ausgabe
+  • cat=software_abos   → Kategorie-Filter, mehrere mit Komma
+    Verfügbare Kategorien: einnahmen, erstattungen, anlagevermoegen_afa, gwg, software_abos, fremdleistungen,
+    buerobedarf, reisekosten, marketing, weiterbildung, miete, versicherungen_betrieb, fahrzeugkosten,
+    kommunikation, vertraege, spenden, krankenkasse, sozialversicherung, privat, privatentnahme, sonstiges
+  • fyear=2025           → Jahres-Filter (Zahl oder "all")
+  • sort=brutto&dir=desc → Sortierung (date|partner|category|brutto|type, asc|desc)
+  Beispiele:
+    [Alle Software-Abos 2025](/invoices?cat=software_abos&fyear=2025)
+    [Ausgaben sortiert nach Betrag](/invoices?type=ausgabe&sort=brutto&dir=desc)
+    [Amazon-Rechnungen suchen](/invoices?q=Amazon&fyear=all)
+- Antworte im Markdown-Format (Fett, Listen, etc. sind erlaubt).
+- Halte Antworten klar und prägnant.
+${isFirstMessage ? '- Erstelle einen kurzen, prägnanten Chat-Titel (max. 6 Wörter) basierend auf dem Thema.' : ''}`;
+
+  const contents: GeminiChatMessage[] = [
+    { role: 'user', parts: [{ text: systemPrompt }] },
+    { role: 'model', parts: [{ text: 'Verstanden! Ich bin bereit, dir zu helfen.' }] },
+    ...history,
+  ];
+
+  // If PDF is attached, add it to the last user message
+  if (pdfBase64 && contents.length > 0) {
+    const last = contents[contents.length - 1];
+    if (last.role === 'user') {
+      (last.parts as unknown[]).push({
+        inline_data: { mime_type: 'application/pdf', data: pdfBase64 },
+      });
+    }
+  }
+
+  const schema = isFirstMessage
+    ? {
+        type: 'OBJECT',
+        required: ['answer', 'followUps', 'title'],
+        properties: {
+          answer: { type: 'STRING' },
+          followUps: { type: 'ARRAY', items: { type: 'STRING' }, maxItems: 3 },
+          title: { type: 'STRING' },
+        },
+      }
+    : {
+        type: 'OBJECT',
+        required: ['answer', 'followUps'],
+        properties: {
+          answer: { type: 'STRING' },
+          followUps: { type: 'ARRAY', items: { type: 'STRING' }, maxItems: 3 },
+        },
+      };
+
+  const body = {
+    contents,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+    },
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API Fehler (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Keine Antwort von Gemini erhalten.');
+
+  try {
+    return JSON.parse(text) as ChatResponse;
+  } catch {
+    return { answer: text, followUps: [] };
+  }
+}
+
 import type { TemplateElement, ItemsElement, LineElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H, DEFAULT_FONT_FAMILY, FONT_FAMILIES } from '@/types/template';
 
