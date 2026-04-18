@@ -1,11 +1,56 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGmailStore, selectActiveAccount } from '@/store/gmailStore';
 import { fetchEmails, getValidToken, markMessageAsRead } from '@/lib/gmail';
 import { toast } from 'sonner';
-import { Loader2, Paperclip, RefreshCw } from 'lucide-react';
+import { Loader2, Paperclip, RefreshCw, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { format } from '@/lib/emailDate';
+
+interface AdvancedFilter {
+  keyword: string;
+  from: string;
+  subject: string;
+  hasAttachment: boolean;
+  onlyUnread: boolean;
+  dateFrom: string;
+  dateTo: string;
+}
+
+const emptyFilter = (): AdvancedFilter => ({
+  keyword: '',
+  from: '',
+  subject: '',
+  hasAttachment: false,
+  onlyUnread: false,
+  dateFrom: '',
+  dateTo: '',
+});
+
+function buildQuery(f: AdvancedFilter): string {
+  const parts: string[] = [];
+  if (f.keyword) parts.push(f.keyword);
+  if (f.from) parts.push(`from:${f.from}`);
+  if (f.subject) parts.push(`subject:${f.subject}`);
+  if (f.hasAttachment) parts.push('has:attachment');
+  if (f.onlyUnread) parts.push('is:unread');
+  if (f.dateFrom) {
+    // Gmail expects YYYY/MM/DD
+    parts.push(`after:${f.dateFrom.replace(/-/g, '/')}`);
+  }
+  if (f.dateTo) {
+    parts.push(`before:${f.dateTo.replace(/-/g, '/')}`);
+  }
+  return parts.join(' ');
+}
+
+function isFilterActive(f: AdvancedFilter): boolean {
+  return !!(f.keyword || f.from || f.subject || f.hasAttachment || f.onlyUnread || f.dateFrom || f.dateTo);
+}
 
 export function EmailList() {
   const activeAccount = useGmailStore(selectActiveAccount);
@@ -19,6 +64,11 @@ export function EmailList() {
   const markEmailAsRead = useGmailStore((s) => s.markEmailAsRead);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const [filter, setFilter] = useState<AdvancedFilter>(emptyFilter());
+  const [draftFilter, setDraftFilter] = useState<AdvancedFilter>(emptyFilter());
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   if (!activeAccount) return null;
 
@@ -26,10 +76,6 @@ export function EmailList() {
   const nextPageToken = activeAccount.nextPageToken;
   const readEmailIds = activeAccount.readEmailIds ?? [];
 
-  // Eine E-Mail gilt als ungelesen, wenn:
-  // - Gmail sie als UNREAD markiert hat (isUnread === true)
-  // - ODER wir noch keine Info haben (alter Cache, isUnread === undefined)
-  // UND sie noch nicht lokal in der App geöffnet wurde
   const isEmailUnread = (id: string, gmailUnread: boolean | undefined) =>
     (gmailUnread !== false) && !readEmailIds.includes(id);
 
@@ -38,12 +84,13 @@ export function EmailList() {
   const getAT = () =>
     getValidToken(activeAccount.token, (t) => updateAccountToken(activeAccount.email, t));
 
-  const load = async (silent = false) => {
+  const load = async (silent = false, customFilter?: AdvancedFilter) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
       const at = await getAT();
-      const { messages, nextPageToken } = await fetchEmails(at);
+      const q = buildQuery(customFilter ?? filter);
+      const { messages, nextPageToken } = await fetchEmails(at, 30, undefined, q || undefined);
       updateAccountEmails(activeAccount.email, messages, nextPageToken);
     } catch (e: any) {
       if (!silent)
@@ -59,18 +106,49 @@ export function EmailList() {
     load(emails.length > 0);
   }, [activeAccount.email]);
 
+  // Infinite scroll: Wenn Sentinel sichtbar → mehr laden
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && nextPageToken && !loadingMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nextPageToken, loadingMore, activeAccount.email]);
+
   const loadMore = async () => {
     if (!nextPageToken) return;
     setLoadingMore(true);
     try {
       const at = await getAT();
-      const { messages, nextPageToken: newToken } = await fetchEmails(at, 30, nextPageToken);
+      const q = buildQuery(filter);
+      const { messages, nextPageToken: newToken } = await fetchEmails(at, 30, nextPageToken, q || undefined);
       updateAccountEmails(activeAccount.email, [...emails, ...messages], newToken);
     } catch (e: any) {
       toast.error('Fehler beim Laden: ' + (e?.message ?? String(e)));
     } finally {
       setLoadingMore(false);
     }
+  };
+
+  const applyFilter = () => {
+    setFilter(draftFilter);
+    setPopoverOpen(false);
+    load(false, draftFilter);
+  };
+
+  const resetFilter = () => {
+    const empty = emptyFilter();
+    setFilter(empty);
+    setDraftFilter(empty);
+    setPopoverOpen(false);
+    load(false, empty);
   };
 
   const selectEmail = (email: (typeof emails)[0]) => {
@@ -89,6 +167,8 @@ export function EmailList() {
     return match ? match[1].trim() : from.replace(/<.*>/, '').trim() || from;
   };
 
+  const active = isFilterActive(filter);
+
   return (
     <div className="flex h-full flex-col border-r border-border">
       {/* Header */}
@@ -102,16 +182,116 @@ export function EmailList() {
           )}
           {refreshing && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => load(false)}
-          disabled={isLoading || refreshing}
-          title="Aktualisieren"
-        >
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          {active && (
+            <Button size="icon" variant="ghost" onClick={resetFilter} title="Filter zurücksetzen">
+              <X className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
+          <Popover open={popoverOpen} onOpenChange={(o) => { setPopoverOpen(o); if (o) setDraftFilter(filter); }}>
+            <PopoverTrigger asChild>
+              <Button size="icon" variant={active ? 'default' : 'ghost'} title="Erweiterte Suche">
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-4 space-y-3" align="end">
+              <p className="text-sm font-semibold">Erweiterte Suche</p>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Stichwort</Label>
+                <Input
+                  placeholder="z.B. Rechnung"
+                  value={draftFilter.keyword}
+                  onChange={(e) => setDraftFilter((f) => ({ ...f, keyword: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Absender (von)</Label>
+                <Input
+                  placeholder="z.B. info@beispiel.de"
+                  value={draftFilter.from}
+                  onChange={(e) => setDraftFilter((f) => ({ ...f, from: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Betreff</Label>
+                <Input
+                  placeholder="z.B. Angebot"
+                  value={draftFilter.subject}
+                  onChange={(e) => setDraftFilter((f) => ({ ...f, subject: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Datum von</Label>
+                  <Input
+                    type="date"
+                    value={draftFilter.dateFrom}
+                    onChange={(e) => setDraftFilter((f) => ({ ...f, dateFrom: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Datum bis</Label>
+                  <Input
+                    type="date"
+                    value={draftFilter.dateTo}
+                    onChange={(e) => setDraftFilter((f) => ({ ...f, dateTo: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="hasAttachment"
+                    checked={draftFilter.hasAttachment}
+                    onCheckedChange={(v) => setDraftFilter((f) => ({ ...f, hasAttachment: !!v }))}
+                  />
+                  <Label htmlFor="hasAttachment" className="text-sm cursor-pointer">Nur mit Anhängen</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="onlyUnread"
+                    checked={draftFilter.onlyUnread}
+                    onCheckedChange={(v) => setDraftFilter((f) => ({ ...f, onlyUnread: !!v }))}
+                  />
+                  <Label htmlFor="onlyUnread" className="text-sm cursor-pointer">Nur ungelesene</Label>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button className="flex-1" onClick={applyFilter}>Suchen</Button>
+                <Button variant="outline" onClick={resetFilter}>Zurücksetzen</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => load(false)}
+            disabled={isLoading || refreshing}
+            title="Aktualisieren"
+          >
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
+
+      {/* Active filter badge */}
+      {active && (
+        <div className="flex flex-wrap gap-1 px-4 py-2 border-b border-border bg-muted/30">
+          {filter.keyword && <span className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">"{filter.keyword}"</span>}
+          {filter.from && <span className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">von: {filter.from}</span>}
+          {filter.subject && <span className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">Betreff: {filter.subject}</span>}
+          {filter.hasAttachment && <span className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">📎 Mit Anhang</span>}
+          {filter.onlyUnread && <span className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">Ungelesen</span>}
+          {filter.dateFrom && <span className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">ab {filter.dateFrom}</span>}
+          {filter.dateTo && <span className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">bis {filter.dateTo}</span>}
+        </div>
+      )}
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
@@ -119,6 +299,9 @@ export function EmailList() {
           <div className="flex h-full items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
+        )}
+        {emails.length === 0 && !isLoading && (
+          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">Keine E-Mails gefunden</div>
         )}
 
         {emails.map((email) => {
@@ -161,18 +344,13 @@ export function EmailList() {
           );
         })}
 
-        {/* Mehr laden */}
-        {emails.length > 0 && (
-          <div className="p-3">
-            {nextPageToken ? (
-              <Button variant="outline" size="sm" className="w-full" onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" />Lade…</> : 'Mehr laden'}
-              </Button>
-            ) : (
-              <p className="text-center text-xs text-muted-foreground">Keine weiteren E-Mails</p>
-            )}
-          </div>
-        )}
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} className="py-3 flex justify-center">
+          {loadingMore && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          {!nextPageToken && emails.length > 0 && (
+            <p className="text-xs text-muted-foreground">Keine weiteren E-Mails</p>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -247,9 +247,11 @@ export async function fetchUserEmail(accessToken: string): Promise<string> {
 export async function fetchEmails(
   accessToken: string,
   maxResults = 30,
-  pageToken?: string
+  pageToken?: string,
+  extraQuery?: string
 ): Promise<{ messages: GmailMessage[]; nextPageToken?: string }> {
-  let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=in:inbox`;
+  const q = extraQuery ? `in:inbox ${extraQuery}` : 'in:inbox';
+  let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}`;
   if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
 
   const listRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });

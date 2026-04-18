@@ -267,7 +267,7 @@ export default function InvoiceDetail() {
 
       {/* Delete confirm dialog */}
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Rechnung löschen?</DialogTitle>
           </DialogHeader>
