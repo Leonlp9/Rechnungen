@@ -15,7 +15,7 @@ import { exportBackup, importBackup } from '@/lib/backup';
 import { BackupProgressOverlay } from '@/components/BackupProgressOverlay';
 
 import {
-  LayoutDashboard, FileText, FilePlus2, PenSquare, ListTodo, Mail, Settings as SettingsIcon, HelpCircle,
+  LayoutDashboard, FileText, FilePlus2, PenSquare, ListTodo, Mail, Settings as SettingsIcon, HelpCircle, CalendarDays,
 } from 'lucide-react';
 
 const NAV_ITEMS_CONFIG = [
@@ -25,6 +25,7 @@ const NAV_ITEMS_CONFIG = [
   { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare },
   { to: '/lists', label: 'Listen', icon: ListTodo },
   { to: '/gmail', label: 'Mail', icon: Mail },
+  { to: '/calendar', label: 'Kalender', icon: CalendarDays },
   { to: '/settings', label: 'Einstellungen', icon: SettingsIcon },
   { to: '/help', label: 'Hilfe', icon: HelpCircle },
 ];
