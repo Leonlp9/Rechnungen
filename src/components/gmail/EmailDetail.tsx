@@ -20,11 +20,18 @@ function formatBytes(n: number) {
 
 export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
   const activeAccount = useGmailStore(selectActiveAccount);
+  const accounts = useGmailStore((s) => s.accounts);
+  const detailAccountEmail = useGmailStore((s) => s.detailAccountEmail);
   const updateAccountToken = useGmailStore((s) => s.updateAccountToken);
   const selectedEmail = useGmailStore((s) => s.selectedEmail);
   const setSelectedEmail = useGmailStore((s) => s.setSelectedEmail);
   const isFetchingDetail = useGmailStore((s) => s.isFetchingDetail);
   const setFetchingDetail = useGmailStore((s) => s.setFetchingDetail);
+
+  // In "Alle Postfächer"-Modus nutzen wir das Konto der angeklickten E-Mail
+  const effectiveAccount = detailAccountEmail
+    ? (accounts.find((a) => a.email === detailAccountEmail) ?? activeAccount)
+    : activeAccount;
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const [previewAttachment, setPreviewAttachment] = useState<{
@@ -38,16 +45,16 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
 
   // When selectedEmail changes and has no body yet → fetch detail
   useEffect(() => {
-    if (!selectedEmail || !isFetchingDetail || !activeAccount) return;
+    if (!selectedEmail || !isFetchingDetail || !effectiveAccount) return;
     let cancelled = false;
     (async () => {
       try {
         let detail;
-        if (activeAccount.type === 'imap' && activeAccount.imapConfig) {
-          detail = await imapFetchEmailDetail(activeAccount.imapConfig, activeAccount.email, selectedEmail.id);
+        if (effectiveAccount.type === 'imap' && effectiveAccount.imapConfig) {
+          detail = await imapFetchEmailDetail(effectiveAccount.imapConfig, effectiveAccount.email, selectedEmail.id);
         } else {
-          const at = await getValidToken(activeAccount.token!, (t) =>
-            updateAccountToken(activeAccount.email, t)
+          const at = await getValidToken(effectiveAccount.token!, (t) =>
+            updateAccountToken(effectiveAccount.email, t)
           );
           detail = await fetchEmailDetail(at, selectedEmail.id);
         }
@@ -63,9 +70,9 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
   }, [selectedEmail?.id, isFetchingDetail]);
 
   const getToken = async () => {
-    if (!activeAccount) throw new Error('Kein aktives Konto');
-    return getValidToken(activeAccount.token!, (t) =>
-      updateAccountToken(activeAccount.email, t)
+    if (!effectiveAccount) throw new Error('Kein aktives Konto');
+    return getValidToken(effectiveAccount.token!, (t) =>
+      updateAccountToken(effectiveAccount.email, t)
     );
   };
 

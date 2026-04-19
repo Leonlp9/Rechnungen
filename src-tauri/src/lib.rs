@@ -198,7 +198,7 @@ fn parse_imap_message(
 
 // ── IMAP Tauri commands ──────────────────────────────────────────────────────
 
-/// Fetch a page of inbox emails (30 per page, newest first).
+/// Fetch a page of emails (30 per page, newest first) from a given folder.
 /// Returns (messages, has_more)
 #[tauri::command]
 async fn imap_fetch_emails(
@@ -207,10 +207,49 @@ async fn imap_fetch_emails(
     username: String,
     password: String,
     page: u32,
+    folder: Option<String>,
 ) -> Result<(Vec<ImapMessageSummary>, bool), String> {
     tokio::task::spawn_blocking(move || {
+        let folder_name = folder.as_deref().unwrap_or("INBOX");
         let mut session = imap_connect(&host, port, &username, &password)?;
-        let mailbox = session.select("INBOX").map_err(|e| format!("INBOX auswählen fehlgeschlagen: {e}"))?;
+
+        // Special handling: "FLAGGED" = search \Flagged in INBOX
+        if folder_name.eq_ignore_ascii_case("FLAGGED") {
+            session.select("INBOX").map_err(|e| format!("INBOX auswählen fehlgeschlagen: {e}"))?;
+            let uids = session
+                .search("FLAGGED")
+                .map_err(|e| format!("Suche fehlgeschlagen: {e}"))?;
+            let mut uid_list: Vec<u32> = uids.into_iter().collect();
+            uid_list.sort_unstable_by(|a, b| b.cmp(a)); // newest first
+            let page_size = 30usize;
+            let offset = ((page - 1) as usize) * page_size;
+            let has_more = uid_list.len() > offset + page_size;
+            let slice = &uid_list[offset.min(uid_list.len())..];
+            let slice = &slice[..slice.len().min(page_size)];
+            if slice.is_empty() {
+                let _ = session.logout();
+                return Ok((vec![], false));
+            }
+            let uid_str = slice.iter().map(|u| u.to_string()).collect::<Vec<_>>().join(",");
+            let fetches = session
+                .uid_fetch(&uid_str, "(UID FLAGS BODY.PEEK[])")
+                .map_err(|e| format!("Fetch fehlgeschlagen: {e}"))?;
+            let mut messages: Vec<ImapMessageSummary> = Vec::new();
+            for fetch in fetches.iter() {
+                let uid = fetch.uid.unwrap_or(fetch.message);
+                let is_unread = !fetch.flags().iter().any(|f| matches!(f, imap::types::Flag::Seen));
+                if let Some(raw) = fetch.body() {
+                    let mut msg = parse_imap_message(uid, raw, is_unread);
+                    for att in &mut msg.attachments { att.data_base64 = String::new(); }
+                    messages.push(msg);
+                }
+            }
+            messages.sort_unstable_by(|a, b| b.id.cmp(&a.id));
+            let _ = session.logout();
+            return Ok((messages, has_more));
+        }
+
+        let mailbox = session.select(folder_name).map_err(|e| format!("Ordner '{}' auswählen fehlgeschlagen: {e}", folder_name))?;
         let total = mailbox.exists;
         if total == 0 {
             let _ = session.logout();
@@ -264,10 +303,13 @@ async fn imap_fetch_email_detail(
     username: String,
     password: String,
     uid: String,
+    folder: Option<String>,
 ) -> Result<ImapMessageSummary, String> {
     tokio::task::spawn_blocking(move || {
+        let folder_name = folder.as_deref().unwrap_or("INBOX");
+        let folder_name = if folder_name.eq_ignore_ascii_case("FLAGGED") { "INBOX" } else { folder_name };
         let mut session = imap_connect(&host, port, &username, &password)?;
-        session.select("INBOX").map_err(|e| format!("INBOX auswählen fehlgeschlagen: {e}"))?;
+        session.select(folder_name).map_err(|e| format!("Ordner auswählen fehlgeschlagen: {e}"))?;
         let fetches = session
             .uid_fetch(&uid, "(UID FLAGS BODY.PEEK[])")
             .map_err(|e| format!("Fetch fehlgeschlagen: {e}"))?;
@@ -294,10 +336,13 @@ async fn imap_mark_read(
     username: String,
     password: String,
     uid: String,
+    folder: Option<String>,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        let folder_name = folder.as_deref().unwrap_or("INBOX");
+        let folder_name = if folder_name.eq_ignore_ascii_case("FLAGGED") { "INBOX" } else { folder_name };
         let mut session = imap_connect(&host, port, &username, &password)?;
-        session.select("INBOX").map_err(|e| format!("INBOX auswählen fehlgeschlagen: {e}"))?;
+        session.select(folder_name).map_err(|e| format!("Ordner auswählen fehlgeschlagen: {e}"))?;
         session
             .uid_store(&uid, "+FLAGS (\\Seen)")
             .map_err(|e| format!("Markieren fehlgeschlagen: {e}"))?;

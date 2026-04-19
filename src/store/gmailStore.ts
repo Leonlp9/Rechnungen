@@ -30,6 +30,8 @@ interface GmailState {
   selectedEmail: GmailMessage | null;
   isLoading: boolean;
   isFetchingDetail: boolean;
+  /** In "Alle Postfächer"-Modus: E-Mail-Adresse des Kontos, zu dem die angezeigte E-Mail gehört */
+  detailAccountEmail: string | null;
 
   // account management
   addOrUpdateAccount: (account: GmailAccount) => void;
@@ -43,6 +45,7 @@ interface GmailState {
   setSelectedEmail: (email: GmailMessage | null) => void;
   setLoading: (v: boolean) => void;
   setFetchingDetail: (v: boolean) => void;
+  setDetailAccountEmail: (email: string | null) => void;
 }
 
 export const useGmailStore = create<GmailState>()(
@@ -53,6 +56,7 @@ export const useGmailStore = create<GmailState>()(
       selectedEmail: null,
       isLoading: false,
       isFetchingDetail: false,
+      detailAccountEmail: null,
 
       addOrUpdateAccount: (account) =>
         set((s) => {
@@ -110,6 +114,7 @@ export const useGmailStore = create<GmailState>()(
       setSelectedEmail: (selectedEmail) => set({ selectedEmail }),
       setLoading: (isLoading) => set({ isLoading }),
       setFetchingDetail: (isFetchingDetail) => set({ isFetchingDetail }),
+      setDetailAccountEmail: (detailAccountEmail) => set({ detailAccountEmail }),
     }),
     {
       name: 'gmail-auth-v2',

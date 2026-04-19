@@ -249,9 +249,20 @@ export async function fetchEmails(
   accessToken: string,
   maxResults = 30,
   pageToken?: string,
-  extraQuery?: string
+  extraQuery?: string,
+  folder: 'inbox' | 'sent' | 'drafts' | 'starred' | 'purchases' | 'spam' = 'inbox'
 ): Promise<{ messages: GmailMessage[]; nextPageToken?: string }> {
-  const q = extraQuery ? `in:inbox ${extraQuery}` : 'in:inbox';
+  // Build base query from folder
+  let baseQuery: string;
+  switch (folder) {
+    case 'sent':       baseQuery = 'in:sent'; break;
+    case 'drafts':     baseQuery = 'in:drafts'; break;
+    case 'starred':    baseQuery = 'is:starred'; break;
+    case 'purchases':  baseQuery = 'category:purchases'; break;
+    case 'spam':       baseQuery = 'in:spam'; break;
+    default:           baseQuery = 'in:inbox'; break;
+  }
+  const q = extraQuery ? `${baseQuery} ${extraQuery}` : baseQuery;
   let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}`;
   if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
 

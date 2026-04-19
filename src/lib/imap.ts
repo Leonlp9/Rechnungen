@@ -2,11 +2,12 @@ import { invoke } from '@tauri-apps/api/core';
 import type { GmailMessage } from './gmail';
 import type { ImapConfig } from '@/store/gmailStore';
 
-/** Fetch a page (30 emails) from the IMAP inbox. */
+/** Fetch a page (30 emails) from an IMAP folder. */
 export async function imapFetchEmails(
   config: ImapConfig,
   username: string,
-  page: number
+  page: number,
+  folder = 'INBOX'
 ): Promise<{ messages: GmailMessage[]; hasMore: boolean }> {
   const [messages, hasMore] = await invoke<[GmailMessage[], boolean]>('imap_fetch_emails', {
     host: config.imapHost,
@@ -14,6 +15,7 @@ export async function imapFetchEmails(
     username,
     password: config.password,
     page,
+    folder,
   });
   return { messages, hasMore };
 }
@@ -22,7 +24,8 @@ export async function imapFetchEmails(
 export async function imapFetchEmailDetail(
   config: ImapConfig,
   username: string,
-  uid: string
+  uid: string,
+  folder = 'INBOX'
 ): Promise<GmailMessage> {
   return invoke<GmailMessage>('imap_fetch_email_detail', {
     host: config.imapHost,
@@ -30,6 +33,7 @@ export async function imapFetchEmailDetail(
     username,
     password: config.password,
     uid,
+    folder,
   });
 }
 
@@ -37,7 +41,8 @@ export async function imapFetchEmailDetail(
 export async function imapMarkRead(
   config: ImapConfig,
   username: string,
-  uid: string
+  uid: string,
+  folder = 'INBOX'
 ): Promise<void> {
   return invoke('imap_mark_read', {
     host: config.imapHost,
@@ -45,6 +50,7 @@ export async function imapMarkRead(
     username,
     password: config.password,
     uid,
+    folder,
   });
 }
 
