@@ -20,7 +20,7 @@ function sanitize(s: string): string {
   return s.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim().slice(0, 60);
 }
 
-export async function exportToZip(invoices: Invoice[], year: number) {
+export async function exportToZip(invoices: Invoice[], year: number | string) {
   const path = await save({
     defaultPath: `Rechnungen_${year}.zip`,
     filters: [{ name: 'ZIP', extensions: ['zip'] }],
@@ -59,13 +59,13 @@ export async function exportToZip(invoices: Invoice[], year: number) {
   await writeFile(path, zipped);
 }
 
-export async function exportAll(invoices: Invoice[], year: number) {
+export async function exportAll(invoices: Invoice[], year: number | string) {
   // Export both XLSX + ZIP – user picks save path for each
   await exportToXlsx(invoices, year);
   await exportToZip(invoices, year);
 }
 
-export async function exportToXlsx(invoices: Invoice[], year: number) {
+export async function exportToXlsx(invoices: Invoice[], year: number | string) {
   const path = await save({
     defaultPath: `Rechnungen_${year}.xlsx`,
     filters: [{ name: 'Excel', extensions: ['xlsx'] }],
@@ -165,7 +165,7 @@ export async function exportToXlsx(invoices: Invoice[], year: number) {
   ws4.columns = [{ header: 'Hinweis', key: 'note', width: 80 }];
   styleHeaderRow(ws4);
   ws4.addRow({ note: `Export erstellt am ${format(new Date(), 'dd.MM.yyyy HH:mm', { locale: de })}` });
-  ws4.addRow({ note: `Jahr: ${year}` });
+  ws4.addRow({ note: `Zeitraum: ${year}` });
   ws4.addRow({ note: `Anzahl Belege: ${invoices.length}` });
   ws4.addRow({ note: 'Erstellt mit Rechnungs-Manager v0.1.0' });
 
