@@ -2,6 +2,7 @@ import { Search, Plus, Moon, Sun, Download, Eye, EyeOff, FileStack } from 'lucid
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store';
 import { Badge } from '@/components/ui/badge';
+import { DataIssuesIndicator } from './DataIssuesIndicator';
 
 interface TopbarProps {
   onNewInvoice?: () => void;
@@ -48,6 +49,7 @@ export function Topbar({ onNewInvoice, onExport, onDrafts }: TopbarProps) {
           <Download className="mr-2 h-4 w-4" />
           Exportieren
         </Button>
+        <DataIssuesIndicator />
         {draftsCount > 0 && (
           <Button variant="outline" onClick={onDrafts} className="relative gap-2">
             <FileStack className="h-4 w-4" />

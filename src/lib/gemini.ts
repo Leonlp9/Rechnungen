@@ -52,9 +52,9 @@ ${pageContext || 'Kein spezifischer Kontext verfügbar.'}
   • q=Suchbegriff        → Freitext-Suche nach Partner/Beschreibung
   • type=einnahme        → Typ-Filter (einnahme | ausgabe | info), mehrere mit Komma: type=einnahme,ausgabe
   • cat=software_abos   → Kategorie-Filter, mehrere mit Komma
-    Verfügbare Kategorien: einnahmen, erstattungen, anlagevermoegen_afa, gwg, software_abos, fremdleistungen,
-    buerobedarf, reisekosten, marketing, weiterbildung, miete, versicherungen_betrieb, fahrzeugkosten,
-    kommunikation, vertraege, spenden, krankenkasse, sozialversicherung, privat, privatentnahme, sonstiges
+    Verfügbare Kategorien (Einnahmen): umsatz_pflichtig, umsatz_steuerfrei, ust_erstattung, privateinlage, anlagenverkauf, erstattungen, sonstige_einnahmen
+    Verfügbare Kategorien (Ausgaben): anlagevermoegen_afa, gwg, software_abos, fremdleistungen, buerobedarf, reisekosten, marketing, weiterbildung, miete, versicherungen_betrieb, fahrzeugkosten, kommunikation, spenden, krankenkasse, sozialversicherung, privat, privatentnahme, sonstiges
+    Verfügbare Kategorien (Info): vertraege, sonstiges
   • fyear=2025           → Jahres-Filter (Zahl oder "all")
   • sort=brutto&dir=desc → Sortierung (date|partner|category|brutto|type, asc|desc)
   Beispiele:
@@ -531,7 +531,7 @@ JSON-Schema:
   "brutto": 0.00,
   "currency": "EUR",
   "type": "einnahme | ausgabe | info",
-  "suggested_category": "einnahmen | erstattungen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | privatentnahme | sonstiges"
+  "suggested_category": "umsatz_pflichtig | umsatz_steuerfrei | ust_erstattung | privateinlage | anlagenverkauf | erstattungen | sonstige_einnahmen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | privatentnahme | sonstiges"
 }
 
 === REGELN FÜR "type" ===
@@ -540,47 +540,55 @@ JSON-Schema:
 - "info": Kein Geldfluss – z.B. Verträge, AGBs, Bestätigungen, Informationsschreiben, Vertragsdokumente.
 
 === REGELN FÜR "suggested_category" ===
-Wähle die passendste Kategorie:
+Wähle die passendste Kategorie – WICHTIG: Die Kategorie MUSS zum Typ passen!
 
-EINNAHMEN:
-- "einnahmen": NUR wenn type="einnahme". Umsätze/Erlöse des Benutzers.
-- "erstattungen": Rückerstattungen, Gutschriften, Auslagenerstattungen an den Benutzer.
+EINNAHMEN (NUR wenn type="einnahme"):
+- "umsatz_pflichtig": Standard-Umsätze mit 19% oder 7% MwSt (Rechnungen, Honorare, Dienstleistungen).
+- "umsatz_steuerfrei": Einnahmen ohne MwSt (Kleinunternehmer §19 UStG, steuerfreie Leistungen, Reverse-Charge / EU-Exporte).
+- "ust_erstattung": Geld vom Finanzamt zurück (Umsatzsteuererstattung).
+- "privateinlage": Privates Geld ins Unternehmen eingelegt (kein steuerpflichtiger Gewinn).
+- "anlagenverkauf": Erlös aus Verkauf von Firmengeräten, Möbeln, Fahrzeugen etc.
+- "erstattungen": Rückerstattungen, Gutschriften, Auslagenerstattungen an den Benutzer (durchlaufender Posten).
+- "sonstige_einnahmen": Alle anderen Einnahmen (erhaltene Spenden/Donations, Crowdfunding, sonstige Erträge).
 
-BETRIEBSAUSGABEN (type="ausgabe"):
-- "anlagevermoegen_afa": Anschaffungen > 800€ netto, die über Jahre abgeschrieben werden (z.B. Laptop, Möbel, Maschinen).
-- "gwg": Geringwertige Wirtschaftsgüter, Anschaffungen bis 800€ netto (z.B. Monitor, Tastatur, Bürostuhl).
-- "software_abos": Software-Lizenzen, SaaS-Abos, Cloud-Dienste (z.B. Adobe, GitHub, Hosting, Microsoft 365).
-- "fremdleistungen": Leistungen von Dritten/Subunternehmern (z.B. Freelancer, Agentur, externer Entwickler).
-- "buerobedarf": Büromaterial, Druckerpatronen, Papier, Kleinmaterial für das Büro.
+BETRIEBSAUSGABEN (NUR wenn type="ausgabe"):
+- "anlagevermoegen_afa": Anschaffungen > 800€ netto, die über Jahre abgeschrieben werden (z.B. Laptop, Maschinen, Möbel über 800€).
+- "gwg": Geringwertige Wirtschaftsgüter ≤ 800€ netto (z.B. Monitor, Tastatur, Bürostuhl, Kleingeräte).
+- "software_abos": Software-Lizenzen, SaaS-Abos, Cloud-Dienste (Adobe, GitHub, Hosting, Microsoft 365).
+- "fremdleistungen": Leistungen von Dritten/Subunternehmern (Freelancer, Agentur, externer Entwickler).
+- "buerobedarf": Büromaterial, Druckerpatronen, Papier, Kleinmaterial.
 - "reisekosten": Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen, Spesen.
-- "marketing": Werbung, Social-Media-Anzeigen, Drucksachen, Messen, PR-Maßnahmen.
+- "marketing": Werbung, Social-Media-Anzeigen, Drucksachen, Messen, PR.
 - "weiterbildung": Kurse, Seminare, Fachbücher, Online-Kurse, Konferenztickets.
-- "miete": Büromiete, Co-Working, Lagermiete, Raumkosten für den Betrieb.
-- "versicherungen_betrieb": Betriebliche Versicherungen (z.B. Haftpflicht, Berufsunfähigkeit, Inventarversicherung).
-- "fahrzeugkosten": KFZ-Kosten, Benzin, Leasing, Reparatur für betrieblich genutzte Fahrzeuge.
+- "miete": Büromiete, Co-Working, Lagermiete, Raumkosten.
+- "versicherungen_betrieb": Betriebliche Versicherungen (Haftpflicht, Berufsunfähigkeit, Inventar).
+- "fahrzeugkosten": KFZ-Kosten, Benzin, Leasing, Reparatur für betriebliche Fahrzeuge.
 - "kommunikation": Telefon, Mobilfunk, Internet, Festnetz für den Betrieb.
-- "vertraege": Verträge, Vereinbarungen, Rahmenverträge – Dokumente OHNE direkten Zahlungsbetrag. type meist "info".
 
-SONDERAUSGABEN (type="ausgabe", aber kein regulärer Betriebsaufwand – eigene Kategorie!):
-- "spenden": NUR wenn der Benutzer eine Spende ZAHLT (type="ausgabe") an eine gemeinnützige Organisation. Beispiele: Spendenquittung, Charity-Überweisung. NICHT für Twitch-Subs oder Gaming-Inhalte!
+SONDERAUSGABEN (NUR wenn type="ausgabe"):
+- "spenden": NUR wenn der Benutzer eine Spende ZAHLT an eine gemeinnützige Organisation. NICHT für Twitch-Subs oder Gaming!
 - "krankenkasse": Beiträge zur gesetzlichen oder privaten Krankenversicherung, Pflegeversicherung.
-- "sozialversicherung": Rentenversicherung, Altersvorsorge, berufsständische Versorgungswerke, Beiträge zur Berufsgenossenschaft.
+- "sozialversicherung": Rentenversicherung, Altersvorsorge, Berufsgenossenschaft.
 
-PRIVAT (type="ausgabe", weder Betriebsausgabe noch steuerlich absetzbar):
-- "privat": Rein private Ausgaben ohne Geschäftsbezug. Beispiele: Twitch-Subs, Gaming-Abos, Netflix, Spotify, private Einkäufe, Restaurantbesuche (privat), Freizeitaktivitäten. NICHT steuerlich relevant.
-- "privatentnahme": Geldentnahme aus dem Betrieb für private Zwecke (Überweisung an sich selbst, Privatentnahme aus der Kasse). type="ausgabe", nicht steuerlich absetzbar.
+PRIVAT (NUR wenn type="ausgabe"):
+- "privat": Rein private Ausgaben (Twitch-Subs, Netflix, Spotify, private Einkäufe, Restaurantbesuche privat). NICHT steuerlich relevant.
+- "privatentnahme": Geldentnahme aus dem Betrieb für private Zwecke.
 
-EINNAHMEN aus Spenden:
-- Wenn der Benutzer Spenden/Donations EMPFÄNGT (z.B. Streaming-Donations, Crowdfunding-Einnahmen), dann: type="einnahme", suggested_category="einnahmen". Erhaltene Spenden sind reguläre Einnahmen!
+INFO (NUR wenn type="info"):
+- "vertraege": Verträge, Vereinbarungen, AGBs, Bestätigungen, Informationsschreiben.
+- "sonstiges": Alle anderen Info-Dokumente.
 
 SONSTIGES:
-- "sonstiges": Alles was in keine andere Kategorie passt.
+- "sonstiges": Ausgaben, die in keine andere Ausgaben-Kategorie passen.
 
 WICHTIG:
 - Verträge/Vereinbarungen → type="info", suggested_category="vertraege"
+- Erhaltene Spenden/Donations → type="einnahme", suggested_category="sonstige_einnahmen"
+- Gezahlte Spenden → type="ausgabe", suggested_category="spenden"
 - Krankenkasse/Sozialversicherung → type="ausgabe", suggested_category="krankenkasse" oder "sozialversicherung"
 - Beträge als Zahlen (nicht Strings). Wenn kein Betrag erkennbar → netto=0, ust=0, brutto=0.
-- Bei Verträgen ohne konkreten Rechnungsbetrag: setze Beträge auf 0.`;
+- Bei Verträgen ohne konkreten Rechnungsbetrag: setze Beträge auf 0.
+- Kategorien für Einnahmen DÜRFEN NICHT für Ausgaben verwendet werden und umgekehrt!`;
 
   const body = {
     contents: [
@@ -611,7 +619,7 @@ WICHTIG:
           type: { type: 'STRING', enum: ['einnahme', 'ausgabe', 'info'] },
           suggested_category: {
             type: 'STRING',
-            enum: ['einnahmen', 'erstattungen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'privatentnahme', 'sonstiges'],
+            enum: ['umsatz_pflichtig', 'umsatz_steuerfrei', 'ust_erstattung', 'privateinlage', 'anlagenverkauf', 'erstattungen', 'sonstige_einnahmen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'privatentnahme', 'sonstiges'],
           },
         },
         required: ['date', 'description', 'partner', 'netto', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],

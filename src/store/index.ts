@@ -7,10 +7,16 @@ export type Steuerregelung = 'kleinunternehmer' | 'regelbesteuerung';
 
 export interface InvoiceDraft {
   id: string;
-  filePath: string;       // absolute path (for reading)
-  relativePath?: string;  // relative path in app-data (e.g. entwuerfe/xxx.pdf)
+  filePath: string;
+  relativePath?: string;
   fileName: string;
   addedAt: string;
+}
+
+export interface ActiveAiFix {
+  invoiceId: string;
+  fields: Array<'category' | 'type'>;
+  loading: boolean;
 }
 
 interface AppState {
@@ -40,6 +46,9 @@ interface AppState {
   toggleNavItem: (path: string) => void;
   steuerregelung: Steuerregelung;
   setSteuerregelung: (r: Steuerregelung) => void;
+  /** Laufender KI-Fix – wird in InvoiceDetail ausgeführt */
+  activeAiFix: ActiveAiFix | null;
+  setActiveAiFix: (fix: ActiveAiFix | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -76,6 +85,8 @@ export const useAppStore = create<AppState>()(
         })),
       steuerregelung: 'kleinunternehmer' as Steuerregelung,
       setSteuerregelung: (steuerregelung) => set({ steuerregelung }),
+      activeAiFix: null,
+      setActiveAiFix: (activeAiFix) => set({ activeAiFix }),
     }),
     {
       name: 'rechnungs-manager-settings',

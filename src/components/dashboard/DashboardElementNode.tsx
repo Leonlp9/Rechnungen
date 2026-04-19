@@ -21,6 +21,8 @@ import { KleinunternehmerCard } from './KleinunternehmerCard';
 import { GesamtRevenueChart } from './GesamtRevenueChart';
 import { GesamtCashflowChart } from './GesamtCashflowChart';
 import { AboList } from './AboList';
+import { PartnerCard } from './PartnerCard';
+import { JahresprognoseChart } from './JahresprognoseChart';
 import { useAppStore } from '@/store';
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
@@ -363,6 +365,28 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
       return (
         <AboList loading={loading} invoices={invoices} privacyMode={privacyMode} />
       );
+    case 'card-partner':
+      return (
+        <PartnerCard
+          loading={loading}
+          invoices={invoices}
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+          privacyMode={privacyMode}
+          editMode={ctx.editMode}
+          settingsOpen={settingsOpen}
+          onSettingsClose={onSettingsClose}
+        />
+      );
+    case 'chart-jahresprognose':
+      return (
+        <JahresprognoseChart
+          loading={loading}
+          invoices={invoices}
+          selectedYear={selectedYear}
+          privacyMode={privacyMode}
+        />
+      );
 
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
@@ -412,5 +436,7 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'chart-gesamt-revenue': 'Jahresvergleich-Chart (gesamt)',
   'chart-gesamt-cashflow': 'Cashflow-Chart (alle Jahre)',
   'list-abos': 'Aktive Abos',
+  'card-partner': 'Partner-Umsatz',
+  'chart-jahresprognose': 'Jahresprognose (Abo-Cashflow)',
 };
 

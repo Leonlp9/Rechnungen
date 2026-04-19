@@ -1,18 +1,17 @@
 import { useMemo, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine, Tooltip,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
   ChartLegend,
   type ChartConfig,
 } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Invoice } from '@/types';
 import { ClickableLegend } from './ClickableLegend';
+import { ChartCustomTooltip } from './ChartCustomTooltip';
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -103,13 +102,7 @@ export function GesamtCashflowChart({ loading, invoices, privacyMode }: Props) {
                 width={80}
                 tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)}
               />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))}
-                  />
-                }
-              />
+              <Tooltip content={<ChartCustomTooltip privacyMode={privacyMode} />} />
               <ChartLegend content={<ClickableLegend hiddenKeys={hidden} onToggle={toggle} />} />
               <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 2" />
               <Line

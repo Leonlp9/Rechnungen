@@ -42,7 +42,9 @@ export type ElementType =
   | 'kpi-gesamt-marge'
   | 'chart-gesamt-revenue'
   | 'chart-gesamt-cashflow'
-  | 'list-abos';
+  | 'list-abos'
+  | 'card-partner'
+  | 'chart-jahresprognose';
 
 export type GridType =
   | 'grid-vertical'
@@ -96,6 +98,8 @@ export type NodeType =
   | 'chart-gesamt-revenue'
   | 'chart-gesamt-cashflow'
   | 'list-abos'
+  | 'card-partner'
+  | 'chart-jahresprognose'
   | 'grid-vertical'
   | 'grid-horizontal'
   | 'grid-pages'

@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react';
-import { PieChart, Pie, Cell } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
   ChartLegend,
   type ChartConfig,
 } from '@/components/ui/chart';
@@ -12,11 +10,10 @@ import type { Invoice } from '@/types';
 import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, type Category } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClickableLegend } from './ClickableLegend';
+import { ChartCustomTooltip } from './ChartCustomTooltip';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316'];
 
-const fmtEur = (v: number) =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 
 interface Props {
   invoices: Invoice[];
@@ -85,7 +82,7 @@ export function CategoryDonut({ invoices, privacyMode, loading }: Props) {
                   return <Cell key={entry.name} fill={COLORS[idx % COLORS.length]} strokeWidth={0} />;
                 })}
               </Pie>
-              <ChartTooltip content={<ChartTooltipContent formatter={(value) => (privacyMode ? '€€€€' : fmtEur(Number(value)))} nameKey="name" />} />
+              <Tooltip content={<ChartCustomTooltip privacyMode={privacyMode} />} />
               <ChartLegend content={<ClickableLegend customPayload={legendPayload} hiddenKeys={hidden} onToggle={toggle} />} />
             </PieChart>
           </ChartContainer>

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 // Element types that expose a settings panel
-const ELEMENTS_WITH_SETTINGS = new Set(['list-recent-emails']);
+const ELEMENTS_WITH_SETTINGS = new Set(['list-recent-emails', 'card-partner']);
 
 // ─── Insertion line ──────────────────────────────────────────────────────────
 

@@ -18,11 +18,36 @@ export const HELP_CONTENT_TEXT = `
 - Felder: Datum, Beschreibung, Partner, Netto/USt/Brutto, Typ (Einnahme/Ausgabe/Info), Kategorie, Währung.
 
 ### Kategorien
-- Einnahmen: einnahmen, erstattungen
-- Betriebsausgaben: anlagevermoegen_afa, gwg, software_abos, fremdleistungen, buerobedarf, reisekosten, marketing, weiterbildung, miete, versicherungen_betrieb, fahrzeugkosten, kommunikation, vertraege
+Kategorien sind nach Typ getrennt – jede Kategorie steht nur für den passenden Typ zur Verfügung.
+
+**Einnahmen (type=einnahme):**
+- umsatz_pflichtig: Umsatzerlöse steuerpflichtig (19% / 7% MwSt) – Standard für Rechnungen mit MwSt
+- umsatz_steuerfrei: Umsatzerlöse steuerfrei (Kleinunternehmer §19 UStG, Reverse-Charge, Exporte)
+- ust_erstattung: USt-Erstattung vom Finanzamt (Zeile 18 EÜR)
+- privateinlage: Privates Geld ins Unternehmen eingelegt (kein steuerpflichtiger Gewinn)
+- anlagenverkauf: Erlös aus Verkauf von Firmenvermögen (Laptop, Möbel usw.)
+- erstattungen: Erstattungen / Auslagen (durchlaufender Posten – mindert zuvor gebuchte Ausgaben)
+- sonstige_einnahmen: Alle anderen Einnahmen (Donations, Crowdfunding, sonstige Erträge)
+
+**Betriebsausgaben (type=ausgabe):**
+- anlagevermoegen_afa: Anschaffungen > 800€ netto (AfA über mehrere Jahre)
+- gwg: Geringwertige Wirtschaftsgüter ≤ 800€ netto (Sofortabschreibung)
+- software_abos: Software-Lizenzen, SaaS, Cloud-Dienste
+- fremdleistungen: Subunternehmer, Freelancer, externe Agenturen
+- buerobedarf: Büromaterial, Druckerpatronen, Papier
+- reisekosten: Fahrtkosten, Hotel, Flüge, Spesen
+- marketing: Werbung, Anzeigen, Messen, PR
+- weiterbildung: Kurse, Seminare, Fachbücher
+- miete: Büromiete, Co-Working, Lagermiete
+- versicherungen_betrieb: Betriebliche Versicherungen
+- fahrzeugkosten: KFZ-Kosten, Benzin, Leasing
+- kommunikation: Telefon, Internet, Mobilfunk
 - Sonderausgaben: spenden, krankenkasse, sozialversicherung
-- Privat: privat, privatentnahme
-- Sonstiges: sonstiges
+- Privat: privat (nicht absetzbar), privatentnahme
+
+**Info-Dokumente (type=info):**
+- vertraege: Verträge, AGBs, Bestätigungen, Informationsschreiben
+- sonstiges: Sonstige Info-Dokumente
 
 ### Dashboard
 - KPI-Karten: Einnahmen, Ausgaben, Gewinn, Rechnungsanzahl für das gewählte Jahr.

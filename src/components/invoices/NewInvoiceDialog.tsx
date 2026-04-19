@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS } from '@/types';
+import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getDefaultCategoryForType } from '@/types';
 import type { Invoice } from '@/types';
 import { insertInvoice, getAllInvoices, insertDraftDb } from '@/lib/db';
 import { copyPdfToAppData, readPdfAsBase64, copyPdfToDraftsFolder, getAbsolutePdfPath } from '@/lib/pdf';
@@ -411,7 +411,11 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
 
                 <div className="space-y-1.5">
                   <Label>Typ</Label>
-                  <Select value={form.watch('type')} onValueChange={(v) => form.setValue('type', v as 'einnahme' | 'ausgabe' | 'info')}>
+                  <Select value={form.watch('type')} onValueChange={(v) => {
+                    const newType = v as 'einnahme' | 'ausgabe' | 'info';
+                    form.setValue('type', newType);
+                    form.setValue('category', getDefaultCategoryForType(newType));
+                  }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {INVOICE_TYPES.map((t) => (
@@ -426,7 +430,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                   <Select value={form.watch('category')} onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {CATEGORIES.map((c) => (
+                      {getCategoriesForTypeFiltered(form.watch('type'), form.watch('category')).map((c) => (
                         <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                       ))}
                     </SelectContent>

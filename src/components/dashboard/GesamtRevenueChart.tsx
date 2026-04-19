@@ -5,17 +5,17 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  Tooltip,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
   ChartLegend,
   type ChartConfig,
 } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClickableLegend } from './ClickableLegend';
+import { ChartCustomTooltip } from './ChartCustomTooltip';
 
 const fmtEur = (v: number) =>
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
@@ -72,13 +72,7 @@ export function GesamtRevenueChart({ data, privacyMode, loading }: Props) {
               width={80}
               tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)}
             />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))}
-                />
-              }
-            />
+            <Tooltip content={<ChartCustomTooltip privacyMode={privacyMode} />} />
             <ChartLegend content={<ClickableLegend hiddenKeys={hidden} onToggle={toggle} />} />
             <Bar dataKey="Einnahmen" fill="var(--color-Einnahmen)" radius={[4, 4, 0, 0]} hide={hidden.has('Einnahmen')} />
             <Bar dataKey="Ausgaben"  fill="var(--color-Ausgaben)"  radius={[4, 4, 0, 0]} hide={hidden.has('Ausgaben')} />
@@ -88,4 +82,3 @@ export function GesamtRevenueChart({ data, privacyMode, loading }: Props) {
     </Card>
   );
 }
-

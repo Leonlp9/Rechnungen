@@ -236,10 +236,18 @@ export function AboList({ invoices, privacyMode, loading }: Props) {
                   </div>
 
                   {/* Right: status + amount */}
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    <StatusBadge status={status} />
-                    <span className="text-sm font-semibold text-red-600 dark:text-red-400">
-                      −{fmtCurrency(pattern.avgBrutto, privacyMode ?? false)}
+                  <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={status} />
+                      <span className="text-sm font-semibold text-red-600 dark:text-red-400">
+                        −{fmtCurrency(pattern.avgBrutto, privacyMode ?? false)}
+                      </span>
+                    </div>
+                    <span
+                      className="text-xs text-muted-foreground/70"
+                      title={`${pattern.occurrences} Buchungen · Gesamtausgabe`}
+                    >
+                      Gesamt: {fmtCurrency(pattern.avgBrutto * pattern.occurrences, privacyMode ?? false)}
                     </span>
                   </div>
                 </div>

@@ -22,13 +22,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { getInvoiceById, updateInvoice, deleteInvoice, getAllInvoices } from '@/lib/db';
-import { getAbsolutePdfPath } from '@/lib/pdf';
+import { getAbsolutePdfPath, readPdfAsBase64 } from '@/lib/pdf';
+import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
-import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS } from '@/types';
+import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getDefaultCategoryForType, isCategoryValidForType } from '@/types';
 import type { Invoice } from '@/types';
-import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle } from 'lucide-react';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { cn } from '@/lib/utils';
 
 const schema = z.object({
   date: z.string().min(1),
@@ -50,14 +52,18 @@ export default function InvoiceDetail() {
   const navigate = useNavigate();
   const invoices = useAppStore((s) => s.invoices);
   const setInvoices = useAppStore((s) => s.setInvoices);
+  const activeAiFix = useAppStore((s) => s.activeAiFix);
+  const setActiveAiFix = useAppStore((s) => s.setActiveAiFix);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [pdfUrl, setPdfUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [aiFixLoading, setAiFixLoading] = useState(false);
 
   const form = useForm<FormData>({ resolver: zodResolver(schema) });
 
+  // ─── Lade Rechnung ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -94,6 +100,62 @@ export default function InvoiceDetail() {
     };
   }, [id, navigate, form]);
 
+  // ─── KI-Fix ausführen (getriggert vom Panel ODER lokal) ─────────────────────
+  const runAiFix = useCallback(async (inv: Invoice) => {
+    if (!inv.pdf_path) {
+      toast.warning('Kein PDF vorhanden – bitte Kategorie manuell korrigieren.');
+      setActiveAiFix(null);
+      return;
+    }
+    setAiFixLoading(true);
+    try {
+      const absPath = await getAbsolutePdfPath(inv.pdf_path);
+      const base64 = await readPdfAsBase64(absPath);
+      const result = await analyzeInvoicePdf(base64 as string, invoices);
+
+      const fields = activeAiFix?.invoiceId === inv.id
+        ? activeAiFix.fields
+        : (['category'] as Array<'category' | 'type'>);
+
+      const patch: Partial<Invoice> = {};
+      if (fields.includes('category')) patch.category = result.suggested_category;
+      if (fields.includes('type')) patch.type = result.type;
+
+      // Formular sofort updaten (sichtbar für den Nutzer)
+      if (patch.category) form.setValue('category', patch.category);
+      if (patch.type) form.setValue('type', patch.type);
+
+      // Speichern
+      const updated: Invoice = { ...inv, ...patch, updated_at: new Date().toISOString() };
+      await updateInvoice(updated);
+      setInvoice(updated);
+      const all = await getAllInvoices();
+      setInvoices(all);
+
+      const label = patch.category ? CATEGORY_LABELS[patch.category] ?? patch.category : null;
+      toast.success(`KI-Fix angewendet${label ? `: Kategorie → „${label}"` : ''}`);
+    } catch (err) {
+      toast.error('KI-Analyse fehlgeschlagen: ' + String(err));
+    } finally {
+      setAiFixLoading(false);
+      setActiveAiFix(null);
+    }
+  }, [invoices, activeAiFix, form, setInvoices, setActiveAiFix]);
+
+  // Automatisch starten, wenn vom Panel getriggert
+  useEffect(() => {
+    if (
+      !loading &&
+      invoice &&
+      activeAiFix?.invoiceId === invoice.id &&
+      activeAiFix.loading &&
+      !aiFixLoading
+    ) {
+      runAiFix(invoice);
+    }
+  }, [loading, invoice, activeAiFix, aiFixLoading, runAiFix]);
+
+  // ─── Navigation ─────────────────────────────────────────────────────────────
   const currentIndex = invoices.findIndex((i) => i.id === id);
 
   const goToSibling = useCallback(
@@ -115,6 +177,7 @@ export default function InvoiceDetail() {
     return () => window.removeEventListener('keydown', handler);
   }, [goToSibling]);
 
+  // ─── Speichern / Löschen ────────────────────────────────────────────────────
   const onSubmit = async (data: FormData) => {
     if (!invoice) return;
     setSaving(true);
@@ -161,6 +224,14 @@ export default function InvoiceDetail() {
       toast.error('Fehler: ' + String(e));
     }
   };
+
+  // ─── Hilfs-Werte ────────────────────────────────────────────────────────────
+  const watchedType = form.watch('type');
+  const watchedCategory = form.watch('category');
+  const hasCategoryIssue = watchedCategory && watchedType
+    ? !isCategoryValidForType(watchedCategory, watchedType) || (watchedType === 'einnahme' && watchedCategory === 'einnahmen')
+    : false;
+  const hasPdf = !!invoice?.pdf_path;
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Lade...</div>;
@@ -224,7 +295,14 @@ export default function InvoiceDetail() {
           </div>
           <div className="space-y-1.5">
             <Label>Typ</Label>
-            <Select value={form.watch('type')} onValueChange={(v) => form.setValue('type', v as 'einnahme' | 'ausgabe' | 'info')}>
+            <Select value={watchedType} onValueChange={(v) => {
+              const newType = v as 'einnahme' | 'ausgabe' | 'info';
+              form.setValue('type', newType);
+              const cur = form.getValues('category');
+              if (!(getCategoriesForTypeFiltered(newType) as string[]).includes(cur)) {
+                form.setValue('category', getDefaultCategoryForType(newType));
+              }
+            }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {INVOICE_TYPES.map((t) => (
@@ -233,17 +311,50 @@ export default function InvoiceDetail() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Kategorie – mit Fehlerindikator und KI-Fix-Button */}
           <div className="space-y-1.5">
-            <Label>Kategorie</Label>
-            <Select value={form.watch('category')} onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <div className="flex items-center justify-between">
+              <Label className={cn(hasCategoryIssue && 'text-amber-500 dark:text-amber-400')}>
+                {hasCategoryIssue && <AlertTriangle className="inline h-3.5 w-3.5 mr-1 mb-0.5" />}
+                Kategorie
+              </Label>
+              {hasCategoryIssue && (
+                <button
+                  type="button"
+                  onClick={() => invoice && runAiFix(invoice)}
+                  disabled={aiFixLoading || !hasPdf}
+                  title={hasPdf ? 'KI analysiert das PDF und schlägt die richtige Kategorie vor' : 'Kein PDF – bitte manuell auswählen'}
+                  className={cn(
+                    'flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium border transition-colors',
+                    hasPdf
+                      ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-300/40 hover:bg-violet-500/20'
+                      : 'bg-muted text-muted-foreground border-border cursor-not-allowed opacity-50',
+                  )}
+                >
+                  {aiFixLoading
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : <Sparkles className="h-3 w-3" />
+                  }
+                  {aiFixLoading ? 'Analysiere…' : 'KI-Fix'}
+                </button>
+              )}
+            </div>
+            <Select
+              value={watchedCategory}
+              onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}
+            >
+              <SelectTrigger className={cn(hasCategoryIssue && 'border-amber-400/60 ring-amber-400/20')}>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {CATEGORIES.map((c) => (
+                {getCategoriesForTypeFiltered(watchedType, watchedCategory).map((c) => (
                   <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-1.5">
             <Label>Notiz</Label>
             <Input {...form.register('note')} />
@@ -281,6 +392,3 @@ export default function InvoiceDetail() {
     </div>
   );
 }
-
-
-

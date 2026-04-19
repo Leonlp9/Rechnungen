@@ -8,7 +8,7 @@ import { insertInvoice } from '@/lib/db';
 import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
 import { toast } from 'sonner';
-import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS } from '@/types';
+import { CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getDefaultCategoryForType } from '@/types';
 import type { Category, InvoiceType } from '@/types';
 import { format, parse, isValid } from 'date-fns';
 
@@ -33,7 +33,7 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
   const [date, setDate] = useState(prefill.date);
   const [description, setDescription] = useState(prefill.description);
   const [type, setType] = useState<InvoiceType>('einnahme');
-  const [category, setCategory] = useState<Category>('einnahmen');
+  const [category, setCategory] = useState<Category>('umsatz_pflichtig');
   const [brutto, setBrutto] = useState(prefill.brutto.toFixed(2));
   const [saving, setSaving] = useState(false);
 
@@ -98,7 +98,11 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Typ</Label>
-              <Select value={type} onValueChange={(v) => setType(v as InvoiceType)}>
+              <Select value={type} onValueChange={(v) => {
+                const t = v as InvoiceType;
+                setType(t);
+                setCategory(getDefaultCategoryForType(t));
+              }}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {INVOICE_TYPES.map((t) => (
@@ -133,7 +137,7 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
             <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-60">
-                {CATEGORIES.map((c) => (
+                {getCategoriesForTypeFiltered(type, category).map((c) => (
                   <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                 ))}
               </SelectContent>

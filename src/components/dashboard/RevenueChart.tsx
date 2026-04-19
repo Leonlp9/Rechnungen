@@ -5,18 +5,18 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  Tooltip,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
   ChartLegend,
   type ChartConfig,
 } from '@/components/ui/chart';
 import type { Invoice } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClickableLegend } from './ClickableLegend';
+import { ChartCustomTooltip } from './ChartCustomTooltip';
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -70,7 +70,7 @@ export function RevenueChart({ invoices, privacyMode, loading }: Props) {
             <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
             <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} width={80}
               tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)} />
-            <ChartTooltip content={<ChartTooltipContent formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))} />} />
+            <Tooltip content={<ChartCustomTooltip privacyMode={privacyMode} />} />
             <ChartLegend content={<ClickableLegend hiddenKeys={hidden} onToggle={toggle} />} />
             <Line type="monotone" dataKey="Einnahmen" stroke="var(--color-Einnahmen)" strokeWidth={2} dot={false} hide={hidden.has('Einnahmen')} />
             <Line type="monotone" dataKey="Ausgaben"  stroke="var(--color-Ausgaben)"  strokeWidth={2} dot={false} hide={hidden.has('Ausgaben')} />
