@@ -37,6 +37,47 @@ async function migrate(db: Database) {
       value TEXT NOT NULL DEFAULT ''
     )
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS drafts (
+      id TEXT PRIMARY KEY,
+      file_path TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      added_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+}
+
+// --- Drafts ---
+
+export interface DraftRow {
+  id: string;
+  file_path: string;
+  file_name: string;
+  added_at: string;
+}
+
+export async function getAllDrafts(): Promise<DraftRow[]> {
+  const db = await getDb();
+  return db.select('SELECT * FROM drafts ORDER BY added_at ASC');
+}
+
+export async function insertDraftDb(id: string, filePath: string, fileName: string, addedAt: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    'INSERT OR REPLACE INTO drafts (id, file_path, file_name, added_at) VALUES ($1, $2, $3, $4)',
+    [id, filePath, fileName, addedAt]
+  );
+}
+
+export async function deleteDraftDb(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM drafts WHERE id = $1', [id]);
+}
+
+export async function deleteAllDraftsDb(): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM drafts');
 }
 
 // --- Invoices ---

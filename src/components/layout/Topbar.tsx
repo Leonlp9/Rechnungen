@@ -1,18 +1,21 @@
-import { Search, Plus, Moon, Sun, Download, Eye, EyeOff } from 'lucide-react';
+import { Search, Plus, Moon, Sun, Download, Eye, EyeOff, FileStack } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store';
+import { Badge } from '@/components/ui/badge';
 
 interface TopbarProps {
   onNewInvoice?: () => void;
   onExport?: () => void;
+  onDrafts?: () => void;
 }
 
-export function Topbar({ onNewInvoice, onExport }: TopbarProps) {
+export function Topbar({ onNewInvoice, onExport, onDrafts }: TopbarProps) {
   const darkMode = useAppStore((s) => s.darkMode);
   const setDarkMode = useAppStore((s) => s.setDarkMode);
   const privacyMode = useAppStore((s) => s.privacyMode);
   const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
+  const draftsCount = useAppStore((s) => s.drafts?.length ?? 0);
 
   const toggleDark = () => {
     const next = !darkMode;
@@ -44,6 +47,15 @@ export function Topbar({ onNewInvoice, onExport }: TopbarProps) {
           <Download className="mr-2 h-4 w-4" />
           Exportieren
         </Button>
+        {draftsCount > 0 && (
+          <Button variant="outline" onClick={onDrafts} className="relative gap-2">
+            <FileStack className="h-4 w-4" />
+            Entwürfe
+            <Badge className="ml-1 h-5 min-w-5 rounded-full px-1.5 py-0 text-xs bg-primary text-primary-foreground">
+              {draftsCount}
+            </Badge>
+          </Button>
+        )}
         <Button onClick={onNewInvoice}>
           <Plus className="mr-2 h-4 w-4" />
           Neue Rechnung

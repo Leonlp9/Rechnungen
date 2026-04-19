@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,11 +26,12 @@ import {
 } from '@/components/ui/select';
 import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS } from '@/types';
 import type { Invoice } from '@/types';
-import { insertInvoice, getAllInvoices } from '@/lib/db';
-import { copyPdfToAppData, readPdfAsBase64 } from '@/lib/pdf';
+import { insertInvoice, getAllInvoices, insertDraftDb } from '@/lib/db';
+import { copyPdfToAppData, readPdfAsBase64, copyPdfToDraftsFolder, getAbsolutePdfPath } from '@/lib/pdf';
 import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
-import { Upload, Sparkles, Loader2, FileText, AlertTriangle, ExternalLink } from 'lucide-react';
+import type { InvoiceDraft } from '@/store';
+import { Upload, Sparkles, Loader2, FileText, AlertTriangle, ExternalLink, Files, BookmarkPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -69,7 +71,42 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
   const [duplicates, setDuplicates] = useState<Invoice[]>([]);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [pendingData, setPendingData] = useState<FormData | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const setInvoices = useAppStore((s) => s.setInvoices);
+  const addDraft = useAppStore((s) => s.addDraft);
+  const drafts = useAppStore((s) => s.drafts ?? []);
+
+  // If this dialog was opened from a draft, track its id so we can remove it on save/draft-resave
+  const currentDraftId = initialPdfPath
+    ? (drafts.find((d) => d.filePath === initialPdfPath)?.id ?? null)
+    : null;
+
+  const saveAsDraft = async () => {
+    if (!pdfPath) return;
+    // If already a draft (opened from DraftsPanel), just close — it's still in the list
+    if (currentDraftId) {
+      reset();
+      onClose();
+      return;
+    }
+    try {
+      const id = crypto.randomUUID();
+      const fileName = `${id}.pdf`;
+      const name = pdfName || (pdfPath.split(/[\\/]/).pop() ?? 'document.pdf');
+      const addedAt = new Date().toISOString();
+      const relativePath = await copyPdfToDraftsFolder(pdfPath, fileName);
+      const absPath = await getAbsolutePdfPath(relativePath);
+      await insertDraftDb(id, relativePath, name, addedAt);
+      const draft: InvoiceDraft = { id, filePath: absPath, relativePath, fileName: name, addedAt };
+      addDraft(draft);
+      toast.success('Als Entwurf gespeichert');
+      reset();
+      onClose();
+    } catch (e) {
+      toast.error('Fehler beim Speichern als Entwurf: ' + String(e));
+    }
+  };
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -100,6 +137,56 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     form.reset();
   };
 
+  // Tauri native drag-drop listener (liefert echte Dateipfade)
+  useEffect(() => {
+    if (!isOpen || step !== 1) return;
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview().onDragDropEvent((event) => {
+      if (event.payload.type === 'over') {
+        setIsDragOver(true);
+      } else if (event.payload.type === 'leave') {
+        setIsDragOver(false);
+      } else if (event.payload.type === 'drop') {
+        setIsDragOver(false);
+        const paths: string[] = event.payload.paths ?? [];
+        const pdfs = paths.filter((p) => p.toLowerCase().endsWith('.pdf'));
+        if (pdfs.length === 0) return;
+        processFiles(pdfs);
+      }
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, [isOpen, step]);
+
+  const processFiles = async (files: string[]) => {
+    if (files.length === 1) {
+      const filePath = files[0];
+      setPdfPath(filePath);
+      setPdfName(filePath.split(/[\\/]/).pop() ?? 'document.pdf');
+      try {
+        const base64 = await readPdfAsBase64(filePath);
+        setPdfDataUrl(`data:application/pdf;base64,${base64}`);
+      } catch {
+        setPdfDataUrl(null);
+      }
+      setStep(2);
+    } else {
+      for (const filePath of files) {
+        const id = crypto.randomUUID();
+        const fileName = `${id}.pdf`;
+        const name = filePath.split(/[\\/]/).pop() ?? 'document.pdf';
+        const addedAt = new Date().toISOString();
+        try {
+          const relativePath = await copyPdfToDraftsFolder(filePath, fileName);
+          const absPath = await getAbsolutePdfPath(relativePath);
+          await insertDraftDb(id, relativePath, name, addedAt);
+          addDraft({ id, filePath: absPath, relativePath, fileName: name, addedAt });
+        } catch { /* skip */ }
+      }
+      toast.success(`${files.length} Entwürfe gespeichert`);
+      handleClose();
+    }
+  };
+
   // Load all invoices when dialog opens (for AI context + duplicate check)
   useEffect(() => {
     if (isOpen) {
@@ -127,21 +214,12 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
   const selectPdf = async () => {
     try {
       const result = await open({
-        multiple: false,
+        multiple: true,
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
-      if (result) {
-        setPdfPath(result as string);
-        setPdfName((result as string).split(/[\\/]/).pop() ?? 'document.pdf');
-        // load preview
-        try {
-          const base64 = await readPdfAsBase64(result as string);
-          setPdfDataUrl(`data:application/pdf;base64,${base64}`);
-        } catch {
-          setPdfDataUrl(null);
-        }
-        setStep(2);
-      }
+      if (!result) return;
+      const files = (Array.isArray(result) ? result : [result]) as string[];
+      await processFiles(files);
     } catch (e) {
       toast.error('Fehler beim Auswählen der PDF: ' + String(e));
     }
@@ -241,15 +319,26 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
         </DialogHeader>
 
         {step === 1 && (
-          <div className="flex flex-col items-center gap-6 py-12">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-              <Upload className="h-10 w-10 text-muted-foreground" />
+          <div
+            ref={dropZoneRef}
+            className={`flex flex-col items-center gap-5 py-10 px-6 border-2 border-dashed rounded-xl transition-colors select-none cursor-pointer
+              ${isDragOver
+                ? 'border-primary bg-primary/10 scale-[1.01]'
+                : 'border-border bg-muted/20 hover:bg-muted/40'
+              }`}
+            onClick={selectPdf}
+          >
+            <div className={`flex h-20 w-20 items-center justify-center rounded-full transition-colors ${isDragOver ? 'bg-primary/20' : 'bg-muted'}`}>
+              <Upload className={`h-10 w-10 transition-colors ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
             </div>
             <div className="text-center space-y-1">
-              <p className="text-lg font-semibold">PDF hochladen</p>
-              <p className="text-sm text-muted-foreground">Wähle eine PDF-Rechnung aus</p>
+              <p className="text-lg font-semibold">{isDragOver ? 'Loslassen zum Hinzufügen' : 'PDF hochladen'}</p>
+              <p className="text-sm text-muted-foreground">Hierher ziehen oder klicken · eine oder mehrere PDFs</p>
+              <p className="text-xs text-muted-foreground/60 flex items-center justify-center gap-1">
+                <Files className="h-3 w-3" /> Mehrere Dateien werden als Entwürfe gespeichert
+              </p>
             </div>
-            <Button onClick={selectPdf} size="lg">
+            <Button onClick={(e) => { e.stopPropagation(); selectPdf(); }} size="lg">
               <FileText className="mr-2 h-4 w-4" />
               PDF auswählen
             </Button>
@@ -351,6 +440,10 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
 
                 <div className="col-span-2 flex justify-end gap-2 pt-2">
                   <Button type="button" variant="outline" onClick={handleClose}>Abbrechen</Button>
+                  <Button type="button" variant="outline" onClick={saveAsDraft}>
+                    <BookmarkPlus className="mr-2 h-4 w-4" />
+                    {currentDraftId ? 'Entwurf behalten' : 'Als Entwurf speichern'}
+                  </Button>
                   <Button type="submit" disabled={saving}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Speichern

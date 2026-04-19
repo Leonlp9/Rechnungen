@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
 
 const PDF_FOLDER = 'pdfs';
+const DRAFTS_FOLDER = 'entwuerfe';
 
 async function ensurePdfFolder(): Promise<string> {
   const base = await appDataDir();
@@ -10,6 +11,41 @@ async function ensurePdfFolder(): Promise<string> {
     await mkdir(dir, { recursive: true });
   }
   return dir;
+}
+
+async function ensureDraftsFolder(): Promise<string> {
+  const base = await appDataDir();
+  const dir = await join(base, DRAFTS_FOLDER);
+  if (!(await exists(dir))) {
+    await mkdir(dir, { recursive: true });
+  }
+  return dir;
+}
+
+/**
+ * Copy a PDF into the app-data entwuerfe/ folder.
+ * Returns the relative path (e.g. "entwuerfe/abc-123.pdf").
+ */
+export async function copyPdfToDraftsFolder(sourcePath: string, fileName: string): Promise<string> {
+  const dir = await ensureDraftsFolder();
+  const destPath = await join(dir, fileName);
+  const data = await readFile(sourcePath);
+  await writeFile(destPath, data);
+  return `${DRAFTS_FOLDER}/${fileName}`;
+}
+
+/**
+ * Delete a file from the drafts folder by relative path.
+ */
+export async function deleteDraftFile(relativePath: string): Promise<void> {
+  try {
+    const { remove } = await import('@tauri-apps/plugin-fs');
+    const base = await appDataDir();
+    const absPath = await join(base, relativePath);
+    await remove(absPath);
+  } catch {
+    // ignore if already gone
+  }
 }
 
 /**
