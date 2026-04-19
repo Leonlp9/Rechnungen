@@ -1,11 +1,10 @@
-"use client"
-
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { useAppStore } from "@/store"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const darkMode = useAppStore((s) => s.darkMode)
+  const theme = darkMode ? "dark" : "light"
 
   return (
     <Sonner
