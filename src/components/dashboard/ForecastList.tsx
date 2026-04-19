@@ -15,6 +15,8 @@ interface Props {
   invoices: Invoice[];
   privacyMode?: boolean;
   loading?: boolean;
+  selectedMonth?: number;
+  selectedYear?: number;
 }
 
 const INTERVAL_LABELS = {
@@ -30,13 +32,19 @@ function confidenceBadge(c: number) {
   return <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 text-xs">Niedrig</Badge>;
 }
 
-export function ForecastList({ invoices, privacyMode, loading }: Props) {
+export function ForecastList({ invoices, privacyMode, loading, selectedMonth, selectedYear }: Props) {
   const navigate = useNavigate();
   const forecasts = useMemo(() => {
     if (loading) return [];
     const patterns = detectPatterns(invoices);
-    return forecastCurrentMonth(patterns);
-  }, [invoices, loading]);
+    return forecastCurrentMonth(patterns, selectedYear, selectedMonth);
+  }, [invoices, loading, selectedMonth, selectedYear]);
+
+  const monthLabel = useMemo(() => {
+    const y = selectedYear ?? new Date().getFullYear();
+    const m = selectedMonth !== undefined ? selectedMonth - 1 : new Date().getMonth();
+    return format(new Date(y, m, 1), 'MMMM yyyy', { locale: de });
+  }, [selectedMonth, selectedYear]);
 
   if (loading) {
     return (
@@ -75,7 +83,7 @@ export function ForecastList({ invoices, privacyMode, loading }: Props) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarClock className="h-4 w-4 text-muted-foreground" />
-            Prognose – dieser Monat
+            Prognose – {monthLabel}
           </CardTitle>
           {forecasts.length > 0 && (
             <div className="flex gap-3 text-sm">

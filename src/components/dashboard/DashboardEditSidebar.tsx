@@ -193,6 +193,10 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             icon={<Activity className="h-4 w-4 text-teal-500" />}
             description="Tagesgenauer Verlauf der letzten 28 Tage"
             tooltip="Liniendiagramm mit tagesgenauen Einnahmen und Ausgaben der letzten 28 Tage. Gut für kurzfristige Cashflow-Analyse." />
+          <SidebarDraggableItem type="chart-month" label="Monatschart"
+            icon={<Activity className="h-4 w-4 text-cyan-500" />}
+            description="Tagesgenauer Verlauf des gewählten Monats"
+            tooltip="Balkendiagramm mit tagesgenauen Einnahmen und Ausgaben für den ausgewählten Monat." />
           <SidebarDraggableItem type="card-sonderausgaben" label="Sonderausgaben"
             icon={<Receipt className="h-4 w-4 text-amber-500" />}
             description="Übersicht steuerlicher Sonderausgaben"

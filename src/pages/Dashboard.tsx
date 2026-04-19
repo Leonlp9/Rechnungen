@@ -234,6 +234,20 @@ export default function Dashboard() {
     doRename(newLayout); setLayout(newLayout);
   }, [layout, setLayout]);
 
+  const handleReorderPages = useCallback((gridId: string, newPageIds: string[]) => {
+    const newLayout = JSON.parse(JSON.stringify(layout));
+    function doReorder(node: DashboardNode): boolean {
+      if (node.id === gridId && node.pages) {
+        node.pages = newPageIds.map((id) => node.pages!.find((p) => p.id === id)!).filter(Boolean);
+        return true;
+      }
+      if (node.children) for (const c of node.children) if (doReorder(c)) return true;
+      if (node.pages) for (const p of node.pages) for (const c of p.children) if (doReorder(c)) return true;
+      return false;
+    }
+    doReorder(newLayout); setLayout(newLayout);
+  }, [layout, setLayout]);
+
   const handleReset = () => {
     setConfirmReset(true);
   };
@@ -258,6 +272,32 @@ export default function Dashboard() {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h1 className="text-2xl font-bold">Dashboard</h1>
               <div className="flex items-center gap-2">
+                <Select
+                  value={String(data.selectedMonth)}
+                  onValueChange={(v) => data.setSelectedMonth(Number(v))}
+                >
+                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[
+                      'Januar','Februar','März','April','Mai','Juni',
+                      'Juli','August','September','Oktober','November','Dezember',
+                    ].map((name, i) => {
+                      const isCurrentMonth = i + 1 === new Date().getMonth() + 1 && data.selectedYear === new Date().getFullYear();
+                      return (
+                        <SelectItem key={i + 1} value={String(i + 1)}>
+                          <span className="flex items-center gap-2">
+                            {name}
+                            {isCurrentMonth && (
+                              <span className="text-[10px] bg-primary/15 text-primary rounded px-1 py-0.5 leading-none font-medium">
+                                aktuell
+                              </span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
                 <Select
                   value={String(data.selectedYear)}
                   onValueChange={(v) => data.setSelectedYear(Number(v))}
@@ -292,6 +332,7 @@ export default function Dashboard() {
               onAddPage={handleAddPage}
               onDeletePage={handleDeletePage}
               onRenamePage={handleRenamePage}
+              onReorderPages={handleReorderPages}
             />
           </div>
 

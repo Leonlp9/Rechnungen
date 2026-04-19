@@ -167,7 +167,7 @@ export const RecentEmailsCard: React.FC<RecentEmailsCardProps> = ({ editMode = f
               <button
                 key={`${email._account}-${email.id}`}
                 className="w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors"
-                onClick={() => navigate('/gmail')}
+                onClick={() => navigate(`/gmail?accountId=${encodeURIComponent(email._account)}&messageId=${encodeURIComponent(email.id)}`)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">

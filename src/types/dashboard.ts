@@ -13,6 +13,7 @@ export type ElementType =
   | 'chart-revenue'
   | 'chart-category-donut'
   | 'chart-last28days'
+  | 'chart-month'
   | 'card-sonderausgaben'
   | 'list-forecast'
   | 'list-recent-emails'

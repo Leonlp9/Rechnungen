@@ -114,15 +114,20 @@ export function detectPatterns(invoices: Invoice[]): DetectedPattern[] {
   return patterns.sort((a, b) => b.confidence - a.confidence);
 }
 
-export function forecastCurrentMonth(patterns: DetectedPattern[]): ForecastItem[] {
+export function forecastCurrentMonth(patterns: DetectedPattern[], year?: number, month?: number): ForecastItem[] {
   const today = new Date();
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const y = year ?? today.getFullYear();
+  const m = month !== undefined ? month - 1 : today.getMonth(); // month is 1-based
+  const startOfMonth = new Date(y, m, 1);
+  const endOfMonth = new Date(y, m + 1, 0);
+  // For the current actual month, only show future forecasts; for other months show all
+  const isCurrentMonth = y === today.getFullYear() && m === today.getMonth();
+  const filterFrom = isCurrentMonth ? today : startOfMonth;
 
   return patterns
     .filter((p) => {
       const d = p.nextExpectedDate;
-      return d >= today && d >= startOfMonth && d <= endOfMonth;
+      return d >= filterFrom && d >= startOfMonth && d <= endOfMonth;
     })
     .map((p) => ({
       pattern: p,

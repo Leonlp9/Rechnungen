@@ -8,6 +8,7 @@ import { CategoryDonut } from './CategoryDonut';
 import { SonderausgabenCard } from './SonderausgabenCard';
 import { ForecastList } from './ForecastList';
 import { Last28DaysChart } from './Last28DaysChart';
+import { MonthChart } from './MonthChart';
 import { RecentEmailsCard } from './RecentEmailsCard';
 import { CashflowChart } from './CashflowChart';
 import { TopAusgabenCard } from './TopAusgabenCard';
@@ -44,6 +45,7 @@ export function DashboardElementNode({ type }: DashboardElementNodeProps) {
     deltaMonatEin, deltaMonatAus, deltaMonatSaldo,
     forecastEin, forecastAus,
     yearInvoices, invoices, lastTen, prevYearInvoices,
+    selectedMonth, selectedYear,
   } = ctx;
 
 
@@ -141,6 +143,8 @@ export function DashboardElementNode({ type }: DashboardElementNodeProps) {
       return <CategoryDonut loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />;
     case 'chart-last28days':
       return <Last28DaysChart loading={loading} invoices={invoices} privacyMode={privacyMode} />;
+    case 'chart-month':
+      return <MonthChart loading={loading} invoices={invoices} privacyMode={privacyMode} selectedMonth={selectedMonth} selectedYear={selectedYear} />;
     case 'card-sonderausgaben':
       return <SonderausgabenCard loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />;
     case 'list-top-ausgaben':
@@ -148,7 +152,7 @@ export function DashboardElementNode({ type }: DashboardElementNodeProps) {
     case 'list-top-partner':
       return <TopPartnerCard loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />;
     case 'list-forecast':
-      return <ForecastList loading={loading} invoices={invoices} privacyMode={privacyMode} />;
+      return <ForecastList loading={loading} invoices={invoices} privacyMode={privacyMode} selectedMonth={selectedMonth} selectedYear={selectedYear} />;
     case 'list-recent-emails':
       return <RecentEmailsCard editMode={ctx.editMode} />;
     case 'card-jahresvergleich':
@@ -228,6 +232,7 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'chart-cashflow': 'Cashflow (kumuliert)',
   'chart-category-donut': 'Kategorien-Donut',
   'chart-last28days': '28-Tage-Chart',
+  'chart-month': 'Monatschart',
   'card-sonderausgaben': 'Sonderausgaben',
   'list-top-ausgaben': 'Top Ausgaben',
   'list-top-partner': 'Top Kunden',

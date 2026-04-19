@@ -1,0 +1,114 @@
+import { useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart';
+import type { Invoice } from '@/types';
+import { format, getDaysInMonth } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const fmtEur = (v: number) =>
+  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
+const chartConfig = {
+  Einnahmen: { label: 'Einnahmen', color: 'var(--color-emerald-500, #22c55e)' },
+  Ausgaben:  { label: 'Ausgaben',  color: 'var(--color-red-500, #ef4444)' },
+} satisfies ChartConfig;
+
+interface Props {
+  invoices: Invoice[];
+  selectedMonth: number; // 1-based
+  selectedYear: number;
+  privacyMode?: boolean;
+  loading?: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload, privacyMode }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-md text-xs space-y-1">
+      <p className="font-semibold text-foreground mb-1">{d.fullDate}</p>
+      {payload.map((p: { name: string; value: number; color: string }) => (
+        <div key={p.name} className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color }} />
+          <span className="text-muted-foreground">{p.name}:</span>
+          <span className="font-medium">{privacyMode ? '€€€€' : fmtEur(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function MonthChart({ invoices, selectedMonth, selectedYear, privacyMode, loading }: Props) {
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm h-full flex flex-col">
+        <CardHeader><Skeleton className="h-5 w-40" /></CardHeader>
+        <CardContent className="flex-1 min-h-0 pb-4">
+          <Skeleton className="h-full min-h-[220px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const data = useMemo(() => {
+    const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth - 1, 1));
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const day = new Date(selectedYear, selectedMonth - 1, i + 1);
+      const dayStr = format(day, 'yyyy-MM-dd');
+      const dayInvoices = invoices.filter((inv) => inv.date.startsWith(dayStr));
+      return {
+        fullDate: format(day, 'dd.MM.yyyy', { locale: de }),
+        shortDate: format(day, 'd', { locale: de }),
+        Einnahmen: dayInvoices.filter((inv) => inv.type === 'einnahme').reduce((s, inv) => s + inv.brutto, 0),
+        Ausgaben:  dayInvoices.filter((inv) => inv.type === 'ausgabe').reduce((s, inv) => s + inv.brutto, 0),
+      };
+    });
+  }, [invoices, selectedMonth, selectedYear]);
+
+  const monthLabel = format(new Date(selectedYear, selectedMonth - 1, 1), 'MMMM yyyy', { locale: de });
+
+  return (
+    <Card className="rounded-xl shadow-sm h-full flex flex-col">
+      <CardHeader>
+        <CardTitle className="text-base">{monthLabel}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex-1 min-h-[240px] pb-4 relative">
+        <ChartContainer config={chartConfig} className="h-[260px] w-full">
+          <BarChart data={data} barGap={2}>
+            <CartesianGrid vertical={false} className="stroke-border/50" />
+            <XAxis
+              dataKey="shortDate"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11 }}
+              interval={4}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12 }}
+              width={80}
+              tickFormatter={(v) => (privacyMode ? '€ ***' : fmtEur(v))}
+            />
+            <Tooltip
+              content={<CustomTooltip privacyMode={privacyMode} />}
+              cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="Einnahmen" fill="var(--color-Einnahmen)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Ausgaben"  fill="var(--color-Ausgaben)"  radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+

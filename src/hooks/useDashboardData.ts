@@ -14,6 +14,8 @@ export interface DashboardData {
   prevYearInvoices: Invoice[];
   selectedYear: number;
   setSelectedYear: (y: number) => void;
+  selectedMonth: number;
+  setSelectedMonth: (m: number) => void;
   years: number[];
   privacyMode: boolean;
   // YTD
@@ -49,6 +51,7 @@ export function useDashboardData(): DashboardData {
   const setSelectedYear = useAppStore((s) => s.setSelectedYear);
   const privacyMode = useAppStore((s) => s.privacyMode);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
   useEffect(() => {
     getAllInvoices()
@@ -97,9 +100,9 @@ export function useDashboardData(): DashboardData {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const recentCount = invoices.filter((i) => new Date(i.date) >= thirtyDaysAgo).length;
   const isCurrentYear = selectedYear === now.getFullYear();
-  const thisMonthLabel = format(now, 'MMMM yyyy', { locale: de });
+  const thisMonthLabel = format(new Date(selectedYear, selectedMonth - 1, 1), 'MMMM yyyy', { locale: de });
 
-  const thisMonth = now.getMonth() + 1;
+  const thisMonth = selectedMonth;
   const prevMonthNum = thisMonth === 1 ? 12 : thisMonth - 1;
   const prevMonthYear = thisMonth === 1 ? selectedYear - 1 : selectedYear;
 
@@ -123,8 +126,8 @@ export function useDashboardData(): DashboardData {
   const deltaMonatSaldo = prevMonatSaldo ? ((monatSaldo - prevMonatSaldo) / Math.abs(prevMonatSaldo)) * 100 : 0;
 
   const forecastItems = useMemo(
-    () => (!loading ? forecastCurrentMonth(detectPatterns(invoices)) : []),
-    [invoices, loading],
+    () => (!loading ? forecastCurrentMonth(detectPatterns(invoices), selectedYear, selectedMonth) : []),
+    [invoices, loading, selectedYear, selectedMonth],
   );
   const forecastEin = forecastItems.filter((f) => f.pattern.type === 'einnahme').reduce((s, f) => s + f.expectedBrutto, 0);
   const forecastAus = forecastItems.filter((f) => f.pattern.type === 'ausgabe').reduce((s, f) => s + f.expectedBrutto, 0);
@@ -139,6 +142,8 @@ export function useDashboardData(): DashboardData {
     prevYearInvoices,
     selectedYear,
     setSelectedYear,
+    selectedMonth,
+    setSelectedMonth,
     years,
     privacyMode,
     einnahmen,

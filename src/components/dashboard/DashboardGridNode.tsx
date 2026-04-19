@@ -4,8 +4,9 @@ import {
   useSortable,
   verticalListSortingStrategy,
   horizontalListSortingStrategy,
+  arrayMove,
 } from '@dnd-kit/sortable';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { DashboardNode } from '@/types/dashboard';
 import { isGridType } from '@/types/dashboard';
@@ -40,12 +41,13 @@ interface GridNodeProps {
   onAddPage: (gridId: string) => void;
   onDeletePage: (gridId: string, pageId: string) => void;
   onRenamePage: (gridId: string, pageId: string, label: string) => void;
+  onReorderPages: (gridId: string, newPageIds: string[]) => void;
   depth?: number;
 }
 
 export function DashboardGridNode({
   node, editMode, overContainerId, overItemId, activeDragId,
-  onDelete, onAddPage, onDeletePage, onRenamePage, depth = 0,
+  onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, depth = 0,
 }: GridNodeProps) {
   const [activePageId, setActivePageId] = useState<string | undefined>(
     node.type === 'grid-pages' ? node.pages?.[0]?.id : undefined,
@@ -113,48 +115,16 @@ export function DashboardGridNode({
 
       {/* Pages tabs */}
       {isPages && node.pages && (
-        <div className="flex items-center gap-1 mb-2 flex-wrap border-b pb-1">
-          {node.pages.map((page) => (
-            <div key={page.id} className="flex items-center">
-              <button
-                onClick={() => setActivePageId(page.id)}
-                className={cn(
-                  'px-3 py-1 text-xs rounded-t border-b-2 transition-colors',
-                  (activePageId ?? node.pages![0].id) === page.id
-                    ? 'border-primary text-primary font-medium'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {editMode ? (
-                  <input
-                    value={page.label}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => onRenamePage(node.id, page.id, e.target.value)}
-                    className="bg-transparent w-20 outline-none text-xs"
-                  />
-                ) : (
-                  page.label
-                )}
-              </button>
-              {editMode && node.pages!.length > 1 && (
-                <button
-                  onClick={() => onDeletePage(node.id, page.id)}
-                  className="h-4 w-4 ml-0.5 rounded hover:bg-destructive/10 hover:text-destructive flex items-center justify-center text-muted-foreground/50 transition-colors"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          ))}
-          {editMode && (
-            <button
-              onClick={() => onAddPage(node.id)}
-              className="px-2 py-1 text-xs rounded text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1 transition-colors"
-            >
-              <Plus className="h-3 w-3" /> Seite
-            </button>
-          )}
-        </div>
+        <PageTabs
+          node={node}
+          editMode={editMode}
+          activePageId={activePageId ?? node.pages[0]?.id}
+          onSetActivePageId={setActivePageId}
+          onAddPage={onAddPage}
+          onDeletePage={onDeletePage}
+          onRenamePage={onRenamePage}
+          onReorderPages={onReorderPages}
+        />
       )}
 
       <SortableContext
@@ -193,6 +163,7 @@ export function DashboardGridNode({
                   onAddPage={onAddPage}
                   onDeletePage={onDeletePage}
                   onRenamePage={onRenamePage}
+                  onReorderPages={onReorderPages}
                   depth={depth + 1}
                 />
               </>
@@ -220,12 +191,13 @@ interface SortableItemProps {
   onAddPage: (gridId: string) => void;
   onDeletePage: (gridId: string, pageId: string) => void;
   onRenamePage: (gridId: string, pageId: string, label: string) => void;
+  onReorderPages: (gridId: string, newPageIds: string[]) => void;
   depth: number;
 }
 
 function SortableItem({
   node, editMode, isHorizontal, overContainerId, overItemId, activeDragId,
-  onDelete, onAddPage, onDeletePage, onRenamePage, depth,
+  onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, depth,
 }: SortableItemProps) {
   const isGrid = isGridType(node.type);
 
@@ -318,6 +290,7 @@ function SortableItem({
           onAddPage={onAddPage}
           onDeletePage={onDeletePage}
           onRenamePage={onRenamePage}
+          onReorderPages={onReorderPages}
           depth={depth}
         />
       ) : (
@@ -337,3 +310,144 @@ function SortableItem({
   );
 }
 
+// ─── Sortable Page Tab ────────────────────────────────────────────────────────
+
+function SortablePageTab({
+  page,
+  isActive,
+  editMode,
+  canDelete,
+  onSetActive,
+  onDelete,
+  onRename,
+}: {
+  page: { id: string; label: string };
+  isActive: boolean;
+  editMode: boolean;
+  nodeId: string;
+  canDelete: boolean;
+  onSetActive: () => void;
+  onDelete: () => void;
+  onRename: (label: string) => void;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: page.id,
+    disabled: !editMode,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center">
+      {editMode && (
+        <button
+          {...attributes}
+          {...listeners}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            (listeners as any)?.onPointerDown?.(e);
+          }}
+          className="cursor-grab active:cursor-grabbing p-0.5 mr-0.5 rounded text-muted-foreground/40 hover:text-muted-foreground touch-none"
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+      )}
+      <button
+        onClick={() => { onSetActive(); }}
+        onDoubleClick={(e) => { if (editMode) { e.stopPropagation(); setRenaming(true); } }}
+        className={cn(
+          'px-3 py-1 text-xs rounded-t border-b-2 transition-colors',
+          isActive
+            ? 'border-primary text-primary font-medium'
+            : 'border-transparent text-muted-foreground hover:text-foreground',
+        )}
+      >
+        {renaming ? (
+          <input
+            autoFocus
+            value={page.label}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onRename(e.target.value)}
+            onBlur={() => setRenaming(false)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setRenaming(false); }}
+            className="bg-transparent w-20 outline-none text-xs"
+          />
+        ) : (
+          page.label
+        )}
+      </button>
+      {editMode && canDelete && (
+        <button
+          onClick={onDelete}
+          className="h-4 w-4 ml-0.5 rounded hover:bg-destructive/10 hover:text-destructive flex items-center justify-center text-muted-foreground/50 transition-colors"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── PageTabs ─────────────────────────────────────────────────────────────────
+
+function PageTabs({
+  node, editMode, activePageId,
+  onSetActivePageId, onAddPage, onDeletePage, onRenamePage, onReorderPages,
+}: {
+  node: DashboardNode;
+  editMode: boolean;
+  activePageId: string;
+  onSetActivePageId: (id: string) => void;
+  onAddPage: (gridId: string) => void;
+  onDeletePage: (gridId: string, pageId: string) => void;
+  onRenamePage: (gridId: string, pageId: string, label: string) => void;
+  onReorderPages: (gridId: string, newPageIds: string[]) => void;
+}) {
+  const pages = node.pages ?? [];
+  const pageIds = pages.map((p) => p.id);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = pageIds.indexOf(active.id as string);
+    const newIndex = pageIds.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+    onReorderPages(node.id, arrayMove(pageIds, oldIndex, newIndex));
+  };
+
+  return (
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <SortableContext items={pageIds} strategy={horizontalListSortingStrategy}>
+        <div className="flex items-center gap-1 mb-2 flex-wrap border-b pb-1">
+          {pages.map((page) => (
+            <SortablePageTab
+              key={page.id}
+              page={page}
+              isActive={activePageId === page.id}
+              editMode={editMode}
+              nodeId={node.id}
+              canDelete={pages.length > 1}
+              onSetActive={() => onSetActivePageId(page.id)}
+              onDelete={() => onDeletePage(node.id, page.id)}
+              onRename={(label) => onRenamePage(node.id, page.id, label)}
+            />
+          ))}
+          {editMode && (
+            <button
+              onClick={() => onAddPage(node.id)}
+              className="px-2 py-1 text-xs rounded text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1 transition-colors"
+            >
+              <Plus className="h-3 w-3" /> Seite
+            </button>
+          )}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
