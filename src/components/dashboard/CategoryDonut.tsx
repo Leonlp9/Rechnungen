@@ -27,7 +27,7 @@ interface Props {
 export function CategoryDonut({ invoices, privacyMode, loading }: Props) {
   if (loading) {
     return (
-      <Card className="rounded-xl shadow-sm">
+      <Card className="rounded-xl shadow-sm h-full">
         <CardHeader><Skeleton className="h-5 w-44" /></CardHeader>
         <CardContent><Skeleton className="h-[280px] w-full rounded-full max-w-[280px] mx-auto" /></CardContent>
       </Card>
@@ -54,7 +54,7 @@ export function CategoryDonut({ invoices, privacyMode, loading }: Props) {
   );
 
   return (
-    <Card className="rounded-xl shadow-sm">
+    <Card className="rounded-xl shadow-sm h-full">
       <CardHeader>
         <CardTitle className="text-base">Ausgaben nach Kategorie</CardTitle>
       </CardHeader>

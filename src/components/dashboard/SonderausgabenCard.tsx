@@ -47,7 +47,7 @@ export function SonderausgabenCard({ invoices, privacyMode, loading }: Props) {
 
   if (loading) {
     return (
-      <Card className="rounded-xl shadow-sm">
+      <Card className="rounded-xl shadow-sm h-full">
         <CardHeader><Skeleton className="h-5 w-48" /></CardHeader>
         <CardContent className="space-y-3">
           {[1,2,3].map(i => <Skeleton key={i} className="h-6 w-full" />)}
@@ -57,7 +57,7 @@ export function SonderausgabenCard({ invoices, privacyMode, loading }: Props) {
   }
 
   return (
-    <Card className="rounded-xl shadow-sm">
+    <Card className="rounded-xl shadow-sm h-full">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Heart className="h-4 w-4 text-rose-500" />

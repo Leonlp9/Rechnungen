@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGmailStore } from '@/store/gmailStore';
 import { fetchEmails, getValidToken } from '@/lib/gmail';
@@ -20,7 +20,11 @@ import { cn } from '@/lib/utils';
 
 const DASHBOARD_EMAILS_ACCOUNT_KEY = 'dashboard_emails_account';
 
-export function RecentEmailsCard() {
+export interface RecentEmailsCardProps {
+  editMode?: boolean;
+}
+
+export const RecentEmailsCard: React.FC<RecentEmailsCardProps> = ({ editMode = false }) => {
   const navigate = useNavigate();
   const accounts = useGmailStore((s) => s.accounts);
   const updateAccountToken = useGmailStore((s) => s.updateAccountToken);
@@ -127,7 +131,7 @@ export function RecentEmailsCard() {
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
+            <Button variant="ghost" size="icon" className={cn('h-7 w-7', !editMode && 'hidden')}>
               <Settings className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
@@ -206,5 +210,5 @@ export function RecentEmailsCard() {
       </div>
     </div>
   );
-}
+};
 

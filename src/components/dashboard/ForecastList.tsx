@@ -40,7 +40,7 @@ export function ForecastList({ invoices, privacyMode, loading }: Props) {
 
   if (loading) {
     return (
-      <Card className="rounded-xl shadow-sm">
+      <Card className="rounded-xl shadow-sm h-full">
         <CardHeader><Skeleton className="h-5 w-52" /></CardHeader>
         <CardContent className="space-y-3">
           {[1,2,3].map(i => (
@@ -70,7 +70,7 @@ export function ForecastList({ invoices, privacyMode, loading }: Props) {
     .reduce((s, f) => s + f.expectedBrutto, 0);
 
   return (
-    <Card className="rounded-xl shadow-sm">
+    <Card className="rounded-xl shadow-sm h-full">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">

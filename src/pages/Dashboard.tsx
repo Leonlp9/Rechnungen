@@ -1,232 +1,341 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { KPICard } from '@/components/dashboard/KPICard';
-import { RevenueChart } from '@/components/dashboard/RevenueChart';
-import { CategoryDonut } from '@/components/dashboard/CategoryDonut';
-import { SonderausgabenCard } from '@/components/dashboard/SonderausgabenCard';
-import { ForecastList } from '@/components/dashboard/ForecastList';
-import { Last28DaysChart } from '@/components/dashboard/Last28DaysChart';
-import { RecentEmailsCard } from '@/components/dashboard/RecentEmailsCard';
-import { useAppStore } from '@/store';
-import { getAllInvoices } from '@/lib/db';
-import { Euro, TrendingUp, TrendingDown, FileText, Calculator, CalendarDays, Sparkles } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Settings2 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
-import { CATEGORY_LABELS, TYPE_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
-import type { Invoice, Category } from '@/types';
-import { format } from 'date-fns';
-import { de } from 'date-fns/locale';
-import { fmtCurrency } from '@/lib/utils';
-import { InvoiceContextMenu } from '@/components/invoices/InvoiceContextMenu';
-import { detectPatterns, forecastCurrentMonth } from '@/lib/patternDetection';
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  rectIntersection,
+} from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
+import { useDashboardData } from '@/hooks/useDashboardData';
+import { useDashboardStore } from '@/store/dashboardStore';
+import { DashboardContext } from '@/components/dashboard/DashboardContext';
+import { DashboardGridNode } from '@/components/dashboard/DashboardGridNode';
+import { DashboardEditSidebar } from '@/components/dashboard/DashboardEditSidebar';
+import { ELEMENT_LABELS } from '@/components/dashboard/DashboardElementNode';
+import {
+  isGridType,
+  findNodeById,
+  findParentInfo,
+  createNode,
+  insertNodeIntoContainer,
+  moveNode,
+  removeNodeById,
+  isAncestor,
+  genId,
+} from '@/types/dashboard';
+import type { DashboardNode, NodeType } from '@/types/dashboard';
+import { GripVertical } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// ─── Drag overlay preview ────────────────────────────────────────────────────
+
+function DragPreview({ type }: { type: NodeType }) {
+  const isGrid = isGridType(type);
+  const label = isGrid
+    ? (type === 'grid-horizontal' ? 'Horizontal' : type === 'grid-pages' ? 'Seiten' : 'Vertikal')
+    : (ELEMENT_LABELS[type as keyof typeof ELEMENT_LABELS] ?? type);
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card shadow-xl ring-2 ring-primary opacity-90 cursor-grabbing">
+      <GripVertical className="h-4 w-4 text-muted-foreground" />
+      <span className="text-sm font-medium">{label}</span>
+    </div>
+  );
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const invoices = useAppStore((s) => s.invoices);
-  const setInvoices = useAppStore((s) => s.setInvoices);
-  const selectedYear = useAppStore((s) => s.selectedYear);
-  const setSelectedYear = useAppStore((s) => s.setSelectedYear);
-  const privacyMode = useAppStore((s) => s.privacyMode);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-  const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
+  const data = useDashboardData();
+  const { layout, setLayout, resetLayout } = useDashboardStore();
+  const [editMode, setEditMode] = useState(false);
+  const [activeDrag, setActiveDrag] = useState<{ type: NodeType; id: string } | null>(null);
+  const [overContainerId, setOverContainerId] = useState<string | null>(null);
+  const [overItemId, setOverItemId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // node id to delete
+  const [confirmReset, setConfirmReset] = useState(false);
 
-  useEffect(() => {
-    getAllInvoices()
-      .then(setInvoices)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [setInvoices]);
-
-  const years = useMemo(() => {
-    const ySet = new Set(invoices.map((i) => i.year));
-    ySet.add(new Date().getFullYear());
-    return Array.from(ySet).sort((a, b) => b - a);
-  }, [invoices]);
-
-  const yearInvoices = useMemo(
-    () => invoices.filter((i) => i.year === selectedYear),
-    [invoices, selectedYear]
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  const prevYearInvoices = useMemo(
-    () => invoices.filter((i) => i.year === selectedYear - 1),
-    [invoices, selectedYear]
-  );
+  const onDragStart = useCallback(({ active }: DragStartEvent) => {
+    const d = active.data.current as any;
+    setActiveDrag({ type: d.elementType ?? d.nodeType, id: active.id as string });
+  }, []);
 
-  const einnahmen = yearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const ausgaben = yearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
-  const saldo = einnahmen - ausgaben;
+  const onDragOver = useCallback(({ over }: DragOverEvent) => {
+    if (!over) { setOverContainerId(null); setOverItemId(null); return; }
+    const overId = over.id as string;
 
-  // Betriebsergebnis = Einnahmen minus NUR Betriebsausgaben (ohne Sonderausgaben & Privat)
-  const nichtBetrieblich: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
-  const betriebsausgaben = yearInvoices
-    .filter((i) => i.type === 'ausgabe' && !nichtBetrieblich.includes(i.category))
-    .reduce((s, i) => s + i.brutto, 0);
-  const betriebsergebnis = einnahmen - betriebsausgaben;
-  const sonderausgabenGesamt = yearInvoices
-    .filter((i) => i.type === 'ausgabe' && nichtBetrieblich.includes(i.category))
-    .reduce((s, i) => s + i.brutto, 0);
+    if (overId.endsWith('__drop')) {
+      // Hovering over a grid's droppable zone (empty space in the grid)
+      const containerId = overId.replace('__drop', '');
+      setOverContainerId(containerId);
+      setOverItemId(null);
+    } else {
+      // Hovering over a sortable item (element or grid-as-item)
+      const parentInfo = findParentInfo(layout, overId);
+      setOverContainerId(parentInfo?.container.id ?? null);
+      setOverItemId(overId);
+    }
+  }, [layout]);
 
-  const prevEinnahmen = prevYearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const prevAusgaben = prevYearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+  const onDragEnd = useCallback(({ active, over }: DragEndEvent) => {
+    setActiveDrag(null);
+    setOverContainerId(null);
+    setOverItemId(null);
+    if (!over) return;
 
-  const deltaEin = prevEinnahmen ? ((einnahmen - prevEinnahmen) / prevEinnahmen) * 100 : 0;
-  const deltaAus = prevAusgaben ? ((ausgaben - prevAusgaben) / prevAusgaben) * 100 : 0;
-  const prevSaldo = prevEinnahmen - prevAusgaben;
-  const deltaSaldo = prevSaldo ? ((saldo - prevSaldo) / Math.abs(prevSaldo)) * 100 : 0;
+    const activeData = active.data.current as any;
+    const overId = over.id as string;
 
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const recentCount = invoices.filter((i) => new Date(i.date) >= thirtyDaysAgo).length;
+    // Determine if we're dropping onto a container (__drop suffix) or onto a sortable item
+    const isContainerDrop = overId.endsWith('__drop');
+    const resolvedOverId = isContainerDrop ? overId.replace('__drop', '') : overId;
+    const overNode = findNodeById(layout, resolvedOverId);
 
-  const isCurrentYear = selectedYear === now.getFullYear();
+    // Determine target container + page + index
+    let targetContainerId: string;
+    let targetPageId: string | undefined;
+    let targetIndex: number;
 
-  // ── Monatliche Kennzahlen (nur im aktuellen Jahr relevant) ──────────────────
-  const thisMonth = now.getMonth() + 1;
-  const prevMonthNum = thisMonth === 1 ? 12 : thisMonth - 1;
-  const prevMonthYear = thisMonth === 1 ? selectedYear - 1 : selectedYear;
+    if (isContainerDrop) {
+      // Pointer was over the grid's own droppable zone (empty space) → insert at end of container
+      targetContainerId = resolvedOverId;
+      const overData = over.data.current as any;
+      targetPageId = overData?.pageId;
+      if (targetPageId && overNode!.pages) {
+        const page = overNode!.pages.find((p) => p.id === targetPageId);
+        targetIndex = page ? page.children.length : 0;
+      } else {
+        targetIndex = overNode!.children?.length ?? 0;
+      }
+    } else {
+      // Pointer was over a sortable item (could be an element OR a grid-as-item)
+      // → insert before/at that item's position in its parent container
+      const parentInfo = findParentInfo(layout, resolvedOverId);
+      if (!parentInfo) return;
+      targetContainerId = parentInfo.container.id;
+      targetPageId = parentInfo.pageId;
+      targetIndex = parentInfo.index;
+    }
 
-  const monthInvoices = useMemo(
-    () => yearInvoices.filter((i) => i.month === thisMonth),
-    [yearInvoices, thisMonth]
-  );
-  const prevMonthInvoices = useMemo(
-    () => invoices.filter((i) => i.year === prevMonthYear && i.month === prevMonthNum),
-    [invoices, prevMonthYear, prevMonthNum]
-  );
+    if (activeData.source === 'sidebar') {
+      const newNode = createNode(activeData.elementType as NodeType);
+      setLayout(insertNodeIntoContainer(layout, targetContainerId, targetPageId, targetIndex, newNode));
+      return;
+    }
 
-  const monatEin = monthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const monatAus = monthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
-  const monatSaldo = monatEin - monatAus;
+    // Moving existing layout node
+    const sourceNodeId = active.id as string;
+    if (sourceNodeId === resolvedOverId) return;
+    if (isAncestor(layout, sourceNodeId, targetContainerId)) return;
 
-  const prevMonatEin = prevMonthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const prevMonatAus = prevMonthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
-  const prevMonatSaldo = prevMonatEin - prevMonatAus;
+    // Check if same container → use arrayMove for smooth animation
+    const sourceParentInfo = findParentInfo(layout, sourceNodeId);
+    if (
+      sourceParentInfo &&
+      sourceParentInfo.container.id === targetContainerId &&
+      sourceParentInfo.pageId === targetPageId &&
+      !isContainerDrop
+    ) {
+      const container = findNodeById(layout, targetContainerId)!;
+      let children: DashboardNode[];
+      if (targetPageId && container.pages) {
+        children = container.pages.find((p) => p.id === targetPageId)!.children;
+      } else {
+        children = container.children!;
+      }
+      const oldIndex = children.findIndex((c) => c.id === sourceNodeId);
+      const newIndex = children.findIndex((c) => c.id === resolvedOverId);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const newChildren = arrayMove(children, oldIndex, newIndex);
+      const newLayout = JSON.parse(JSON.stringify(layout));
+      function applyReorder(node: DashboardNode): boolean {
+        if (node.id === targetContainerId) {
+          if (targetPageId && node.pages) {
+            const page = node.pages.find((p) => p.id === targetPageId);
+            if (page) { page.children = newChildren; return true; }
+          } else if (node.children) {
+            node.children = newChildren; return true;
+          }
+        }
+        if (node.children) for (const c of node.children) if (applyReorder(c)) return true;
+        if (node.pages) for (const p of node.pages) for (const c of p.children) if (applyReorder(c)) return true;
+        return false;
+      }
+      applyReorder(newLayout);
+      setLayout(newLayout);
+    } else {
+      setLayout(moveNode(layout, sourceNodeId, targetContainerId, targetPageId, targetIndex));
+    }
+  }, [layout, setLayout]);
 
-  const deltaMonatEin = prevMonatEin ? ((monatEin - prevMonatEin) / prevMonatEin) * 100 : 0;
-  const deltaMonatAus = prevMonatAus ? ((monatAus - prevMonatAus) / prevMonatAus) * 100 : 0;
-  const deltaMonatSaldo = prevMonatSaldo ? ((monatSaldo - prevMonatSaldo) / Math.abs(prevMonatSaldo)) * 100 : 0;
+  const handleDeleteNode = useCallback((id: string) => {
+    setConfirmDelete(id);
+  }, []);
 
-  // Prognose für Rest-Monat
-  const forecastItems = useMemo(() => !loading ? forecastCurrentMonth(detectPatterns(invoices)) : [], [invoices, loading]);
-  const forecastEin = forecastItems.filter((f) => f.pattern.type === 'einnahme').reduce((s, f) => s + f.expectedBrutto, 0);
-  const forecastAus = forecastItems.filter((f) => f.pattern.type === 'ausgabe').reduce((s, f) => s + f.expectedBrutto, 0);
-  const monatSaldoMitPrognose = monatSaldo + forecastEin - forecastAus;
+  const doDeleteNode = useCallback((id: string) => {
+    const [newLayout] = removeNodeById(layout, id);
+    setLayout(newLayout);
+  }, [layout, setLayout]);
 
-  const lastTen = yearInvoices.slice(0, 10);
+  const handleAddPage = useCallback((gridId: string) => {
+    const newLayout = JSON.parse(JSON.stringify(layout));
+    function doAdd(node: DashboardNode): boolean {
+      if (node.id === gridId && node.pages) {
+        node.pages.push({ id: genId(), label: `Seite ${node.pages.length + 1}`, children: [] });
+        return true;
+      }
+      if (node.children) for (const c of node.children) if (doAdd(c)) return true;
+      if (node.pages) for (const p of node.pages) for (const c of p.children) if (doAdd(c)) return true;
+      return false;
+    }
+    doAdd(newLayout); setLayout(newLayout);
+  }, [layout, setLayout]);
+
+  const handleDeletePage = useCallback((gridId: string, pageId: string) => {
+    const newLayout = JSON.parse(JSON.stringify(layout));
+    function doDelete(node: DashboardNode): boolean {
+      if (node.id === gridId && node.pages) {
+        node.pages = node.pages.filter((p) => p.id !== pageId);
+        if (node.pages.length === 0) node.pages.push({ id: genId(), label: 'Seite 1', children: [] });
+        return true;
+      }
+      if (node.children) for (const c of node.children) if (doDelete(c)) return true;
+      if (node.pages) for (const p of node.pages) for (const c of p.children) if (doDelete(c)) return true;
+      return false;
+    }
+    doDelete(newLayout); setLayout(newLayout);
+  }, [layout, setLayout]);
+
+  const handleRenamePage = useCallback((gridId: string, pageId: string, label: string) => {
+    const newLayout = JSON.parse(JSON.stringify(layout));
+    function doRename(node: DashboardNode): boolean {
+      if (node.id === gridId && node.pages) {
+        const page = node.pages.find((p) => p.id === pageId);
+        if (page) { page.label = label; return true; }
+      }
+      if (node.children) for (const c of node.children) if (doRename(c)) return true;
+      if (node.pages) for (const p of node.pages) for (const c of p.children) if (doRename(c)) return true;
+      return false;
+    }
+    doRename(newLayout); setLayout(newLayout);
+  }, [layout, setLayout]);
+
+  const handleReset = () => {
+    setConfirmReset(true);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <DashboardContext.Provider value={{ ...data, editMode }}>
+      {/*
+        -m-6 breaks out of the parent <main>'s p-6 so we can own the full area
+        and create our own flex layout: [content] [sidebar]
+      */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={rectIntersection}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+      >
+        <div className="flex -m-6 h-[calc(100%+3rem)]">
+          {/* ── Main scrollable content ── */}
+          <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold">Dashboard</h1>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={String(data.selectedYear)}
+                  onValueChange={(v) => data.setSelectedYear(Number(v))}
+                >
+                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {data.years.map((y) => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant={editMode ? 'default' : 'outline'}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setEditMode((v) => !v)}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  {editMode ? 'Fertig' : 'Anpassen'}
+                </Button>
+              </div>
+            </div>
 
-      {/* Stage 0 – KPI Jahres-Karten */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <KPICard loading={loading} title="Einnahmen YTD" value={fmtCurrency(einnahmen, privacyMode)} delta={privacyMode ? undefined : deltaEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
-        <KPICard loading={loading} title="Ausgaben YTD" value={fmtCurrency(ausgaben, privacyMode)} delta={privacyMode ? undefined : deltaAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
-        <KPICard loading={loading} title="Saldo YTD" value={fmtCurrency(saldo, privacyMode)} delta={privacyMode ? undefined : deltaSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Tatsächlich verfügbares Geld: Einnahmen minus alle Ausgaben (inkl. Krankenkasse, Spenden, Privat)" />
-        <KPICard loading={loading} title="Betriebsergebnis" value={fmtCurrency(betriebsergebnis, privacyMode)} icon={<Calculator className="h-4 w-4 text-violet-600" />} tooltip={`Steuerlich relevantes Ergebnis: nur Betriebsausgaben abgezogen. Sonderausgaben & Privat (${fmtCurrency(sonderausgabenGesamt, privacyMode)}) nicht enthalten.`} />
-        <KPICard loading={loading} title="Belege (30 Tage)" value={String(recentCount)} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
-      </div>
-
-      {/* Stage 1 – Monatliche KPI-Karten */}
-      {isCurrentYear && (
-        <>
-          <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            <CalendarDays className="h-4 w-4" />
-            {format(now, 'MMMM yyyy', { locale: de })}
-            <span className="text-[11px] font-normal normal-case text-muted-foreground/60">vs. Vormonat</span>
+            {/* Grid */}
+            <DashboardGridNode
+              node={layout}
+              editMode={editMode}
+              overContainerId={overContainerId}
+              overItemId={overItemId}
+              activeDragId={activeDrag?.id ?? null}
+              onDelete={handleDeleteNode}
+              onAddPage={handleAddPage}
+              onDeletePage={handleDeletePage}
+              onRenamePage={handleRenamePage}
+            />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KPICard loading={loading} title="Einnahmen (Monat)" value={fmtCurrency(monatEin, privacyMode)} delta={privacyMode ? undefined : deltaMonatEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
-            <KPICard loading={loading} title="Ausgaben (Monat)" value={fmtCurrency(monatAus, privacyMode)} delta={privacyMode ? undefined : deltaMonatAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
-            <KPICard loading={loading} title="Saldo (Monat)" value={fmtCurrency(monatSaldo, privacyMode)} delta={privacyMode ? undefined : deltaMonatSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Einnahmen minus Ausgaben im aktuellen Monat" />
-            <KPICard loading={loading} title="Saldo inkl. Prognose" value={fmtCurrency(monatSaldoMitPrognose, privacyMode)} icon={<Sparkles className="h-4 w-4 text-violet-500" />} tooltip={`Aktueller Monatssaldo + erwartete Einnahmen (${fmtCurrency(forecastEin, privacyMode)}) − erwartete Ausgaben (${fmtCurrency(forecastAus, privacyMode)}) bis Monatsende`} />
+
+          {/* ── Edit sidebar – flex panel, no overlay ── */}
+          <div className={cn(
+            'flex-shrink-0 border-l bg-background transition-all duration-300 overflow-hidden',
+            editMode ? 'w-72' : 'w-0',
+          )}>
+            {/* inner div keeps w-72 even when outer collapses to w-0 */}
+            <DashboardEditSidebar
+              onClose={() => setEditMode(false)}
+              onReset={handleReset}
+            />
           </div>
-        </>
-      )}
-
-      {/* Stage 2 – Prognose */}
-      {isCurrentYear && <ForecastList loading={loading} invoices={invoices} privacyMode={privacyMode} />}
-
-      {/* Stage 3 – Jahres-Charts */}
-      <div className={`grid grid-cols-1 gap-6 ${sonderausgabenGesamt > 0 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
-        <RevenueChart loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />
-        <CategoryDonut loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />
-        <SonderausgabenCard loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />
-      </div>
-
-      {/* Stage 4 – 28-Tage-Chart + E-Mails */}
-      {isCurrentYear && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Last28DaysChart loading={loading} invoices={invoices} privacyMode={privacyMode} />
-          <RecentEmailsCard />
         </div>
-      )}
 
-      {/* Stage 5 – Letzte 10 Belege */}
-      <div className="rounded-xl border bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Letzte 10 Belege</h2>
-        {loading ? (
-          <div className="space-y-2">
-            {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 w-full" />)}
-          </div>
-        ) : lastTen.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Noch keine Rechnungen vorhanden.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Datum</TableHead>
-                <TableHead>Partner</TableHead>
-                <TableHead>Kategorie</TableHead>
-                <TableHead>Brutto</TableHead>
-                <TableHead>Typ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lastTen.map((inv) => (
-                <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => navigate(`/invoices/${inv.id}`)}
-                  onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ invoice: inv, x: e.clientX, y: e.clientY }); }}>
-                  <TableCell>{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</TableCell>
-                  <TableCell>{inv.partner}</TableCell>
-                  <TableCell>{CATEGORY_LABELS[inv.category]}</TableCell>
-                  <TableCell className={inv.type === 'einnahme' ? 'text-green-600' : inv.type === 'ausgabe' ? 'text-red-600' : ''}>
-                    {fmtCurrency(inv.brutto, privacyMode)}
-                  </TableCell>
-                  <TableCell>{TYPE_LABELS[inv.type]}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+        <DragOverlay dropAnimation={null}>
+          {activeDrag ? <DragPreview type={activeDrag.type} /> : null}
+        </DragOverlay>
+      </DndContext>
 
-      {ctxMenu && (
-        <InvoiceContextMenu
-          invoice={ctxMenu.invoice}
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          onClose={() => setCtxMenu(null)}
-        />
-      )}
-    </div>
+      {/* Confirm: delete node */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Element entfernen?"
+        description="Soll dieses Element wirklich aus dem Dashboard entfernt werden?"
+        confirmLabel="Entfernen"
+        cancelLabel="Abbrechen"
+        destructive
+        onConfirm={() => { if (confirmDelete) doDeleteNode(confirmDelete); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
+      {/* Confirm: reset layout */}
+      <ConfirmDialog
+        open={confirmReset}
+        title="Layout zurücksetzen?"
+        description="Das Layout wird auf die Standardansicht zurückgesetzt. Alle Anpassungen gehen verloren."
+        confirmLabel="Zurücksetzen"
+        cancelLabel="Abbrechen"
+        destructive
+        onConfirm={() => { resetLayout(); setConfirmReset(false); }}
+        onCancel={() => setConfirmReset(false)}
+      />
+    </DashboardContext.Provider>
   );
 }

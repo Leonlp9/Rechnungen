@@ -15,7 +15,7 @@ interface KPICardProps {
 export function KPICard({ title, value, delta, icon, tooltip, loading }: KPICardProps) {
   if (loading) {
     return (
-      <Card className="rounded-xl shadow-sm">
+      <Card className="rounded-xl shadow-sm h-full">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-4 w-4 rounded-full" />
@@ -28,7 +28,7 @@ export function KPICard({ title, value, delta, icon, tooltip, loading }: KPICard
     );
   }
   return (
-    <Card className="rounded-xl shadow-sm">
+    <Card className="rounded-xl shadow-sm h-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
           {title}

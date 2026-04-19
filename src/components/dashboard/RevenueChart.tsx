@@ -37,7 +37,7 @@ interface Props {
 export function RevenueChart({ invoices, privacyMode, loading }: Props) {
   if (loading) {
     return (
-      <Card className="rounded-xl shadow-sm">
+      <Card className="rounded-xl shadow-sm h-full">
         <CardHeader><Skeleton className="h-5 w-44" /></CardHeader>
         <CardContent><Skeleton className="h-[280px] w-full" /></CardContent>
       </Card>
@@ -55,7 +55,7 @@ export function RevenueChart({ invoices, privacyMode, loading }: Props) {
     }), [invoices]);
 
   return (
-    <Card className="rounded-xl shadow-sm">
+    <Card className="rounded-xl shadow-sm h-full">
       <CardHeader>
         <CardTitle className="text-base">Einnahmen vs. Ausgaben</CardTitle>
       </CardHeader>
