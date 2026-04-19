@@ -35,4 +35,6 @@ native-tls = "0.2"
 mailparse = "0.15"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "native-tls", "builder"] }
 tokio = { version = "1", features = ["rt"] }
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
 

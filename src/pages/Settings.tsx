@@ -7,10 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation, Trash2 } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation, Trash2, Download, Upload, DatabaseBackup } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
+import { exportBackup, importBackup } from '@/lib/backup';
+import { BackupProgressOverlay } from '@/components/BackupProgressOverlay';
 
 import {
   LayoutDashboard, FileText, FilePlus2, PenSquare, ListTodo, Mail, Settings as SettingsIcon, HelpCircle,
@@ -56,7 +58,9 @@ export default function SettingsPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [clearingCache, setClearingCache] = useState(false);
+	const [clearingCache, setClearingCache] = useState(false);
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [importingBackup, setImportingBackup] = useState(false);
 
   // --- Dev-Preview für UpdateDialog ---
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -603,6 +607,69 @@ export default function SettingsPage() {
 
       <Card className="rounded-xl shadow-sm">
         <CardHeader>
+          <div className="flex items-center gap-2">
+            <DatabaseBackup className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">Backup & Wiederherstellen</CardTitle>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Erstelle ein vollständiges Backup aller Rechnungen, PDFs und Einstellungen als <code className="font-mono">.rmbackup</code>-Datei (umbenanntes ZIP). Du kannst es jederzeit öffnen und den Inhalt manuell einsehen.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              className="flex-1"
+              onClick={async () => {
+                setExportingBackup(true);
+                try {
+                  const result = await exportBackup();
+                  if (result.success) {
+                    toast.success('Backup erfolgreich gespeichert!');
+                  } else if (result.error) {
+                    toast.error('Backup fehlgeschlagen: ' + result.error);
+                  }
+                } finally {
+                  // Short delay so the "Fertig!" state is visible before closing
+                  setTimeout(() => setExportingBackup(false), 800);
+                }
+              }}
+              disabled={exportingBackup}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {exportingBackup ? 'Exportiere…' : 'Backup erstellen & exportieren'}
+            </Button>
+
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={async () => {
+                setImportingBackup(true);
+                try {
+                  const result = await importBackup();
+                  if (result.success) {
+                    toast.success('Backup erfolgreich eingespielt! Die App wird neu geladen…');
+                    setTimeout(() => window.location.reload(), 1500);
+                  } else if (result.error) {
+                    toast.error('Import fehlgeschlagen: ' + result.error);
+                  }
+                } finally {
+                  setImportingBackup(false);
+                }
+              }}
+              disabled={importingBackup}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {importingBackup ? 'Importiere…' : 'Backup wiederherstellen'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            ⚠️ Beim Wiederherstellen werden alle aktuellen Daten überschrieben. Die <code className="font-mono">.rmbackup</code>-Datei ist ein ZIP-Archiv – du kannst sie auch umbenennen und mit einem ZIP-Programm öffnen, um an PDFs zu gelangen.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader>
           <CardTitle className="text-base">Über</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -723,6 +790,8 @@ export default function SettingsPage() {
           onCancel={closePreview}
         />
       )}
+
+      <BackupProgressOverlay open={exportingBackup} />
     </div>
 	);
 }

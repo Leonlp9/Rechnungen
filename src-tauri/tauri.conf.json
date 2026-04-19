@@ -31,6 +31,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": ["rmbackup"],
+        "name": "Rechnungs-Manager Backup",
+        "description": "Rechnungs-Manager Backup-Datei"
+      }
+    ],
     "createUpdaterArtifacts": true
   },
   "plugins": {

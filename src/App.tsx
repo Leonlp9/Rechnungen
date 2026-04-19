@@ -16,6 +16,9 @@ import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/upd
 import { useAppStore } from "@/store";
 import { useTemplateStore } from "@/store/templateStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
+import { importBackup } from "@/lib/backup";
+import { toast } from "sonner";
 import "./App.css";
 
 const router = createBrowserRouter([
@@ -39,6 +42,7 @@ function App() {
   const [updateState, setUpdateState] = useState<UpdateState>({
     open: false, version: '', phase: 'confirm', progress: 0,
   });
+  const [pendingBackupPath, setPendingBackupPath] = useState<string | null>(null);
   const darkMode = useAppStore((s) => s.darkMode);
   const theme = useAppStore((s) => s.theme);
   const animations = useAppStore((s) => s.animations);
@@ -46,6 +50,13 @@ function App() {
 
   // Upgrade outdated builtin templates (e.g. missing items element) on every mount
   useEffect(() => { autoUpdateBuiltins(); }, []);
+
+  // Check if app was opened with a .rmbackup file (double-click)
+  useEffect(() => {
+    invoke<string | null>('get_pending_backup_path').then((path) => {
+      if (path) setPendingBackupPath(path);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     registerUpdateSetter((patch) => setUpdateState((s) => ({ ...s, ...patch })));
@@ -80,6 +91,42 @@ function App() {
           onConfirm={() => startDownload()}
           onCancel={() => setUpdateState((s) => ({ ...s, open: false }))}
         />
+      )}
+      {pendingBackupPath && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-background border border-border rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-4 mx-4">
+            <h2 className="text-lg font-bold">Backup wiederherstellen?</h2>
+            <p className="text-sm text-muted-foreground">
+              Du hast eine <span className="font-mono font-medium">.rmbackup</span>-Datei geöffnet. Soll das Backup eingespielt werden?<br />
+              <span className="text-destructive font-medium">Alle aktuellen Daten werden überschrieben.</span>
+            </p>
+            <p className="text-xs text-muted-foreground break-all font-mono bg-muted px-2 py-1 rounded">{pendingBackupPath}</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
+                onClick={() => setPendingBackupPath(null)}
+              >
+                Abbrechen
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 transition-opacity"
+                onClick={async () => {
+                  const path = pendingBackupPath;
+                  setPendingBackupPath(null);
+                  const result = await importBackup(path);
+                  if (result.success) {
+                    toast.success('Backup erfolgreich eingespielt! Die App wird neu geladen…');
+                    setTimeout(() => window.location.reload(), 1500);
+                  } else if (result.error) {
+                    toast.error('Import fehlgeschlagen: ' + result.error);
+                  }
+                }}
+              >
+                Backup einspielen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
