@@ -68,7 +68,33 @@ export function ForecastList({ invoices, privacyMode, loading, selectedMonth, se
     );
   }
 
-  if (forecasts.length === 0) return null;
+  if (forecasts.length === 0) {
+    return (
+      <Card className="rounded-xl shadow-sm h-full">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+            Prognose – {monthLabel}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center gap-3">
+          <CalendarClock className="h-10 w-10 text-muted-foreground/40" />
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Keine Prognose verfügbar</p>
+            <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs">
+              Für diesen Monat wurden keine wiederkehrenden Muster erkannt. Mögliche Gründe:
+            </p>
+            <ul className="text-xs text-muted-foreground/70 mt-2 space-y-1 text-left list-disc list-inside max-w-xs">
+              <li>Zu wenige Belege mit gleichem Partner &amp; Kategorie (mind. 2 nötig)</li>
+              <li>Zahlungsabstände sind unregelmäßig oder unbekannt</li>
+              <li>Alle erwarteten Zahlungen liegen außerhalb dieses Monats</li>
+              <li>Für vergangene Monate werden keine zukünftigen Zahlungen prognostiziert</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const totalEin = forecasts
     .filter((f) => f.pattern.type === 'einnahme')

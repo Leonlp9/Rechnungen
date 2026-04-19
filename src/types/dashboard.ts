@@ -16,6 +16,7 @@ export type ElementType =
   | 'chart-month'
   | 'card-sonderausgaben'
   | 'list-forecast'
+  | 'list-forecast-28d'
   | 'list-recent-emails'
   | 'list-recent-invoices'
   | 'chart-cashflow'

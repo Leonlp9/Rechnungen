@@ -1,6 +1,6 @@
 import { getSetting } from '@/lib/db';
-import type { GeminiResult } from '@/types';
-import { HELP_CONTENT_TEXT } from '@/lib/helpContent';
+import type { GeminiResult} from '@/types';
+import {HELP_CONTENT_TEXT} from '@/lib/helpContent';
 
 // ─── AI Chat ────────────────────────────────────────────────────────────────
 
@@ -23,10 +23,10 @@ export interface ChatResponse {
  * @param pdfBase64 Optional PDF attachment (base64)
  */
 export async function sendChatMessage(
-  history: GeminiChatMessage[],
-  pageContext: string,
-  isFirstMessage: boolean,
-  pdfBase64?: string | null,
+    history: GeminiChatMessage[],
+    pageContext: string,
+    isFirstMessage: boolean,
+    pdfBase64?: string | null,
 ): Promise<ChatResponse> {
   const apiKey = await getSetting('gemini_api_key');
   if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt. Bitte unter Einstellungen eingeben.');
@@ -66,8 +66,8 @@ ${pageContext || 'Kein spezifischer Kontext verfügbar.'}
 ${isFirstMessage ? '- Erstelle einen kurzen, prägnanten Chat-Titel (max. 6 Wörter) basierend auf dem Thema.' : ''}`;
 
   const contents: GeminiChatMessage[] = [
-    { role: 'user', parts: [{ text: systemPrompt }] },
-    { role: 'model', parts: [{ text: 'Verstanden! Ich bin bereit, dir zu helfen.' }] },
+    {role: 'user', parts: [{text: systemPrompt}]},
+    {role: 'model', parts: [{text: 'Verstanden! Ich bin bereit, dir zu helfen.'}]},
     ...history,
   ];
 
@@ -76,27 +76,27 @@ ${isFirstMessage ? '- Erstelle einen kurzen, prägnanten Chat-Titel (max. 6 Wör
     const last = contents[contents.length - 1];
     if (last.role === 'user') {
       (last.parts as unknown[]).push({
-        inline_data: { mime_type: 'application/pdf', data: pdfBase64 },
+        inline_data: {mime_type: 'application/pdf', data: pdfBase64},
       });
     }
   }
 
   const schema = isFirstMessage
-    ? {
+      ? {
         type: 'OBJECT',
         required: ['answer', 'followUps', 'title'],
         properties: {
-          answer: { type: 'STRING' },
-          followUps: { type: 'ARRAY', items: { type: 'STRING' }, maxItems: 3 },
-          title: { type: 'STRING' },
+          answer: {type: 'STRING'},
+          followUps: {type: 'ARRAY', items: {type: 'STRING'}, maxItems: 3},
+          title: {type: 'STRING'},
         },
       }
-    : {
+      : {
         type: 'OBJECT',
         required: ['answer', 'followUps'],
         properties: {
-          answer: { type: 'STRING' },
-          followUps: { type: 'ARRAY', items: { type: 'STRING' }, maxItems: 3 },
+          answer: {type: 'STRING'},
+          followUps: {type: 'ARRAY', items: {type: 'STRING'}, maxItems: 3},
         },
       };
 
@@ -110,7 +110,7 @@ ${isFirstMessage ? '- Erstelle einen kurzen, prägnanten Chat-Titel (max. 6 Wör
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body),
   });
 
@@ -126,19 +126,21 @@ ${isFirstMessage ? '- Erstelle einen kurzen, prägnanten Chat-Titel (max. 6 Wör
   try {
     return JSON.parse(text) as ChatResponse;
   } catch {
-    return { answer: text, followUps: [] };
+    return {answer: text, followUps: []};
   }
 }
 
-import type { TemplateElement, ItemsElement, LineElement } from '@/types/template';
-import { CANVAS_W, CANVAS_H, DEFAULT_FONT_FAMILY, FONT_FAMILIES } from '@/types/template';
+import type {TemplateElement, ItemsElement, LineElement} from '@/types/template';
+import {CANVAS_W, CANVAS_H, DEFAULT_FONT_FAMILY, FONT_FAMILIES} from '@/types/template';
 
 export interface AiTemplateResult {
   name: string;
   elements: TemplateElement[];
 }
 
-function newId() { return `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
+function newId() {
+  return `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 export async function analyzeInvoiceLayoutWithAI(base64: string, mimeType: string): Promise<AiTemplateResult> {
   const apiKey = await getSetting('gemini_api_key');
@@ -237,7 +239,7 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
     contents: [
       {
         parts: [
-          { text: prompt },
+          {text: prompt},
           {
             inline_data: {
               mime_type: mimeType,
@@ -253,7 +255,7 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
         type: 'object',
         required: ['name', 'elements'],
         properties: {
-          name: { type: 'string', description: 'Name des Templates, z.B. "Modernes Blau"' },
+          name: {type: 'string', description: 'Name des Templates, z.B. "Modernes Blau"'},
           elements: {
             type: 'array',
             description: 'Alle Layout-Elemente des Templates',
@@ -261,33 +263,33 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
               type: 'object',
               required: ['type', 'x', 'y', 'width', 'height', 'zIndex'],
               properties: {
-                type: { type: 'string', enum: ['text', 'variable', 'rectangle', 'image', 'items', 'line'] },
-                x: { type: 'number', description: 'X-Position in Pixeln (nicht für type=line)' },
-                y: { type: 'number', description: 'Y-Position in Pixeln (nicht für type=line)' },
-                width: { type: 'number', description: 'Breite in Pixeln (nicht für type=line)' },
-                height: { type: 'number', description: 'Höhe in Pixeln (nicht für type=line)' },
+                type: {type: 'string', enum: ['text', 'variable', 'rectangle', 'image', 'items', 'line']},
+                x: {type: 'number', description: 'X-Position in Pixeln (nicht für type=line)'},
+                y: {type: 'number', description: 'Y-Position in Pixeln (nicht für type=line)'},
+                width: {type: 'number', description: 'Breite in Pixeln (nicht für type=line)'},
+                height: {type: 'number', description: 'Höhe in Pixeln (nicht für type=line)'},
                 // line-specific
-                x1: { type: 'number', description: 'Nur für type=line: X-Koordinate Startpunkt' },
-                y1: { type: 'number', description: 'Nur für type=line: Y-Koordinate Startpunkt' },
-                x2: { type: 'number', description: 'Nur für type=line: X-Koordinate Endpunkt' },
-                y2: { type: 'number', description: 'Nur für type=line: Y-Koordinate Endpunkt' },
-                thickness: { type: 'number', description: 'Nur für type=line: Linienstärke in px (z.B. 1 oder 2)' },
-                zIndex: { type: 'integer', description: '1 = Hintergrund, 5 = Vordergrund' },
+                x1: {type: 'number', description: 'Nur für type=line: X-Koordinate Startpunkt'},
+                y1: {type: 'number', description: 'Nur für type=line: Y-Koordinate Startpunkt'},
+                x2: {type: 'number', description: 'Nur für type=line: X-Koordinate Endpunkt'},
+                y2: {type: 'number', description: 'Nur für type=line: Y-Koordinate Endpunkt'},
+                thickness: {type: 'number', description: 'Nur für type=line: Linienstärke in px (z.B. 1 oder 2)'},
+                zIndex: {type: 'integer', description: '1 = Hintergrund, 5 = Vordergrund'},
                 // text & variable shared
-                fontSize: { type: 'number' },
-                fontWeight: { type: 'string', enum: ['normal', 'bold'] },
-                fontStyle: { type: 'string', enum: ['normal', 'italic'] },
+                fontSize: {type: 'number'},
+                fontWeight: {type: 'string', enum: ['normal', 'bold']},
+                fontStyle: {type: 'string', enum: ['normal', 'italic']},
                 fontFamily: {
                   type: 'string',
                   description: 'CSS-Schriftart-Stack, z.B. "Helvetica, Arial, sans-serif"',
                   enum: FONT_FAMILIES.map((f) => f.value),
                 },
-                color: { type: 'string', description: 'Hex-Farbe z.B. #111827' },
-                backgroundColor: { type: 'string', description: 'Hex-Farbe oder "transparent"' },
-                textAlign: { type: 'string', enum: ['left', 'center', 'right'] },
-                lineHeight: { type: 'number', minimum: 1.0, maximum: 2.0 },
+                color: {type: 'string', description: 'Hex-Farbe z.B. #111827'},
+                backgroundColor: {type: 'string', description: 'Hex-Farbe oder "transparent"'},
+                textAlign: {type: 'string', enum: ['left', 'center', 'right']},
+                lineHeight: {type: 'number', minimum: 1.0, maximum: 2.0},
                 // text only
-                content: { type: 'string', description: 'Nur für type=text: der statische Text' },
+                content: {type: 'string', description: 'Nur für type=text: der statische Text'},
                 // variable only
                 variableKey: {
                   type: 'string',
@@ -300,26 +302,26 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
                     'netto', 'vat_amount', 'total',
                   ],
                 },
-                prefix: { type: 'string', description: 'Optionaler Text vor dem Variablenwert, z.B. "IBAN: "' },
-                suffix: { type: 'string', description: 'Optionaler Text nach dem Variablenwert' },
+                prefix: {type: 'string', description: 'Optionaler Text vor dem Variablenwert, z.B. "IBAN: "'},
+                suffix: {type: 'string', description: 'Optionaler Text nach dem Variablenwert'},
                 // rectangle only
-                borderColor: { type: 'string' },
-                borderWidth: { type: 'number' },
-                borderRadius: { type: 'number' },
+                borderColor: {type: 'string'},
+                borderWidth: {type: 'number'},
+                borderRadius: {type: 'number'},
                 // image only
-                src: { type: 'string', description: 'Immer leer "" – User fügt Bild später ein' },
-                objectFit: { type: 'string', enum: ['contain', 'cover', 'fill'] },
+                src: {type: 'string', description: 'Immer leer "" – User fügt Bild später ein'},
+                objectFit: {type: 'string', enum: ['contain', 'cover', 'fill']},
                 // items only
-                rowHeight: { type: 'number', description: 'Zeilenhöhe in px' },
-                headerBgColor: { type: 'string' },
-                headerTextColor: { type: 'string' },
-                altRowBgColor: { type: 'string' },
-                summaryBgColor: { type: 'string' },
-                mwstRate: { type: 'number', description: 'MwSt.-Satz z.B. 19' },
+                rowHeight: {type: 'number', description: 'Zeilenhöhe in px'},
+                headerBgColor: {type: 'string'},
+                headerTextColor: {type: 'string'},
+                altRowBgColor: {type: 'string'},
+                summaryBgColor: {type: 'string'},
+                mwstRate: {type: 'number', description: 'MwSt.-Satz z.B. 19'},
                 colWidths: {
                   type: 'array',
                   description: 'Spaltenbreiten als Anteile (Summe = 1.0), 6 Werte: [Nr, Beschreibung, Menge, Einheit, Einzelpreis, Gesamtpreis]',
-                  items: { type: 'number', minimum: 0, maximum: 1 },
+                  items: {type: 'number', minimum: 0, maximum: 1},
                   minItems: 6,
                   maxItems: 6,
                 },
@@ -333,7 +335,7 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body),
   });
 
@@ -367,14 +369,38 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
       zIndex: Number(el.zIndex ?? 5),
     };
     if (el.type === 'rectangle') {
-      return { ...base, type: 'rectangle' as const, backgroundColor: String(el.backgroundColor ?? 'transparent'), borderColor: String(el.borderColor ?? '#000000'), borderWidth: Number(el.borderWidth ?? 1), borderRadius: Number(el.borderRadius ?? 0) };
+      return {
+        ...base,
+        type: 'rectangle' as const,
+        backgroundColor: String(el.backgroundColor ?? 'transparent'),
+        borderColor: String(el.borderColor ?? '#000000'),
+        borderWidth: Number(el.borderWidth ?? 1),
+        borderRadius: Number(el.borderRadius ?? 0)
+      };
     }
     if (el.type === 'image') {
-      return { ...base, type: 'image' as const, src: '', objectFit: (el.objectFit as 'contain' | 'cover' | 'fill') ?? 'contain' };
+      return {
+        ...base,
+        type: 'image' as const,
+        src: '',
+        objectFit: (el.objectFit as 'contain' | 'cover' | 'fill') ?? 'contain'
+      };
     }
     if (el.type === 'items') {
-      const cols = Array.isArray(el.colWidths) ? el.colWidths as [number,number,number,number,number,number] : [0.07, 0.38, 0.1, 0.1, 0.15, 0.2] as [number,number,number,number,number,number];
-      return { ...base, type: 'items' as const, fontSize: Number(el.fontSize ?? 10), rowHeight: Number(el.rowHeight ?? 24), headerBgColor: String(el.headerBgColor ?? '#1e3a5f'), headerTextColor: String(el.headerTextColor ?? '#ffffff'), borderColor: String(el.borderColor ?? '#d1d5db'), altRowBgColor: String(el.altRowBgColor ?? '#f8fafc'), summaryBgColor: String(el.summaryBgColor ?? '#1e3a5f'), mwstRate: Number(el.mwstRate ?? 19), colWidths: cols } as ItemsElement;
+      const cols = Array.isArray(el.colWidths) ? el.colWidths as [number, number, number, number, number, number] : [0.07, 0.38, 0.1, 0.1, 0.15, 0.2] as [number, number, number, number, number, number];
+      return {
+        ...base,
+        type: 'items' as const,
+        fontSize: Number(el.fontSize ?? 10),
+        rowHeight: Number(el.rowHeight ?? 24),
+        headerBgColor: String(el.headerBgColor ?? '#1e3a5f'),
+        headerTextColor: String(el.headerTextColor ?? '#ffffff'),
+        borderColor: String(el.borderColor ?? '#d1d5db'),
+        altRowBgColor: String(el.altRowBgColor ?? '#f8fafc'),
+        summaryBgColor: String(el.summaryBgColor ?? '#1e3a5f'),
+        mwstRate: Number(el.mwstRate ?? 19),
+        colWidths: cols
+      } as ItemsElement;
     }
     if (el.type === 'line') {
       return {
@@ -389,16 +415,42 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
       } as unknown as TemplateElement;
     }
     if (el.type === 'variable') {
-      return { ...base, type: 'variable' as const, variableKey: String(el.variableKey ?? ''), prefix: String(el.prefix ?? ''), suffix: String(el.suffix ?? ''), fontSize: Number(el.fontSize ?? 12), fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal', fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal', fontFamily: String(el.fontFamily ?? DEFAULT_FONT_FAMILY), color: String(el.color ?? '#2563eb'), backgroundColor: String(el.backgroundColor ?? 'transparent'), textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left', lineHeight: Number(el.lineHeight ?? 1.3) };
+      return {
+        ...base,
+        type: 'variable' as const,
+        variableKey: String(el.variableKey ?? ''),
+        prefix: String(el.prefix ?? ''),
+        suffix: String(el.suffix ?? ''),
+        fontSize: Number(el.fontSize ?? 12),
+        fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal',
+        fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal',
+        fontFamily: String(el.fontFamily ?? DEFAULT_FONT_FAMILY),
+        color: String(el.color ?? '#2563eb'),
+        backgroundColor: String(el.backgroundColor ?? 'transparent'),
+        textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left',
+        lineHeight: Number(el.lineHeight ?? 1.3)
+      };
     }
     // default: text
-    return { ...base, type: 'text' as const, content: String(el.content ?? ''), fontSize: Number(el.fontSize ?? 12), fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal', fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal', fontFamily: String(el.fontFamily ?? DEFAULT_FONT_FAMILY), color: String(el.color ?? '#111827'), backgroundColor: String(el.backgroundColor ?? 'transparent'), textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left', lineHeight: Number(el.lineHeight ?? 1.3) };
+    return {
+      ...base,
+      type: 'text' as const,
+      content: String(el.content ?? ''),
+      fontSize: Number(el.fontSize ?? 12),
+      fontWeight: (el.fontWeight as 'normal' | 'bold') ?? 'normal',
+      fontStyle: (el.fontStyle as 'normal' | 'italic') ?? 'normal',
+      fontFamily: String(el.fontFamily ?? DEFAULT_FONT_FAMILY),
+      color: String(el.color ?? '#111827'),
+      backgroundColor: String(el.backgroundColor ?? 'transparent'),
+      textAlign: (el.textAlign as 'left' | 'center' | 'right') ?? 'left',
+      lineHeight: Number(el.lineHeight ?? 1.3)
+    };
   });
 
-  return { name: parsed.name ?? 'KI-Template', elements };
+  return {name: parsed.name ?? 'KI-Template', elements};
 }
 
-export async function analyzeInvoicePdf(base64: string): Promise<GeminiResult> {
+export async function analyzeInvoicePdf(base64: string, recentInvoices?: import('@/types').Invoice[]): Promise<GeminiResult> {
   const apiKey = await getSetting('gemini_api_key');
   if (!apiKey) {
     throw new Error('Kein Gemini API-Key hinterlegt. Bitte unter Einstellungen eingeben.');
@@ -437,9 +489,32 @@ Nutze diese Informationen, um zu entscheiden:
 `;
   }
 
+  // Build known partners context from last 360 days
+  let knownPartnersContext = '';
+  if (recentInvoices && recentInvoices.length > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 360);
+    const recentPartners = [...new Set(
+      recentInvoices
+        .filter((inv) => new Date(inv.date) >= cutoff)
+        .map((inv) => inv.partner)
+        .filter(Boolean)
+    )].slice(0, 100);
+    if (recentPartners.length > 0) {
+      knownPartnersContext = `
+═══════════════════════════════════════════════════════
+BEKANNTE PARTNER (letzte 360 Tage) – verwende exakt diese Schreibweise wenn der Partner übereinstimmt:
+═══════════════════════════════════════════════════════
+${recentPartners.map((p) => `- ${p}`).join('\n')}
+
+WICHTIG: Wenn der Aussteller/Empfänger der Rechnung einem dieser Partner entspricht, übernimm dessen Namen EXAKT so wie er hier steht (gleiche Groß-/Kleinschreibung, gleiche Abkürzungen).
+`;
+    }
+  }
+
   const prompt = `Analysiere diese PDF-Rechnung/Dokument und extrahiere die folgenden Informationen als JSON.
 Antworte NUR mit validem JSON, kein Markdown, kein Text drumherum.
-${profileContext}${aiInstructions.trim() ? `
+${profileContext}${knownPartnersContext}${aiInstructions.trim() ? `
 ═══════════════════════════════════════════════════════
 PERSÖNLICHE KI-ANWEISUNGEN DES NUTZERS (höchste Priorität – halte dich strikt daran):
 ═══════════════════════════════════════════════════════

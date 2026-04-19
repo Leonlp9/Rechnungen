@@ -114,6 +114,26 @@ export function detectPatterns(invoices: Invoice[]): DetectedPattern[] {
   return patterns.sort((a, b) => b.confidence - a.confidence);
 }
 
+export function forecast28Days(patterns: DetectedPattern[]): ForecastItem[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000);
+
+  const items: ForecastItem[] = [];
+  for (const p of patterns) {
+    // Walk forward from nextExpectedDate until we exceed the window
+    let d = new Date(p.nextExpectedDate.getTime());
+    const intervalMs = INTERVAL_DAYS[p.interval] * 24 * 60 * 60 * 1000;
+    while (d <= end) {
+      if (d >= today) {
+        items.push({ pattern: p, expectedDate: new Date(d), expectedBrutto: p.avgBrutto });
+      }
+      d = new Date(d.getTime() + intervalMs);
+    }
+  }
+  return items.sort((a, b) => a.expectedDate.getTime() - b.expectedDate.getTime());
+}
+
 export function forecastCurrentMonth(patterns: DetectedPattern[], year?: number, month?: number): ForecastItem[] {
   const today = new Date();
   const y = year ?? today.getFullYear();

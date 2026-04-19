@@ -6,7 +6,7 @@ import {
   Columns2, Rows2, BookOpen,
   TrendingUp, TrendingDown, Euro, Calculator, FileText,
   BarChart2, PieChart, Activity, Receipt,
-  Sparkles, Mail, List, RotateCcw, X, Info,
+  Sparkles, Mail, List, RotateCcw, X, Info, CalendarRange,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -212,10 +212,14 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             icon={<List className="h-4 w-4 text-green-500" />}
             description="Top Partner nach Umsatz"
             tooltip="Zeigt die Partner/Kunden mit dem höchsten Umsatz im ausgewählten Jahr." />
-          <SidebarDraggableItem type="list-forecast" label="Prognose"
+          <SidebarDraggableItem type="list-forecast" label="Prognose (Monat)"
             icon={<Sparkles className="h-4 w-4 text-violet-500" />}
             description="Erwartete Buchungen bis Monatsende"
             tooltip="Zeigt voraussichtliche Einnahmen und Ausgaben bis zum Monatsende, abgeleitet aus erkannten Wiederholungsmustern (z. B. monatliche Abos)." />
+          <SidebarDraggableItem type="list-forecast-28d" label="Prognose (28 Tage)"
+            icon={<CalendarRange className="h-4 w-4 text-violet-400" />}
+            description="Erwartete Buchungen in den nächsten 28 Tagen"
+            tooltip="Zeigt alle voraussichtlichen Einnahmen und Ausgaben in einem rollierenden 28-Tage-Fenster ab heute – unabhängig vom ausgewählten Monat." />
           <SidebarDraggableItem type="list-recent-emails" label="Letzte E-Mails"
             icon={<Mail className="h-4 w-4 text-blue-500" />}
             description="Zuletzt empfangene Rechnungs-Mails"

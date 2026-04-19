@@ -10,6 +10,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +29,11 @@ import { insertInvoice, getAllInvoices } from '@/lib/db';
 import { copyPdfToAppData, readPdfAsBase64 } from '@/lib/pdf';
 import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
-import { Upload, Sparkles, Loader2, FileText } from 'lucide-react';
+import { Upload, Sparkles, Loader2, FileText, AlertTriangle, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { fmtCurrency } from '@/lib/utils';
 
 const schema = z.object({
   date: z.string().min(1, 'Datum erforderlich'),
@@ -52,12 +58,17 @@ interface Props {
 }
 
 export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initialPdfName }: Props) {
+  const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2>(1);
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState('');
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
+  const [duplicates, setDuplicates] = useState<Invoice[]>([]);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [pendingData, setPendingData] = useState<FormData | null>(null);
   const setInvoices = useAppStore((s) => s.setInvoices);
 
   const form = useForm<FormData>({
@@ -83,8 +94,18 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     setPdfDataUrl(null);
     setAiLoading(false);
     setSaving(false);
+    setDuplicates([]);
+    setShowDuplicateWarning(false);
+    setPendingData(null);
     form.reset();
   };
+
+  // Load all invoices when dialog opens (for AI context + duplicate check)
+  useEffect(() => {
+    if (isOpen) {
+      getAllInvoices().then(setAllInvoices).catch(() => {});
+    }
+  }, [isOpen]);
 
   // Pre-fill when opened with a PDF from Gmail import
   useEffect(() => {
@@ -131,7 +152,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     setAiLoading(true);
     try {
       const base64 = await readPdfAsBase64(pdfPath);
-      const result = await analyzeInvoicePdf(base64 as string);
+      const result = await analyzeInvoicePdf(base64 as string, allInvoices);
       form.setValue('date', result.date);
       form.setValue('description', result.description);
       form.setValue('partner', result.partner);
@@ -149,7 +170,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     }
   };
 
-  const onSubmit = async (data: FormData) => {
+  const performSave = async (data: FormData) => {
     if (!pdfPath) return;
     setSaving(true);
     try {
@@ -181,7 +202,6 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       const all = await getAllInvoices();
       setInvoices(all);
       toast.success('Rechnung gespeichert!');
-      // Delete the temp file from invoices/ – it's now safely copied to pdfs/
       if (pdfPath?.includes('invoices')) {
         const fname = pdfPath.split(/[\\/]/).pop();
         if (fname) invoke('delete_invoice_file', { filename: fname }).catch(() => {});
@@ -195,7 +215,25 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     }
   };
 
+  const onSubmit = async (data: FormData) => {
+    // Duplicate check: same date, partner (case-insensitive), brutto
+    const dups = allInvoices.filter(
+      (inv) =>
+        inv.date === data.date &&
+        inv.partner.trim().toLowerCase() === data.partner.trim().toLowerCase() &&
+        Math.abs(inv.brutto - data.brutto) < 0.01,
+    );
+    if (dups.length > 0) {
+      setDuplicates(dups);
+      setPendingData(data);
+      setShowDuplicateWarning(true);
+      return;
+    }
+    await performSave(data);
+  };
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className={step === 2 ? 'max-w-[90vw] w-[90vw] max-h-[92vh] overflow-hidden' : 'max-w-lg'}>
         <DialogHeader>
@@ -340,6 +378,68 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Duplicate Warning Dialog */}
+    <Dialog open={showDuplicateWarning} onOpenChange={(v) => { if (!v) setShowDuplicateWarning(false); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-amber-600">
+            <AlertTriangle className="h-5 w-5" />
+            Möglicher Duplikat-Beleg
+          </DialogTitle>
+          <DialogDescription>
+            Es gibt bereits {duplicates.length} Beleg{duplicates.length > 1 ? 'e' : ''} mit demselben Datum, Partner und Betrag. Bitte prüfe, ob dieser Beleg bereits erfasst wurde.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="divide-y rounded-lg border overflow-hidden my-2">
+          {duplicates.map((inv) => (
+            <div
+              key={inv.id}
+              className="flex items-center justify-between px-3 py-2 hover:bg-muted/60 cursor-pointer group transition-colors"
+              onClick={() => {
+                setShowDuplicateWarning(false);
+                navigate(`/invoices/${inv.id}`);
+              }}
+              title="Beleg öffnen"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-sm truncate flex items-center gap-1">
+                  {inv.partner}
+                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{inv.description}</p>
+                <p className="text-xs text-muted-foreground">{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</p>
+              </div>
+              <span className={`font-semibold text-sm shrink-0 ml-3 ${inv.type === 'einnahme' ? 'text-green-600' : 'text-red-600'}`}>
+                {inv.type === 'einnahme' ? '+' : inv.type === 'ausgabe' ? '−' : ''}{fmtCurrency(inv.brutto, false)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <DialogFooter className="gap-2 flex-row justify-end">
+          <Button
+            variant="outline"
+            onClick={() => setShowDuplicateWarning(false)}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={saving}
+            onClick={async () => {
+              setShowDuplicateWarning(false);
+              if (pendingData) await performSave(pendingData);
+            }}
+          >
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Trotzdem speichern
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 

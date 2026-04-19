@@ -7,6 +7,7 @@ import { RevenueChart } from './RevenueChart';
 import { CategoryDonut } from './CategoryDonut';
 import { SonderausgabenCard } from './SonderausgabenCard';
 import { ForecastList } from './ForecastList';
+import { Forecast28DaysList } from './Forecast28DaysList';
 import { Last28DaysChart } from './Last28DaysChart';
 import { MonthChart } from './MonthChart';
 import { RecentEmailsCard } from './RecentEmailsCard';
@@ -153,6 +154,8 @@ export function DashboardElementNode({ type }: DashboardElementNodeProps) {
       return <TopPartnerCard loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />;
     case 'list-forecast':
       return <ForecastList loading={loading} invoices={invoices} privacyMode={privacyMode} selectedMonth={selectedMonth} selectedYear={selectedYear} />;
+    case 'list-forecast-28d':
+      return <Forecast28DaysList loading={loading} invoices={invoices} privacyMode={privacyMode} />;
     case 'list-recent-emails':
       return <RecentEmailsCard editMode={ctx.editMode} />;
     case 'card-jahresvergleich':
@@ -239,7 +242,8 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'kpi-ust-jahr': 'USt (Jahr)',
   'kpi-avg-einnahmen-monat': 'Ø Einnahmen / Monat',
   'card-jahresvergleich': 'Jahresvergleich',
-  'list-forecast': 'Prognose',
+  'list-forecast': 'Prognose (Monat)',
+  'list-forecast-28d': 'Prognose (28 Tage)',
   'list-recent-emails': 'Letzte E-Mails',
   'list-recent-invoices': 'Letzte 10 Belege',
 };
