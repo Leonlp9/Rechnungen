@@ -115,7 +115,28 @@ function parseDateMs(dateStr: string): number {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function EmailList() {
+interface EmailListProps {
+  /** When provided, the folder is controlled externally (Gmail layout sidebar) */
+  controlledFolder?: string;
+  onFolderChange?: (id: string) => void;
+  /** Hide the folder dropdown bar (used in Gmail layout where sidebar handles it) */
+  hideFolderDropdown?: boolean;
+  /** Called after an email is selected (used to switch view in Gmail layout) */
+  onEmailSelected?: () => void;
+  /** Called when an unread email is opened so the parent can decrement its count */
+  onEmailRead?: (folder: string) => void;
+  /** Real unread counts per folder fetched from the API */
+  unreadCounts?: Record<string, number>;
+}
+
+export function EmailList({
+  controlledFolder,
+  onFolderChange,
+  hideFolderDropdown,
+  onEmailSelected,
+  onEmailRead,
+  unreadCounts,
+}: EmailListProps = {}) {
   const accounts = useGmailStore((s) => s.accounts);
   const activeIndex = useGmailStore((s) => s.activeIndex);
   const activeAccount = useGmailStore(selectActiveAccount);
@@ -139,6 +160,17 @@ export function EmailList() {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [gmailFolder, setGmailFolder] = useState<GmailFolder>('inbox');
   const [imapFolder, setImapFolder] = useState<ImapFolder>('INBOX');
+
+  // Sync controlled folder from parent (Gmail-layout sidebar)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!controlledFolder) return;
+    if (activeAccount?.type === 'imap') {
+      if (controlledFolder !== imapFolder) setImapFolder(controlledFolder as ImapFolder);
+    } else {
+      if (controlledFolder !== gmailFolder) setGmailFolder(controlledFolder as GmailFolder);
+    }
+  }, [controlledFolder]);
 
   // All-mode: merged list with account info + per-account pagination state
   const [allEmails, setAllEmails] = useState<{ email: GmailMessage; accountEmail: string }[]>([]);
@@ -259,8 +291,6 @@ export function EmailList() {
   const isEmailUnread = (id: string, gmailUnread: boolean | undefined) =>
     (gmailUnread !== false) && !readEmailIds.includes(id);
 
-  const unreadCount = emails.filter((e) => isEmailUnread(e.id, e.isUnread)).length;
-
   const getAT = () =>
     getValidToken(activeAccount!.token!, (t) => updateAccountToken(activeAccount!.email, t));
 
@@ -373,10 +403,16 @@ export function EmailList() {
     } else {
       setDetailAccountEmail(null);
     }
+    const wasUnread = email.isUnread !== false && !readEmailIds.includes(email.id);
     setSelectedEmail(email);
     setFetchingDetail(true);
     const ownerEmail = ownerAccountEmail ?? activeAccount?.email ?? '';
     markEmailAsRead(ownerEmail, email.id);
+    // Notify parent to decrement API unread count
+    if (wasUnread) {
+      const folder = (!isAllMode && isImap) ? imapFolder : gmailFolder;
+      onEmailRead?.(folder);
+    }
     // Also update all-mode local state so the unread dot/bold disappears immediately
     if (isAllMode) {
       setAllEmails((prev) =>
@@ -397,6 +433,7 @@ export function EmailList() {
           .catch(() => {});
       }
     }
+    onEmailSelected?.();
   };
 
   const senderName = (from: string) => {
@@ -531,6 +568,7 @@ export function EmailList() {
   const handleFolderChange = (id: string) => {
     if (!isAllMode && isImap) setImapFolder(id as ImapFolder);
     else setGmailFolder(id as GmailFolder);
+    onFolderChange?.(id);
   };
 
   const active = isFilterActive(filter);
@@ -551,11 +589,6 @@ export function EmailList() {
             ? <><Layers className="h-4 w-4 text-muted-foreground" /><h2 className="font-semibold">Alle Postfächer</h2></>
             : <h2 className="font-semibold">{activeFolderLabel}</h2>
           }
-          {!isAllMode && activeFolder === (isImap ? 'INBOX' : 'inbox') && unreadCount > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
-              {unreadCount}
-            </span>
-          )}
           {(refreshing || (isAllMode && allLoading)) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
         <div className="flex items-center gap-1">
@@ -624,7 +657,8 @@ export function EmailList() {
         </div>
       </div>
 
-      {/* Folder dropdown */}
+      {/* Folder dropdown – only in Apple layout */}
+      {!hideFolderDropdown && (
       <div className="border-b border-border px-3 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -637,7 +671,9 @@ export function EmailList() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-48">
-            {folders.map(({ id, label, icon: Icon }) => (
+            {folders.map(({ id, label, icon: Icon }) => {
+              const count = unreadCounts?.[id] ?? 0;
+              return (
               <DropdownMenuItem
                 key={id}
                 onSelect={() => handleFolderChange(id)}
@@ -645,12 +681,17 @@ export function EmailList() {
               >
                 <Icon className={cn('h-4 w-4', activeFolder === id ? 'text-primary' : 'text-muted-foreground')} />
                 <span className={cn('flex-1', activeFolder === id && 'font-semibold text-primary')}>{label}</span>
-                {activeFolder === id && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                {count > 0 && (
+                  <span className="shrink-0 text-xs font-semibold text-primary tabular-nums">{count > 9999 ? '9999+' : count}</span>
+                )}
+                {activeFolder === id && count === 0 && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
               </DropdownMenuItem>
-            ))}
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      )}
 
       {/* Active filter badge */}
       {active && !isAllMode && (

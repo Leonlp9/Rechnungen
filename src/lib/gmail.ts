@@ -501,6 +501,47 @@ export async function markAsNotSpam(
   );
 }
 
+// Map from our folder id → Gmail label id
+const FOLDER_TO_LABEL: Record<string, string> = {
+  inbox:     'INBOX',
+  sent:      'SENT',
+  drafts:    'DRAFT',
+  starred:   'STARRED',
+  purchases: 'CATEGORY_PURCHASES',
+  archive:   'ARCHIVE',
+  spam:      'SPAM',
+};
+
+export type FolderUnreadCounts = Record<string, number>;
+
+/**
+ * Fetches the real unread message count for each Gmail folder/label in one
+ * batch call (one request per label via Promise.all – Gmail has no bulk endpoint).
+ */
+export async function fetchLabelUnreadCounts(
+  accessToken: string,
+): Promise<FolderUnreadCounts> {
+  const entries = Object.entries(FOLDER_TO_LABEL);
+  const results = await Promise.allSettled(
+    entries.map(([, labelId]) =>
+      fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/labels/${labelId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      ).then((r) => r.json())
+    )
+  );
+  const counts: FolderUnreadCounts = {};
+  results.forEach((result, i) => {
+    const folderId = entries[i][0];
+    if (result.status === 'fulfilled') {
+      counts[folderId] = result.value?.messagesUnread ?? 0;
+    } else {
+      counts[folderId] = 0;
+    }
+  });
+  return counts;
+}
+
 export async function fetchAttachmentData(
   accessToken: string,
   messageId: string,
