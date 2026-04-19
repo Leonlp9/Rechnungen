@@ -13,10 +13,12 @@ import { MonthChart } from './MonthChart';
 import { RecentEmailsCard } from './RecentEmailsCard';
 import { CashflowChart } from './CashflowChart';
 import { TopAusgabenCard } from './TopAusgabenCard';
+import { TopEinnahmenCard } from './TopEinnahmenCard';
 import { TopPartnerCard } from './TopPartnerCard';
 import { JahresvergleichCard } from './JahresvergleichCard';
+import { MonatsuebersichtCard } from './MonatsuebersichtCard';
 import {
-  Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles,
+  Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
 } from 'lucide-react';
 import { fmtCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -31,9 +33,11 @@ import { InvoiceContextMenu } from '@/components/invoices/InvoiceContextMenu';
 
 interface DashboardElementNodeProps {
   type: ElementType;
+  settingsOpen?: boolean;
+  onSettingsClose?: () => void;
 }
 
-export function DashboardElementNode({ type }: DashboardElementNodeProps) {
+export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: DashboardElementNodeProps) {
   const ctx = useDashboardContext();
   const navigate = useNavigate();
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
@@ -136,6 +140,40 @@ export function DashboardElementNode({ type }: DashboardElementNodeProps) {
           tooltip="Durchschnittliche monatliche Einnahmen (Einnahmen / 12)" />
       );
     }
+    case 'kpi-avg-ausgaben-monat': {
+      const avg = ausgaben / 12;
+      const prevAvg = ctx.prevYearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0) / 12;
+      const delta = prevAvg ? ((avg - prevAvg) / prevAvg) * 100 : 0;
+      return (
+        <KPICard loading={loading} title="Ø Ausgaben / Monat"
+          value={fmtCurrency(avg, privacyMode)}
+          delta={privacyMode ? undefined : delta}
+          icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+          tooltip="Durchschnittliche monatliche Ausgaben (Ausgaben / 12)" />
+      );
+    }
+    case 'kpi-marge': {
+      const marge = einnahmen > 0 ? (betriebsergebnis / einnahmen) * 100 : 0;
+      return (
+        <KPICard loading={loading} title="Gewinnmarge"
+          value={`${marge.toFixed(1)} %`}
+          icon={<Percent className="h-4 w-4 text-violet-500" />}
+          tooltip="Betriebsergebnis / Einnahmen × 100 – steuerlicher Gewinnanteil" />
+      );
+    }
+    case 'kpi-steuerruecklage': {
+      const ruecklage = Math.max(0, betriebsergebnis * 0.3);
+      return (
+        <KPICard loading={loading} title="Steuerrücklage (30 %)"
+          value={fmtCurrency(ruecklage, privacyMode)}
+          icon={<PiggyBank className="h-4 w-4 text-amber-500" />}
+          tooltip="Empfohlene Steuerrücklage: 30 % des Betriebsergebnisses als Richtwert für die Einkommensteuer" />
+      );
+    }
+    case 'list-top-einnahmen':
+      return <TopEinnahmenCard loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />;
+    case 'card-monatsuebersicht':
+      return <MonatsuebersichtCard loading={loading} invoices={yearInvoices} selectedYear={selectedYear} privacyMode={privacyMode} />;
     case 'chart-revenue':
       return <RevenueChart loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />;
     case 'chart-cashflow':
@@ -157,7 +195,7 @@ export function DashboardElementNode({ type }: DashboardElementNodeProps) {
     case 'list-forecast-28d':
       return <Forecast28DaysList loading={loading} invoices={invoices} privacyMode={privacyMode} />;
     case 'list-recent-emails':
-      return <RecentEmailsCard editMode={ctx.editMode} />;
+      return <RecentEmailsCard editMode={ctx.editMode} settingsOpen={settingsOpen} onSettingsClose={onSettingsClose} />;
     case 'card-jahresvergleich':
       return <JahresvergleichCard loading={loading} yearInvoices={yearInvoices} prevYearInvoices={prevYearInvoices} selectedYear={ctx.selectedYear} privacyMode={privacyMode} />;
     case 'list-recent-invoices':
@@ -241,6 +279,11 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'list-top-partner': 'Top Kunden',
   'kpi-ust-jahr': 'USt (Jahr)',
   'kpi-avg-einnahmen-monat': 'Ø Einnahmen / Monat',
+  'kpi-avg-ausgaben-monat': 'Ø Ausgaben / Monat',
+  'kpi-marge': 'Gewinnmarge',
+  'kpi-steuerruecklage': 'Steuerrücklage (30 %)',
+  'list-top-einnahmen': 'Top Einnahmen',
+  'card-monatsuebersicht': 'Monatsübersicht',
   'card-jahresvergleich': 'Jahresvergleich',
   'list-forecast': 'Prognose (Monat)',
   'list-forecast-28d': 'Prognose (28 Tage)',

@@ -22,9 +22,11 @@ const DASHBOARD_EMAILS_ACCOUNT_KEY = 'dashboard_emails_account';
 
 export interface RecentEmailsCardProps {
   editMode?: boolean;
+  settingsOpen?: boolean;
+  onSettingsClose?: () => void;
 }
 
-export const RecentEmailsCard: React.FC<RecentEmailsCardProps> = ({ editMode = false }) => {
+export const RecentEmailsCard: React.FC<RecentEmailsCardProps> = ({ editMode = false, settingsOpen, onSettingsClose }) => {
   const navigate = useNavigate();
   const accounts = useGmailStore((s) => s.accounts);
   const updateAccountToken = useGmailStore((s) => s.updateAccountToken);
@@ -129,9 +131,17 @@ export const RecentEmailsCard: React.FC<RecentEmailsCardProps> = ({ editMode = f
             · {selectedLabel}
           </span>
         </div>
-        <DropdownMenu>
+        <DropdownMenu
+          open={editMode && settingsOpen !== undefined ? settingsOpen : undefined}
+          onOpenChange={(open) => { if (!open) onSettingsClose?.(); }}
+        >
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className={cn('h-7 w-7', !editMode && 'hidden')}>
+            {/* In editMode the gear lives in the SortableItem overlay; keep a hidden anchor here */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('h-7 w-7 pointer-events-auto', editMode ? 'invisible w-0 p-0 overflow-hidden' : '')}
+            >
               <Settings className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>

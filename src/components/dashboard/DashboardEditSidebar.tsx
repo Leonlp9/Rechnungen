@@ -7,6 +7,7 @@ import {
   TrendingUp, TrendingDown, Euro, Calculator, FileText,
   BarChart2, PieChart, Activity, Receipt,
   Sparkles, Mail, List, RotateCcw, X, Info, CalendarRange,
+  Percent, PiggyBank, Table2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -174,6 +175,26 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             icon={<Sparkles className="h-4 w-4 text-violet-500" />}
             description="Hochgerechneter Monatsabschluss"
             tooltip="Aktueller Monatssaldo plus erwartete Einnahmen und Ausgaben bis Monatsende – basierend auf erkannten Wiederholungsmustern aus der Vergangenheit." />
+          <SidebarDraggableItem type="kpi-avg-einnahmen-monat" label="Ø Einnahmen / Monat"
+            icon={<TrendingUp className="h-4 w-4 text-green-600" />}
+            description="Durchschnittliche monatliche Einnahmen"
+            tooltip="Gesamteinnahmen des Jahres geteilt durch 12 – mit Vergleich zum Vorjahreswert." />
+          <SidebarDraggableItem type="kpi-avg-ausgaben-monat" label="Ø Ausgaben / Monat"
+            icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+            description="Durchschnittliche monatliche Ausgaben"
+            tooltip="Gesamtausgaben des Jahres geteilt durch 12 – mit Vergleich zum Vorjahreswert." />
+          <SidebarDraggableItem type="kpi-marge" label="Gewinnmarge"
+            icon={<Percent className="h-4 w-4 text-violet-500" />}
+            description="Steuerlicher Gewinnanteil in %"
+            tooltip="Betriebsergebnis geteilt durch Einnahmen – zeigt, wie viel Prozent der Einnahmen als Gewinn verbleiben." />
+          <SidebarDraggableItem type="kpi-steuerruecklage" label="Steuerrücklage (30 %)"
+            icon={<PiggyBank className="h-4 w-4 text-amber-500" />}
+            description="Empfohlene Rücklage für Einkommensteuer"
+            tooltip="Richtwert: 30 % des Betriebsergebnisses als Steuerrücklage einplanen. Kein Steuerberaterersatz." />
+          <SidebarDraggableItem type="kpi-ust-jahr" label="Umsatzsteuer (Jahr)"
+            icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+            description="Summe der ausgewiesenen USt im Jahr"
+            tooltip="Zeigt die Summe der ausgewiesenen Umsatzsteuer aller Belege im gewählten Jahr." />
         </Section>
 
         <Section title="Statistiken">
@@ -201,6 +222,10 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             icon={<Receipt className="h-4 w-4 text-amber-500" />}
             description="Übersicht steuerlicher Sonderausgaben"
             tooltip="Listet alle als Sonderausgabe markierten Belege des Jahres auf – z. B. Versicherungen, Spenden oder Vorsorgeaufwendungen." />
+          <SidebarDraggableItem type="card-jahresvergleich" label="Jahresvergleich"
+            icon={<BarChart2 className="h-4 w-4 text-indigo-500" />}
+            description="Vergleich Einnahmen/Ausgaben Vorjahr"
+            tooltip="Stellt Einnahmen, Ausgaben und Betriebsergebnis des gewählten Jahres dem Vorjahr gegenüber." />
         </Section>
 
         <Section title="Listen">
@@ -208,6 +233,10 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             icon={<List className="h-4 w-4 text-red-500" />}
             description="Größte Einzel-Ausgaben"
             tooltip="Die fünf größten Ausgaben des Jahres als schnelle Übersicht." />
+          <SidebarDraggableItem type="list-top-einnahmen" label="Top Einnahmen"
+            icon={<List className="h-4 w-4 text-green-500" />}
+            description="Größte Einzel-Einnahmen"
+            tooltip="Die fünf größten Einnahmen des Jahres – ideal um wichtige Kunden oder Großprojekte auf einen Blick zu sehen." />
           <SidebarDraggableItem type="list-top-partner" label="Top Kunden"
             icon={<List className="h-4 w-4 text-green-500" />}
             description="Top Partner nach Umsatz"
@@ -228,6 +257,10 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             icon={<List className="h-4 w-4 text-muted-foreground" />}
             description="Tabelle der 10 zuletzt erfassten Belege"
             tooltip="Kompakte Tabelle mit den 10 zuletzt hinzugefügten Rechnungen oder Ausgaben. Per Klick gelangt man direkt zum jeweiligen Beleg." />
+          <SidebarDraggableItem type="card-monatsuebersicht" label="Monatsübersicht"
+            icon={<Table2 className="h-4 w-4 text-blue-400" />}
+            description="Jahresübersicht aller Monate als Tabelle"
+            tooltip="Zeigt alle 12 Monate mit Einnahmen, Ausgaben und Saldo in einer kompakten Tabelle – ideal für einen schnellen Jahresüberblick." />
         </Section>
       </div>
 

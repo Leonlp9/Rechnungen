@@ -24,6 +24,11 @@ export type ElementType =
   | 'list-top-partner'
   | 'kpi-ust-jahr'
   | 'kpi-avg-einnahmen-monat'
+  | 'kpi-avg-ausgaben-monat'
+  | 'kpi-marge'
+  | 'kpi-steuerruecklage'
+  | 'list-top-einnahmen'
+  | 'card-monatsuebersicht'
   | 'card-jahresvergleich';
 
 export type GridType = 'grid-vertical' | 'grid-horizontal' | 'grid-pages';

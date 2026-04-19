@@ -12,7 +12,10 @@ import type { DashboardNode } from '@/types/dashboard';
 import { isGridType } from '@/types/dashboard';
 import { DashboardElementNode, ELEMENT_LABELS } from './DashboardElementNode';
 import { cn } from '@/lib/utils';
-import { GripVertical, X, Plus, BookOpen, Columns2, Rows2 } from 'lucide-react';
+import { GripVertical, X, Plus, BookOpen, Columns2, Rows2, Settings } from 'lucide-react';
+
+// Element types that expose a settings panel
+const ELEMENTS_WITH_SETTINGS = new Set(['list-recent-emails']);
 
 // ─── Insertion line ──────────────────────────────────────────────────────────
 
@@ -200,6 +203,8 @@ function SortableItem({
   onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, depth,
 }: SortableItemProps) {
   const isGrid = isGridType(node.type);
+  const hasSettings = !isGrid && ELEMENTS_WITH_SETTINGS.has(node.type);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
@@ -267,15 +272,27 @@ function SortableItem({
         </div>
       )}
 
-      {/* ── Delete button for leaf elements ── */}
+      {/* ── Settings + Delete buttons for leaf elements ── */}
       {editMode && !isGrid && (
-        <button
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onDelete(node.id)}
-          className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 rounded-full bg-background/90 backdrop-blur-sm border shadow-sm hover:bg-destructive hover:text-white flex items-center justify-center text-muted-foreground pointer-events-auto"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        <div className="absolute top-1 right-1 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+          {hasSettings && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); setSettingsOpen((v) => !v); }}
+              className="h-6 w-6 rounded-full bg-background/90 backdrop-blur-sm border shadow-sm hover:bg-muted flex items-center justify-center text-muted-foreground"
+              title="Einstellungen"
+            >
+              <Settings className="h-3 w-3" />
+            </button>
+          )}
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onDelete(node.id)}
+            className="h-6 w-6 rounded-full bg-background/90 backdrop-blur-sm border shadow-sm hover:bg-destructive hover:text-white flex items-center justify-center text-muted-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
       )}
 
       {/* ── Content ── */}
@@ -302,7 +319,11 @@ function SortableItem({
           editMode && 'pointer-events-none select-none',
         )}>
           <div className="flex-1 flex flex-col">
-            <DashboardElementNode type={node.type as any} />
+            <DashboardElementNode
+              type={node.type as any}
+              settingsOpen={settingsOpen}
+              onSettingsClose={() => setSettingsOpen(false)}
+            />
           </div>
         </div>
       )}
