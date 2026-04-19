@@ -161,8 +161,8 @@ export default function SettingsPage() {
 		<div className="space-y-6 max-w-2xl">
 			<h1 className="text-2xl font-bold">Einstellungen</h1>
 
-			{/* Profil / Persönliche Daten */}
-			<Card className="rounded-xl shadow-sm">
+		{/* Profil / Persönliche Daten */}
+		<Card className="rounded-xl shadow-sm" data-tutorial="settings-profile">
 				<CardHeader>
 					<div className="flex items-center gap-2">
 						<User className="h-5 w-5 text-primary" />
@@ -192,8 +192,8 @@ export default function SettingsPage() {
 				</CardContent>
 			</Card>
 
-			{/* Steuerregelung */}
-			<Card className="rounded-xl shadow-sm">
+		{/* Steuerregelung */}
+		<Card className="rounded-xl shadow-sm" data-tutorial="settings-steuer">
 				<CardHeader>
 					<div className="flex items-center gap-2">
 						<Receipt className="h-5 w-5 text-primary" />
@@ -323,7 +323,7 @@ export default function SettingsPage() {
 				</CardContent>
 			</Card>
 
-	<Card className="rounded-xl shadow-sm">
+	<Card className="rounded-xl shadow-sm" data-tutorial="settings-appearance">
 		<CardHeader>
 			<CardTitle className="text-base">Erscheinungsbild</CardTitle>
 		</CardHeader>
@@ -707,7 +707,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl shadow-sm">
+      <Card className="rounded-xl shadow-sm" data-tutorial="settings-backup">
         <CardHeader>
           <div className="flex items-center gap-2">
             <DatabaseBackup className="h-5 w-5 text-primary" />

@@ -171,7 +171,7 @@ export default function WriteInvoice() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      <div style={{ width: sidebarWidth, minWidth: 220, maxWidth: 600 }} className="border-r border-border bg-background overflow-y-auto flex flex-col shrink-0">
+      <div style={{ width: sidebarWidth, minWidth: 220, maxWidth: 600 }} data-tutorial="write-invoice-sidebar" className="border-r border-border bg-background overflow-y-auto flex flex-col shrink-0">
         <div className="p-4 border-b border-border">
           <h2 className="font-bold text-base flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -212,7 +212,7 @@ export default function WriteInvoice() {
                 </Card>
               )}
               {hasItemsTable && (
-                <Card className="rounded-xl">
+                <Card className="rounded-xl" data-tutorial="write-invoice-items">
                   <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <ReceiptText className="h-4 w-4 text-primary" />

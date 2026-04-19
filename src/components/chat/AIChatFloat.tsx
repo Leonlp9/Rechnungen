@@ -179,6 +179,7 @@ export function AIChatFloat() {
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ duration: 0.15 }}
             onClick={() => setOpen(true)}
+            data-tutorial="ai-chat-btn"
             className="absolute inset-0 flex items-center justify-center bg-primary text-primary-foreground cursor-pointer hover:brightness-110 transition-[filter] w-full h-full rounded-full"
             style={glassFab}
             title="KI-Assistent öffnen"
@@ -197,6 +198,7 @@ export function AIChatFloat() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16, delay: 0.1 }}
+            data-tutorial="ai-chat-window"
             className="absolute inset-0 flex flex-col"
           >
             {/* Drag handle */}

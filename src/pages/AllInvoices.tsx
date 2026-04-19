@@ -41,9 +41,10 @@ export default function AllInvoices() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Alle Rechnungen</h1>
-      <InvoiceTable invoices={invoices} showYearFilter={true} />
-      <NewInvoiceDialog
-        open={dialogOpen}
+      <div data-tutorial="invoices-table">
+        <InvoiceTable invoices={invoices} showYearFilter={true} />
+      </div>
+      <NewInvoiceDialog        open={dialogOpen}
         onClose={() => { setDialogOpen(false); setImportPdfPath(undefined); }}
         initialPdfPath={importPdfPath}
         initialPdfName={importPdfName}

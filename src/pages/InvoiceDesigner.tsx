@@ -319,7 +319,7 @@ export default function InvoiceDesigner() {
   return (
     <div className="flex h-full overflow-hidden bg-muted/30">
       {/* ── Left: Template list ── */}
-      <div className={`${templateListOpen ? 'w-52' : 'w-8'} border-r border-border bg-background flex flex-col shrink-0 transition-all duration-200 overflow-hidden`}>
+      <div data-tutorial="designer-template-list" className={`${templateListOpen ? 'w-52' : 'w-8'} border-r border-border bg-background flex flex-col shrink-0 transition-all duration-200 overflow-hidden`}>
         {/* Collapse toggle */}
         <div className={`flex items-center border-b border-border shrink-0 ${templateListOpen ? 'p-3 gap-2' : 'p-1 justify-center'}`}>
           {templateListOpen && (
@@ -400,7 +400,7 @@ export default function InvoiceDesigner() {
       {/* ── Center ── */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Ribbon Toolbar */}
-        <div className="border-b border-border bg-background shrink-0 select-none">
+        <div data-tutorial="designer-toolbar" className="border-b border-border bg-background shrink-0 select-none">
           {draft ? (
             <div className="flex items-stretch overflow-x-auto">
 
@@ -542,7 +542,7 @@ export default function InvoiceDesigner() {
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 overflow-auto" ref={canvasContainerRef}>
+        <div data-tutorial="designer-canvas" className="flex-1 overflow-auto" ref={canvasContainerRef}>
           <div style={{ padding: '2rem', minWidth: 'fit-content', minHeight: 'fit-content', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
             {draft ? (
               <DesignerCanvas
@@ -606,7 +606,7 @@ export default function InvoiceDesigner() {
         className="w-1.5 cursor-col-resize bg-border hover:bg-primary/40 transition-colors shrink-0 active:bg-primary/60"
         title="Breite anpassen"
       />
-      <div style={{ width: propsWidth, minWidth: 180, maxWidth: 600 }} className="border-l border-border bg-background shrink-0 overflow-y-auto">
+      <div data-tutorial="designer-properties" style={{ width: propsWidth, minWidth: 180, maxWidth: 600 }} className="border-l border-border bg-background shrink-0 overflow-y-auto">
         <div className="p-3 border-b border-border">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Eigenschaften</span>
         </div>

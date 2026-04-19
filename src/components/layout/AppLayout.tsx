@@ -10,6 +10,8 @@ import { AIChatFloat } from '@/components/chat/AIChatFloat';
 import { useAppStore } from '@/store';
 import { getAllDrafts } from '@/lib/db';
 import { getAbsolutePdfPath } from '@/lib/pdf';
+import { WelcomeScreen } from '@/components/tutorial/WelcomeScreen';
+import { TutorialOverlay } from '@/components/tutorial/TutorialOverlay';
 
 const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail'];
 
@@ -70,6 +72,8 @@ export function AppLayout() {
       <DraftsPanel open={draftsOpen} onClose={() => setDraftsOpen(false)} />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <AIChatFloat />
+      <WelcomeScreen />
+      <TutorialOverlay />
     </div>
   );
 }

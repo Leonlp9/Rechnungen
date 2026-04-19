@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTutorialStore } from '@/store/tutorialStore';
 import {
   BookOpen,
   Upload,
@@ -664,6 +665,8 @@ export default function HelpPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialArticle = searchParams.get('article') ?? ARTICLES[0].id;
+  const resetTutorial = useTutorialStore((s) => s.resetTutorial);
+  const startTutorial = useTutorialStore((s) => s.startTutorial);
 
   const [selected, setSelected] = useState<string>(initialArticle);
   const [search, setSearch] = useState('');
@@ -709,6 +712,18 @@ export default function HelpPage() {
               className="w-full rounded-md border border-input bg-background pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
+        </div>
+
+        {/* Tutorial neu starten */}
+        <div className="px-4 py-3 border-b border-border">
+          <button
+            data-tutorial="tutorial-restart-btn"
+            onClick={() => { resetTutorial(); setTimeout(() => startTutorial(), 100); }}
+            className="flex items-center gap-2 w-full rounded-lg bg-primary/10 border border-primary/20 text-primary px-3 py-2 text-xs font-medium hover:bg-primary/20 transition-colors"
+          >
+            <span>🎓</span>
+            Geführtes Tutorial neu starten
+          </button>
         </div>
 
         {/* Kategoriefilter */}

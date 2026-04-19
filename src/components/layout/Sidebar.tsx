@@ -51,14 +51,14 @@ function useNavHistory() {
 }
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/invoices', label: 'Alle Rechnungen', icon: FileText },
-  { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2 },
-  { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare },
-  { to: '/lists', label: 'Listen', icon: ListTodo },
-  { to: '/gmail', label: 'Mail', icon: Mail },
-  { to: '/settings', label: 'Einstellungen', icon: Settings },
-  { to: '/help', label: 'Hilfe', icon: HelpCircle },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, tutorialId: 'nav-dashboard' },
+  { to: '/invoices', label: 'Alle Rechnungen', icon: FileText, tutorialId: 'nav-invoices' },
+  { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2, tutorialId: 'nav-write-invoice' },
+  { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare, tutorialId: 'nav-invoice-designer' },
+  { to: '/lists', label: 'Listen', icon: ListTodo, tutorialId: 'nav-lists' },
+  { to: '/gmail', label: 'Mail', icon: Mail, tutorialId: 'nav-gmail' },
+  { to: '/settings', label: 'Einstellungen', icon: Settings, tutorialId: 'nav-settings' },
+  { to: '/help', label: 'Hilfe', icon: HelpCircle, tutorialId: 'nav-help' },
 ];
 
 export function Sidebar() {
@@ -110,11 +110,12 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 p-2">
-        {NAV_ITEMS.filter(({ to }) => !hiddenNavItems.includes(to)).map(({ to, label, icon: Icon }) => (
+        {NAV_ITEMS.filter(({ to }) => !hiddenNavItems.includes(to)).map(({ to, label, icon: Icon, tutorialId }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
+            data-tutorial={tutorialId}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',

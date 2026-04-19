@@ -278,7 +278,7 @@ export default function Dashboard() {
       >
         <div className="flex -m-6 h-[calc(100%+3rem)]">
           {/* ── Main scrollable content ── */}
-          <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6">
+          <div data-tutorial="dashboard-kpis" className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -313,7 +313,7 @@ export default function Dashboard() {
                   value={String(data.selectedYear)}
                   onValueChange={(v) => data.setSelectedYear(Number(v))}
                 >
-                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-32" data-tutorial="dashboard-year-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {data.years.map((y) => (
                       <SelectItem key={y} value={String(y)}>{y}</SelectItem>

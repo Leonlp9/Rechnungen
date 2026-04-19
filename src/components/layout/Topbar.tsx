@@ -27,6 +27,7 @@ export function Topbar({ onNewInvoice, onExport, onDrafts }: TopbarProps) {
     <header className="flex h-14 items-center gap-4 border-b border-border bg-background px-6">
       <button
         onClick={() => setSearchOpen(true)}
+        data-tutorial="topbar-search"
         className="relative flex flex-1 max-w-md items-center gap-2 rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
       >
         <Search className="h-4 w-4 shrink-0" />
@@ -56,7 +57,7 @@ export function Topbar({ onNewInvoice, onExport, onDrafts }: TopbarProps) {
             </Badge>
           </Button>
         )}
-        <Button onClick={onNewInvoice}>
+        <Button onClick={onNewInvoice} data-tutorial="topbar-new-invoice">
           <Plus className="mr-2 h-4 w-4" />
           Neue Rechnung
         </Button>
