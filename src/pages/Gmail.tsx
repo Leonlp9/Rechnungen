@@ -55,7 +55,10 @@ function getStoredLayout(): LayoutMode {
   return 'apple';
 }
 
+type MainTab = 'mail';
+
 export default function GmailPage() {
+  const [mainTab] = useState<MainTab>('mail');
   const accounts = useGmailStore((s) => s.accounts);
   const activeIndex = useGmailStore((s) => s.activeIndex);
   const activeAccount = useGmailStore(selectActiveAccount);
@@ -131,7 +134,7 @@ export default function GmailPage() {
   const isImap = activeAccount?.type === 'imap';
   const navFolders = isImap ? IMAP_FOLDERS_NAV : GMAIL_FOLDERS_NAV;
 
-  if (accounts.length === 0) return <GmailLogin />;
+  if (accounts.length === 0 && mainTab === 'mail') return <GmailLogin />;
 
   const handleLogout = async (email: string) => {
     const account = accounts.find((a) => a.email === email);

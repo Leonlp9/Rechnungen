@@ -13,6 +13,7 @@ import {
   HelpCircle,
   ListTodo,
   Mail,
+  CalendarDays,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,7 @@ const NAV_ITEMS = [
   { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare, tutorialId: 'nav-invoice-designer' },
   { to: '/lists', label: 'Listen', icon: ListTodo, tutorialId: 'nav-lists' },
   { to: '/gmail', label: 'Mail', icon: Mail, tutorialId: 'nav-gmail' },
+  { to: '/calendar', label: 'Kalender', icon: CalendarDays, tutorialId: 'nav-calendar' },
   { to: '/settings', label: 'Einstellungen', icon: Settings, tutorialId: 'nav-settings' },
   { to: '/help', label: 'Hilfe', icon: HelpCircle, tutorialId: 'nav-help' },
 ];

@@ -13,7 +13,7 @@ import { getAbsolutePdfPath } from '@/lib/pdf';
 import { WelcomeScreen } from '@/components/tutorial/WelcomeScreen';
 import { TutorialOverlay } from '@/components/tutorial/TutorialOverlay';
 
-const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail'];
+const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail', '/calendar'];
 
 export function AppLayout() {
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);

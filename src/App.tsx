@@ -10,6 +10,7 @@ import InvoiceDesigner from "@/pages/InvoiceDesigner";
 import HelpPage from "@/pages/Help";
 import ListsPage from "@/pages/Lists";
 import GmailPage from "@/pages/Gmail";
+import CalendarPage from "@/pages/Calendar";
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/updater";
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { path: "/invoice-designer", element: <InvoiceDesigner /> },
       { path: "/lists", element: <ListsPage /> },
       { path: "/gmail", element: <GmailPage /> },
+      { path: "/calendar", element: <CalendarPage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/help", element: <HelpPage /> },
     ],
