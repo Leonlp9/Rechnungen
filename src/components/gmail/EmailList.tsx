@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGmailStore, selectActiveAccount } from '@/store/gmailStore';
 import type { GmailAccount } from '@/store/gmailStore';
-import { fetchEmails, getValidToken, markMessageAsRead } from '@/lib/gmail';
+import { fetchEmails, getValidToken, markMessageAsRead, markMessageAsUnread, deleteEmail, archiveEmail, toggleStar, markAsSpam, markAsNotSpam } from '@/lib/gmail';
 import type { GmailMessage } from '@/lib/gmail';
-import { imapFetchEmails, imapMarkRead } from '@/lib/imap';
+import { imapFetchEmails, imapMarkRead, imapMarkUnread, imapDeleteEmail, imapToggleFlag } from '@/lib/imap';
 import { toast } from 'sonner';
-import { Inbox, Send, FileEdit, Star, ShoppingBag, ShieldAlert, Loader2, Paperclip, RefreshCw, SlidersHorizontal, X, ChevronDown, Layers } from 'lucide-react';
+import { Inbox, Send, FileEdit, Star, ShoppingBag, ShieldAlert, Loader2, Paperclip, RefreshCw, SlidersHorizontal, X, ChevronDown, Layers, Archive } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +27,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format } from '@/lib/emailDate';
 
-type GmailFolder = 'inbox' | 'sent' | 'drafts' | 'starred' | 'purchases' | 'spam';
+type GmailFolder = 'inbox' | 'sent' | 'drafts' | 'starred' | 'purchases' | 'spam' | 'archive';
 type ImapFolder = 'INBOX' | 'Sent' | 'Drafts' | 'Junk' | 'FLAGGED';
 
 const GMAIL_FOLDERS: { id: GmailFolder; label: string; icon: React.ElementType }[] = [
@@ -29,6 +36,7 @@ const GMAIL_FOLDERS: { id: GmailFolder; label: string; icon: React.ElementType }
   { id: 'drafts',    label: 'Entwürfe',    icon: FileEdit },
   { id: 'starred',   label: 'Markiert',    icon: Star },
   { id: 'purchases', label: 'Käufe',       icon: ShoppingBag },
+  { id: 'archive',   label: 'Archiv',      icon: Archive },
   { id: 'spam',      label: 'Spam',        icon: ShieldAlert },
 ];
 
@@ -120,6 +128,8 @@ export function EmailList() {
   const setLoading = useGmailStore((s) => s.setLoading);
   const setFetchingDetail = useGmailStore((s) => s.setFetchingDetail);
   const markEmailAsRead = useGmailStore((s) => s.markEmailAsRead);
+  const markEmailAsUnreadInStore = useGmailStore((s) => s.markEmailAsUnread);
+  const removeEmailFromList = useGmailStore((s) => s.removeEmailFromList);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -367,6 +377,16 @@ export function EmailList() {
     setFetchingDetail(true);
     const ownerEmail = ownerAccountEmail ?? activeAccount?.email ?? '';
     markEmailAsRead(ownerEmail, email.id);
+    // Also update all-mode local state so the unread dot/bold disappears immediately
+    if (isAllMode) {
+      setAllEmails((prev) =>
+        prev.map((item) =>
+          item.email.id === email.id && item.accountEmail === ownerEmail
+            ? { ...item, email: { ...item.email, isUnread: false } }
+            : item
+        )
+      );
+    }
     if (email.isUnread !== false) {
       const ownerAcc = accounts.find((a) => a.email === ownerEmail) ?? activeAccount;
       if (ownerAcc?.type === 'imap' && ownerAcc.imapConfig) {
@@ -382,6 +402,125 @@ export function EmailList() {
   const senderName = (from: string) => {
     const match = from.match(/^"?([^"<]+)"?\s*</);
     return match ? match[1].trim() : from.replace(/<.*>/, '').trim() || from;
+  };
+
+  // ── Context menu actions ───────────────────────────────────────────────────
+
+  const handleContextAction = async (
+    action: string,
+    email: GmailMessage,
+    ownerAccountEmail: string,
+  ) => {
+    const ownerAcc = accounts.find((a) => a.email === ownerAccountEmail) ?? activeAccount;
+    if (!ownerAcc) return;
+    const isOwnerImap = ownerAcc.type === 'imap';
+    const currentFolder = isOwnerImap ? imapFolder : gmailFolder;
+
+    try {
+      if (isOwnerImap && ownerAcc.imapConfig) {
+        switch (action) {
+          case 'delete':
+            await imapDeleteEmail(ownerAcc.imapConfig, ownerAcc.email, email.id, currentFolder);
+            removeEmailFromList(ownerAcc.email, email.id);
+            toast.success('E-Mail gelöscht');
+            break;
+          case 'mark_unread':
+            await imapMarkUnread(ownerAcc.imapConfig, ownerAcc.email, email.id, currentFolder);
+            markEmailAsUnreadInStore(ownerAcc.email, email.id);
+            if (isAllMode) setAllEmails((prev) => prev.map((item) => item.email.id === email.id && item.accountEmail === ownerAccountEmail ? { ...item, email: { ...item.email, isUnread: true } } : item));
+            toast.success('Als ungelesen markiert');
+            break;
+          case 'mark_read':
+            await imapMarkRead(ownerAcc.imapConfig, ownerAcc.email, email.id, currentFolder);
+            markEmailAsRead(ownerAcc.email, email.id);
+            if (isAllMode) setAllEmails((prev) => prev.map((item) => item.email.id === email.id && item.accountEmail === ownerAccountEmail ? { ...item, email: { ...item.email, isUnread: false } } : item));
+            toast.success('Als gelesen markiert');
+            break;
+          case 'flag':
+            await imapToggleFlag(ownerAcc.imapConfig, ownerAcc.email, email.id, true, currentFolder);
+            toast.success('Markiert');
+            break;
+          case 'unflag':
+            await imapToggleFlag(ownerAcc.imapConfig, ownerAcc.email, email.id, false, currentFolder);
+            toast.success('Markierung entfernt');
+            break;
+        }
+      } else if (ownerAcc.token) {
+        const at = await getValidToken(ownerAcc.token, (t) => updateAccountToken(ownerAcc.email, t));
+        switch (action) {
+          case 'delete':
+            await deleteEmail(at, email.id);
+            removeEmailFromList(ownerAcc.email, email.id);
+            toast.success('E-Mail in den Papierkorb verschoben');
+            break;
+          case 'archive':
+            await archiveEmail(at, email.id);
+            removeEmailFromList(ownerAcc.email, email.id);
+            toast.success('E-Mail archiviert');
+            break;
+          case 'unarchive':
+            await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages/${email.id}/modify`,
+              {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${at}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ addLabelIds: ['INBOX'] }),
+              }
+            );
+            removeEmailFromList(ownerAcc.email, email.id);
+            toast.success('In Posteingang verschoben');
+            break;
+          case 'mark_unread':
+            await markMessageAsUnread(at, email.id);
+            markEmailAsUnreadInStore(ownerAcc.email, email.id);
+            if (isAllMode) setAllEmails((prev) => prev.map((item) => item.email.id === email.id && item.accountEmail === ownerAccountEmail ? { ...item, email: { ...item.email, isUnread: true } } : item));
+            toast.success('Als ungelesen markiert');
+            break;
+          case 'mark_read':
+            await markMessageAsRead(at, email.id);
+            markEmailAsRead(ownerAcc.email, email.id);
+            if (isAllMode) setAllEmails((prev) => prev.map((item) => item.email.id === email.id && item.accountEmail === ownerAccountEmail ? { ...item, email: { ...item.email, isUnread: false } } : item));
+            toast.success('Als gelesen markiert');
+            break;
+          case 'star':
+            await toggleStar(at, email.id, true);
+            useGmailStore.setState((s) => ({
+              accounts: s.accounts.map((a) =>
+                a.email === ownerAcc.email
+                  ? { ...a, emails: a.emails.map((e) => e.id === email.id ? { ...e, isStarred: true } : e) }
+                  : a
+              ),
+            }));
+            if (isAllMode) setAllEmails((prev) => prev.map((item) => item.email.id === email.id && item.accountEmail === ownerAccountEmail ? { ...item, email: { ...item.email, isStarred: true } } : item));
+            toast.success('Stern hinzugefügt');
+            break;
+          case 'unstar':
+            await toggleStar(at, email.id, false);
+            useGmailStore.setState((s) => ({
+              accounts: s.accounts.map((a) =>
+                a.email === ownerAcc.email
+                  ? { ...a, emails: a.emails.map((e) => e.id === email.id ? { ...e, isStarred: false } : e) }
+                  : a
+              ),
+            }));
+            if (isAllMode) setAllEmails((prev) => prev.map((item) => item.email.id === email.id && item.accountEmail === ownerAccountEmail ? { ...item, email: { ...item.email, isStarred: false } } : item));
+            toast.success('Stern entfernt');
+            break;
+          case 'spam':
+            await markAsSpam(at, email.id);
+            removeEmailFromList(ownerAcc.email, email.id);
+            toast.success('Als Spam markiert');
+            break;
+          case 'not_spam':
+            await markAsNotSpam(at, email.id);
+            removeEmailFromList(ownerAcc.email, email.id);
+            toast.success('Als kein Spam markiert');
+            break;
+        }
+      }
+    } catch (e: any) {
+      toast.error('Aktion fehlgeschlagen: ' + (e?.message ?? String(e)));
+    }
   };
 
   // Folder UI: in all-mode only show Gmail folders (inbox etc.) since mixed accounts
@@ -539,46 +678,96 @@ export function EmailList() {
 
         {displayEmails.map(({ email, accountEmail }) => {
           const unread = isEmailUnread(email.id, email.isUnread);
+          const ownerAcc = accounts.find((a) => a.email === accountEmail);
+          const ownerIsImap = ownerAcc?.type === 'imap';
+          const inSpam = !ownerIsImap && gmailFolder === 'spam';
+          const inArchive = !ownerIsImap && gmailFolder === 'archive';
+          const isStarred = !ownerIsImap && !!email.isStarred;
           return (
-            <button
-              key={`${accountEmail}-${email.id}`}
-              onClick={() => selectEmail(email, accountEmail)}
-              className={cn(
-                'w-full border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted/50',
-                selectedEmail?.id === email.id && 'bg-muted'
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {unread && <span className="shrink-0 h-2 w-2 rounded-full bg-primary" />}
-                  <span className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
-                    {senderName(email.from)}
-                  </span>
-                </div>
-                <span className={cn('shrink-0 text-xs', unread ? 'text-foreground font-semibold' : 'text-muted-foreground')}>
-                  {format(email.date)}
-                </span>
-              </div>
-              <div className="mt-0.5 flex items-center gap-1.5">
-                <p className={cn('truncate text-sm flex-1', unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80')}>
-                  {email.subject || '(kein Betreff)'}
-                </p>
-                {email.hasAttachment && (
-                  <span className="shrink-0 flex items-center gap-0.5 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                    <Paperclip className="h-3 w-3" />
-                    Anhang
-                  </span>
+            <ContextMenu key={`${accountEmail}-${email.id}`}>
+              <ContextMenuTrigger asChild>
+                <button
+                  onClick={() => selectEmail(email, accountEmail)}
+                  className={cn(
+                    'w-full border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted/50',
+                    selectedEmail?.id === email.id && 'bg-muted'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {unread && <span className="shrink-0 h-2 w-2 rounded-full bg-primary" />}
+                      <span className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
+                        {senderName(email.from)}
+                      </span>
+                    </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isStarred && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
+                    <span className={cn('text-xs', unread ? 'text-foreground font-semibold' : 'text-muted-foreground')}>
+                      {format(email.date)}
+                    </span>
+                  </div>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <p className={cn('truncate text-sm flex-1', unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80')}>
+                      {email.subject || '(kein Betreff)'}
+                    </p>
+                    {email.hasAttachment && (
+                      <span className="shrink-0 flex items-center gap-0.5 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                        <Paperclip className="h-3 w-3" />
+                        Anhang
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between gap-2">
+                    <p className="truncate text-xs text-muted-foreground flex-1">{email.snippet}</p>
+                    {isAllMode && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5 max-w-[100px] truncate">
+                        {accountEmail}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="w-52">
+                {unread
+                  ? <ContextMenuItem onSelect={() => handleContextAction('mark_read', email, accountEmail)}>✅ Als gelesen markieren</ContextMenuItem>
+                  : <ContextMenuItem onSelect={() => handleContextAction('mark_unread', email, accountEmail)}>🔵 Als ungelesen markieren</ContextMenuItem>
+                }
+                {ownerIsImap ? (
+                  <>
+                    <ContextMenuItem onSelect={() => handleContextAction('flag', email, accountEmail)}>🚩 Markieren (Flag)</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => handleContextAction('unflag', email, accountEmail)}>🏳 Markierung entfernen</ContextMenuItem>
+                  </>
+                ) : (
+                  <>
+                    {isStarred
+                      ? <ContextMenuItem onSelect={() => handleContextAction('unstar', email, accountEmail)}>★ Stern entfernen</ContextMenuItem>
+                      : <ContextMenuItem onSelect={() => handleContextAction('star', email, accountEmail)}>⭐ Mit Stern markieren</ContextMenuItem>
+                    }
+                  </>
                 )}
-              </div>
-              <div className="mt-0.5 flex items-center justify-between gap-2">
-                <p className="truncate text-xs text-muted-foreground flex-1">{email.snippet}</p>
-                {isAllMode && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5 max-w-[100px] truncate">
-                    {accountEmail}
-                  </span>
+                <ContextMenuSeparator />
+                {!ownerIsImap && !inArchive && (
+                  <ContextMenuItem onSelect={() => handleContextAction('archive', email, accountEmail)}>📦 Archivieren</ContextMenuItem>
                 )}
-              </div>
-            </button>
+                {!ownerIsImap && inArchive && (
+                  <ContextMenuItem onSelect={() => handleContextAction('unarchive', email, accountEmail)}>📥 In Posteingang</ContextMenuItem>
+                )}
+                {!ownerIsImap && !inSpam && (
+                  <ContextMenuItem onSelect={() => handleContextAction('spam', email, accountEmail)}>🛡 Als Spam markieren</ContextMenuItem>
+                )}
+                {!ownerIsImap && inSpam && (
+                  <ContextMenuItem onSelect={() => handleContextAction('not_spam', email, accountEmail)}>✅ Kein Spam</ContextMenuItem>
+                )}
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  onSelect={() => handleContextAction('delete', email, accountEmail)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  🗑 Löschen
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           );
         })}
 

@@ -54,6 +54,59 @@ export async function imapMarkRead(
   });
 }
 
+/** Delete an email via IMAP UID STORE \Deleted + EXPUNGE. */
+export async function imapDeleteEmail(
+  config: ImapConfig,
+  username: string,
+  uid: string,
+  folder = 'INBOX',
+): Promise<void> {
+  return invoke('imap_delete_email', {
+    host: config.imapHost,
+    port: config.imapPort,
+    username,
+    password: config.password,
+    uid,
+    folder,
+  });
+}
+
+/** Mark an email as unread via IMAP UID STORE -FLAGS \Seen. */
+export async function imapMarkUnread(
+  config: ImapConfig,
+  username: string,
+  uid: string,
+  folder = 'INBOX',
+): Promise<void> {
+  return invoke('imap_mark_unread', {
+    host: config.imapHost,
+    port: config.imapPort,
+    username,
+    password: config.password,
+    uid,
+    folder,
+  });
+}
+
+/** Toggle \Flagged flag on an IMAP email. */
+export async function imapToggleFlag(
+  config: ImapConfig,
+  username: string,
+  uid: string,
+  flagged: boolean,
+  folder = 'INBOX',
+): Promise<void> {
+  return invoke('imap_toggle_flag', {
+    host: config.imapHost,
+    port: config.imapPort,
+    username,
+    password: config.password,
+    uid,
+    flagged,
+    folder,
+  });
+}
+
 /** Send email via SMTP. */
 export async function smtpSendEmail(
   config: ImapConfig,

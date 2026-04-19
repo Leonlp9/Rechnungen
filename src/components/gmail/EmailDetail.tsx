@@ -5,12 +5,14 @@ import { imapFetchEmailDetail } from '@/lib/imap';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
-import { Loader2, FileText, Download, Eye, Reply } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Reply, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatFull } from '@/lib/emailDate';
 import { AttachmentPreview } from './AttachmentPreview';
 import { NewInvoiceDialog } from '@/components/invoices/NewInvoiceDialog';
 import { ComposeDialog } from './ComposeDialog';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -39,9 +41,10 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const [importDialog, setImportDialog] = useState<{
-    pdfPath: string; pdfName: string;
+    pdfPath: string; pdfName: string; isTemp?: boolean;
   } | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
+  const [convertingPdf, setConvertingPdf] = useState(false);
 
   // When selectedEmail changes and has no body yet → fetch detail
   useEffect(() => {
@@ -88,6 +91,10 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
   const handleIframeLoad = () => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
+    // Allow text selection inside the iframe
+    const style = doc.createElement('style');
+    style.textContent = '* { user-select: text !important; -webkit-user-select: text !important; cursor: auto; }';
+    doc.head.appendChild(style);
     doc.querySelectorAll('a[href]').forEach((el) => {
       const a = el as HTMLAnchorElement;
       a.addEventListener('click', (e) => {
@@ -126,6 +133,133 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
     }
   };
 
+  const convertEmailToPdf = async () => {
+    if (!selectedEmail) return;
+    setConvertingPdf(true);
+    const toastId = toast.loading('E-Mail wird als PDF erstellt…');
+    try {
+      // Build a full HTML document that looks like the email
+      const html = selectedEmail.bodyHtml || `<pre style="font-family:sans-serif;white-space:pre-wrap">${selectedEmail.bodyText || selectedEmail.snippet}</pre>`;
+
+      // Create an off-screen container isolated from the app's CSS variables
+      const container = document.createElement('div');
+      container.style.cssText = [
+        'position:fixed', 'left:-9999px', 'top:0',
+        'width:794px',
+        'background:#ffffff',
+        'color:#111827',
+        'font-family:Arial,Helvetica,sans-serif',
+        'font-size:13px',
+        'line-height:1.5',
+        'padding:32px',
+        'box-sizing:border-box',
+      ].join(';');
+
+      // Header + body – NO <style> tag here (would affect global DOM)
+      container.innerHTML = `
+        <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #e5e7eb;color:#111827;background:#ffffff">
+          <h1 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#111827;font-family:Arial,sans-serif">${selectedEmail.subject || '(kein Betreff)'}</h1>
+          <p style="margin:2px 0;font-size:12px;color:#6b7280;font-family:Arial,sans-serif"><strong>Von:</strong> ${selectedEmail.from}</p>
+          <p style="margin:2px 0;font-size:12px;color:#6b7280;font-family:Arial,sans-serif"><strong>Datum:</strong> ${formatFull(selectedEmail.date)}</p>
+        </div>
+        <div style="color:#111827;font-family:Arial,sans-serif">${html}</div>
+      `;
+      document.body.appendChild(container);
+
+      // Wait one frame for rendering
+      await new Promise((r) => requestAnimationFrame(r));
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 794,
+        onclone: (_clonedDoc, clonedEl) => {
+          // Patch oklch CSS variables only in the clone – never touches the real DOM
+          const style = clonedEl.ownerDocument.createElement('style');
+          style.textContent = `
+            *, *::before, *::after {
+              --background: #ffffff !important;
+              --foreground: #111827 !important;
+              --card: #ffffff !important;
+              --card-foreground: #111827 !important;
+              --popover: #ffffff !important;
+              --popover-foreground: #111827 !important;
+              --primary: #2563eb !important;
+              --primary-foreground: #ffffff !important;
+              --secondary: #f3f4f6 !important;
+              --secondary-foreground: #111827 !important;
+              --muted: #f3f4f6 !important;
+              --muted-foreground: #6b7280 !important;
+              --accent: #f3f4f6 !important;
+              --accent-foreground: #111827 !important;
+              --destructive: #ef4444 !important;
+              --border: #e5e7eb !important;
+              --input: #e5e7eb !important;
+              --ring: #2563eb !important;
+              color-scheme: light !important;
+            }
+            img { max-width: 100%; height: auto; }
+            table { border-collapse: collapse; }
+          `;
+          clonedEl.ownerDocument.head.appendChild(style);
+        },
+      });
+
+      document.body.removeChild(container);
+
+      // A4 dimensions in mm
+      const pageW = 210;
+      const pageH = 297;
+      const imgW = pageW;
+      const imgH = (canvas.height / canvas.width) * imgW;
+
+      const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+      if (imgH <= pageH) {
+        doc.addImage(imgData, 'JPEG', 0, 0, imgW, imgH);
+      } else {
+        // Multi-page: slice the canvas into page-height segments
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        const pxPerPage = Math.floor(canvas.width * (pageH / pageW));
+        let srcY = 0;
+        let firstPage = true;
+        while (srcY < canvas.height) {
+          const sliceH = Math.min(pxPerPage, canvas.height - srcY);
+          pageCanvas.height = sliceH;
+          const ctx = pageCanvas.getContext('2d')!;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pageCanvas.width, sliceH);
+          ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+          const sliceData = pageCanvas.toDataURL('image/jpeg', 0.92);
+          const sliceHMm = (sliceH / canvas.width) * pageW;
+          if (!firstPage) doc.addPage();
+          doc.addImage(sliceData, 'JPEG', 0, 0, pageW, sliceHMm);
+          srcY += sliceH;
+          firstPage = false;
+        }
+      }
+
+      const pdfName = `${(selectedEmail.subject || 'email').replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '_').slice(0, 60)}.pdf`;
+      const arrayBuffer = doc.output('arraybuffer');
+      const bytes = Array.from(new Uint8Array(arrayBuffer));
+      const base64 = btoa(bytes.map((b) => String.fromCharCode(b)).join(''));
+      const path = await invoke<string>('save_pdf_attachment', { filename: pdfName, dataBase64: base64 });
+      toast.dismiss(toastId);
+      toast.success('PDF erstellt!');
+      setImportDialog({ pdfPath: path, pdfName, isTemp: true });
+    } catch (e: any) {
+      toast.dismiss(toastId);
+      toast.error('PDF-Erstellung fehlgeschlagen: ' + (e?.message ?? String(e)));
+    } finally {
+      setConvertingPdf(false);
+    }
+  };
+
   if (!selectedEmail) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -143,17 +277,32 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
     <>
       <div className="flex h-full flex-col overflow-hidden">
         {/* Header */}
-        <div className="border-b border-border px-6 py-4">
+        <div className="border-b border-border px-6 py-4 select-text">
           <div className="flex items-start justify-between gap-2">
-            <h2 className="text-lg font-semibold leading-tight">
+            <h2 className="text-lg font-semibold leading-tight cursor-text">
               {selectedEmail.subject || '(kein Betreff)'}
             </h2>
-            <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setReplyOpen(true)}>
-              <Reply className="h-3.5 w-3.5" />
-              Antworten
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={convertEmailToPdf}
+                disabled={convertingPdf || isFetchingDetail}
+                title="E-Mail als PDF importieren"
+              >
+                {convertingPdf
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <FileDown className="h-3.5 w-3.5" />}
+                Als PDF importieren
+              </Button>
+              <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setReplyOpen(true)}>
+                <Reply className="h-3.5 w-3.5" />
+                Antworten
+              </Button>
+            </div>
           </div>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground cursor-text">
             <span><span className="font-medium text-foreground">Von:</span> {selectedEmail.from}</span>
             <span>{formatFull(selectedEmail.date)}</span>
           </div>
@@ -224,7 +373,7 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
               onLoad={handleIframeLoad}
             />
           ) : (
-            <pre className="whitespace-pre-wrap font-sans text-sm text-foreground/80">
+            <pre className="whitespace-pre-wrap font-sans text-sm text-foreground/80 select-text cursor-text">
               {selectedEmail.bodyText || selectedEmail.snippet || '(kein Inhalt)'}
             </pre>
           )}
@@ -243,7 +392,13 @@ export function EmailDetail({ onReply: _onReply }: { onReply?: () => void }) {
       {importDialog && (
         <NewInvoiceDialog
           open={true}
-          onClose={() => setImportDialog(null)}
+          onClose={(saved) => {
+            // If user cancelled and this was a temp conversion PDF, delete it
+            if (!saved && importDialog.isTemp) {
+              invoke('delete_invoice_file', { filename: importDialog.pdfName }).catch(() => {});
+            }
+            setImportDialog(null);
+          }}
           initialPdfPath={importDialog.pdfPath}
           initialPdfName={importDialog.pdfName}
         />

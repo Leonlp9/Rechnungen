@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { getSetting, setSetting } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation, Trash2 } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
@@ -21,7 +22,7 @@ const NAV_ITEMS_CONFIG = [
   { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2 },
   { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare },
   { to: '/lists', label: 'Listen', icon: ListTodo },
-  { to: '/gmail', label: 'Gmail', icon: Mail },
+  { to: '/gmail', label: 'Mail', icon: Mail },
   { to: '/settings', label: 'Einstellungen', icon: SettingsIcon },
   { to: '/help', label: 'Hilfe', icon: HelpCircle },
 ];
@@ -55,6 +56,7 @@ export default function SettingsPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
 
   // --- Dev-Preview für UpdateDialog ---
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -657,18 +659,39 @@ export default function SettingsPage() {
             </a>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={async () => {
-              setCheckingUpdate(true);
-              await checkForUpdates(false);
-              setCheckingUpdate(false);
-            }}
-            disabled={checkingUpdate}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${checkingUpdate ? 'animate-spin' : ''}`} />
-            {checkingUpdate ? 'Suche...' : 'Nach Updates suchen'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                setCheckingUpdate(true);
+                await checkForUpdates(false);
+                setCheckingUpdate(false);
+              }}
+              disabled={checkingUpdate}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${checkingUpdate ? 'animate-spin' : ''}`} />
+              {checkingUpdate ? 'Suche...' : 'Nach Updates suchen'}
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={async () => {
+                setClearingCache(true);
+                try {
+                  const deleted = await invoke<number>('cleanup_old_invoice_files', { days: 0 });
+                  toast.success(deleted > 0 ? `Cache geleert – ${deleted} Datei${deleted === 1 ? '' : 'en'} gelöscht` : 'Cache ist bereits leer');
+                } catch (e) {
+                  toast.error('Fehler beim Leeren des Caches: ' + String(e));
+                } finally {
+                  setClearingCache(false);
+                }
+              }}
+              disabled={clearingCache}
+            >
+              <Trash2 className={`mr-2 h-4 w-4 ${clearingCache ? 'animate-spin' : ''}`} />
+              {clearingCache ? 'Leere...' : 'Cache leeren'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

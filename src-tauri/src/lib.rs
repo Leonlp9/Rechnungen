@@ -353,6 +353,78 @@ async fn imap_mark_read(
     .map_err(|e| e.to_string())?
 }
 
+/// Delete an email via UID STORE \Deleted + EXPUNGE.
+#[tauri::command]
+async fn imap_delete_email(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    uid: String,
+    folder: Option<String>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let folder_name = folder.as_deref().unwrap_or("INBOX");
+        let folder_name = if folder_name.eq_ignore_ascii_case("FLAGGED") { "INBOX" } else { folder_name };
+        let mut session = imap_connect(&host, port, &username, &password)?;
+        session.select(folder_name).map_err(|e| format!("Ordner auswählen fehlgeschlagen: {e}"))?;
+        session.uid_store(&uid, "+FLAGS (\\Deleted)").map_err(|e| format!("Löschen fehlgeschlagen: {e}"))?;
+        session.expunge().map_err(|e| format!("Expunge fehlgeschlagen: {e}"))?;
+        let _ = session.logout();
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Mark an email as unread via UID STORE -FLAGS \Seen.
+#[tauri::command]
+async fn imap_mark_unread(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    uid: String,
+    folder: Option<String>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let folder_name = folder.as_deref().unwrap_or("INBOX");
+        let folder_name = if folder_name.eq_ignore_ascii_case("FLAGGED") { "INBOX" } else { folder_name };
+        let mut session = imap_connect(&host, port, &username, &password)?;
+        session.select(folder_name).map_err(|e| format!("Ordner auswählen fehlgeschlagen: {e}"))?;
+        session.uid_store(&uid, "-FLAGS (\\Seen)").map_err(|e| format!("Als ungelesen markieren fehlgeschlagen: {e}"))?;
+        let _ = session.logout();
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Toggle \Flagged flag on an email.
+#[tauri::command]
+async fn imap_toggle_flag(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    uid: String,
+    flagged: bool,
+    folder: Option<String>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let folder_name = folder.as_deref().unwrap_or("INBOX");
+        let folder_name = if folder_name.eq_ignore_ascii_case("FLAGGED") { "INBOX" } else { folder_name };
+        let mut session = imap_connect(&host, port, &username, &password)?;
+        session.select(folder_name).map_err(|e| format!("Ordner auswählen fehlgeschlagen: {e}"))?;
+        let flag_op = if flagged { "+FLAGS (\\Flagged)" } else { "-FLAGS (\\Flagged)" };
+        session.uid_store(&uid, flag_op).map_err(|e| format!("Flag-Änderung fehlgeschlagen: {e}"))?;
+        let _ = session.logout();
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Send email via SMTP (STARTTLS on port 587, TLS on port 465).
 #[tauri::command]
 async fn smtp_send_email(
@@ -420,6 +492,56 @@ async fn smtp_send_email(
     .map_err(|e| e.to_string())?
 }
 
+/// Delete a file from the invoices directory (used to clean up temporary PDFs).
+#[tauri::command]
+fn delete_invoice_file(app: tauri::AppHandle, filename: String) -> Result<(), String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("AppData-Pfad nicht gefunden: {e}"))?;
+    let safe_name = filename
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .collect::<String>();
+    let path = app_data.join("invoices").join(&safe_name);
+    if path.exists() {
+        std::fs::remove_file(&path).map_err(|e| format!("Datei konnte nicht gelöscht werden: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Clean up invoice files older than `days` days.
+#[tauri::command]
+fn cleanup_old_invoice_files(app: tauri::AppHandle, days: u64) -> Result<u32, String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("AppData-Pfad nicht gefunden: {e}"))?;
+    let invoices_dir = app_data.join("invoices");
+    if !invoices_dir.exists() {
+        return Ok(0);
+    }
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days * 86_400))
+        .unwrap_or(std::time::UNIX_EPOCH);
+    let mut deleted = 0u32;
+    if let Ok(entries) = std::fs::read_dir(&invoices_dir) {
+        for entry in entries.flatten() {
+            if let Ok(meta) = entry.metadata() {
+                if meta.is_file() {
+                    if let Ok(modified) = meta.modified() {
+                        if modified < cutoff {
+                            let _ = std::fs::remove_file(entry.path());
+                            deleted += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(deleted)
+}
+
 // ── App entry point ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -438,7 +560,12 @@ pub fn run() {
             imap_fetch_emails,
             imap_fetch_email_detail,
             imap_mark_read,
+            imap_delete_email,
+            imap_mark_unread,
+            imap_toggle_flag,
             smtp_send_email,
+            delete_invoice_file,
+            cleanup_old_invoice_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

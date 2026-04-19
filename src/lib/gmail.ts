@@ -53,6 +53,7 @@ export interface GmailMessage {
   attachments: GmailAttachment[];
   hasAttachment: boolean;
   isUnread: boolean;
+  isStarred?: boolean;
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -250,7 +251,7 @@ export async function fetchEmails(
   maxResults = 30,
   pageToken?: string,
   extraQuery?: string,
-  folder: 'inbox' | 'sent' | 'drafts' | 'starred' | 'purchases' | 'spam' = 'inbox'
+  folder: 'inbox' | 'sent' | 'drafts' | 'starred' | 'purchases' | 'spam' | 'archive' = 'inbox'
 ): Promise<{ messages: GmailMessage[]; nextPageToken?: string }> {
   // Build base query from folder
   let baseQuery: string;
@@ -260,6 +261,7 @@ export async function fetchEmails(
     case 'starred':    baseQuery = 'is:starred'; break;
     case 'purchases':  baseQuery = 'category:purchases'; break;
     case 'spam':       baseQuery = 'in:spam'; break;
+    case 'archive':    baseQuery = '-in:inbox -in:spam -in:trash'; break;
     default:           baseQuery = 'in:inbox'; break;
   }
   const q = extraQuery ? `${baseQuery} ${extraQuery}` : baseQuery;
@@ -286,6 +288,7 @@ export async function fetchEmails(
         mimeType.startsWith('multipart/mixed') ||
         mimeType.startsWith('multipart/related');
       const isUnread = Array.isArray(msg.labelIds) && msg.labelIds.includes('UNREAD');
+      const isStarred = Array.isArray(msg.labelIds) && msg.labelIds.includes('STARRED');
       return {
         id: msg.id,
         threadId: msg.threadId,
@@ -298,6 +301,7 @@ export async function fetchEmails(
         attachments: [],
         hasAttachment,
         isUnread,
+        isStarred,
       } as GmailMessage;
     })
   );
@@ -409,6 +413,90 @@ export async function markMessageAsRead(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
+    }
+  );
+}
+
+export async function deleteEmail(
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/trash`,
+    { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+}
+
+export async function archiveEmail(
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ removeLabelIds: ['INBOX'] }),
+    }
+  );
+}
+
+export async function markMessageAsUnread(
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addLabelIds: ['UNREAD'] }),
+    }
+  );
+}
+
+export async function toggleStar(
+  accessToken: string,
+  messageId: string,
+  starred: boolean,
+): Promise<void> {
+  const body = starred
+    ? { addLabelIds: ['STARRED'] }
+    : { removeLabelIds: ['STARRED'] };
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  );
+}
+
+export async function markAsSpam(
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addLabelIds: ['SPAM'], removeLabelIds: ['INBOX'] }),
+    }
+  );
+}
+
+export async function markAsNotSpam(
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ removeLabelIds: ['SPAM'], addLabelIds: ['INBOX'] }),
     }
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -45,7 +46,7 @@ type FormData = z.infer<typeof schema>;
 
 interface Props {
   open: boolean;
-  onClose: () => void;
+  onClose: (saved?: boolean) => void;
   initialPdfPath?: string;
   initialPdfName?: string;
 }
@@ -180,7 +181,13 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       const all = await getAllInvoices();
       setInvoices(all);
       toast.success('Rechnung gespeichert!');
-      handleClose();
+      // Delete the temp file from invoices/ – it's now safely copied to pdfs/
+      if (pdfPath?.includes('invoices')) {
+        const fname = pdfPath.split(/[\\/]/).pop();
+        if (fname) invoke('delete_invoice_file', { filename: fname }).catch(() => {});
+      }
+      reset();
+      onClose(true);
     } catch (e) {
       toast.error('Fehler beim Speichern: ' + String(e));
     } finally {

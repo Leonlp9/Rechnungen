@@ -40,6 +40,8 @@ interface GmailState {
   updateAccountToken: (email: string, token: GmailToken) => void;
   updateAccountEmails: (email: string, emails: GmailMessage[], nextPageToken?: string) => void;
   markEmailAsRead: (accountEmail: string, messageId: string) => void;
+  markEmailAsUnread: (accountEmail: string, messageId: string) => void;
+  removeEmailFromList: (accountEmail: string, messageId: string) => void;
 
   // active account helpers (derived)
   setSelectedEmail: (email: GmailMessage | null) => void;
@@ -112,9 +114,35 @@ export const useGmailStore = create<GmailState>()(
         })),
 
       setSelectedEmail: (selectedEmail) => set({ selectedEmail }),
+
+      markEmailAsUnread: (accountEmail, messageId) =>
+        set((s) => ({
+          accounts: s.accounts.map((a) =>
+            a.email === accountEmail
+              ? {
+                  ...a,
+                  readEmailIds: a.readEmailIds.filter((id) => id !== messageId),
+                  emails: a.emails.map((e) =>
+                    e.id === messageId ? { ...e, isUnread: true } : e
+                  ),
+                }
+              : a
+          ),
+        })),
+
       setLoading: (isLoading) => set({ isLoading }),
       setFetchingDetail: (isFetchingDetail) => set({ isFetchingDetail }),
       setDetailAccountEmail: (detailAccountEmail) => set({ detailAccountEmail }),
+
+      removeEmailFromList: (accountEmail, messageId) =>
+        set((s) => ({
+          accounts: s.accounts.map((a) =>
+            a.email === accountEmail
+              ? { ...a, emails: a.emails.filter((e) => e.id !== messageId) }
+              : a
+          ),
+          selectedEmail: s.selectedEmail?.id === messageId ? null : s.selectedEmail,
+        })),
     }),
     {
       name: 'gmail-auth-v2',
