@@ -41,7 +41,8 @@ export type ElementType =
   | 'kpi-gesamt-avg-yearly-ausgaben'
   | 'kpi-gesamt-marge'
   | 'chart-gesamt-revenue'
-  | 'chart-gesamt-cashflow';
+  | 'chart-gesamt-cashflow'
+  | 'list-abos';
 
 export type GridType =
   | 'grid-vertical'
@@ -94,6 +95,7 @@ export type NodeType =
   | 'kpi-gesamt-marge'
   | 'chart-gesamt-revenue'
   | 'chart-gesamt-cashflow'
+  | 'list-abos'
   | 'grid-vertical'
   | 'grid-horizontal'
   | 'grid-pages'
@@ -410,6 +412,7 @@ export const DEFAULT_LAYOUT: DashboardNode = {
                     { id: 'e28', type: 'list-recent-emails' },
                   ],
                 },
+                { id: 'e29', type: 'list-abos' },
               ],
             },
           ],

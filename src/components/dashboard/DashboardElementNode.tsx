@@ -20,6 +20,7 @@ import { MonatsuebersichtCard } from './MonatsuebersichtCard';
 import { KleinunternehmerCard } from './KleinunternehmerCard';
 import { GesamtRevenueChart } from './GesamtRevenueChart';
 import { GesamtCashflowChart } from './GesamtCashflowChart';
+import { AboList } from './AboList';
 import { useAppStore } from '@/store';
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
@@ -358,6 +359,10 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
       return (
         <GesamtCashflowChart loading={loading} invoices={invoices} privacyMode={privacyMode} />
       );
+    case 'list-abos':
+      return (
+        <AboList loading={loading} invoices={invoices} privacyMode={privacyMode} />
+      );
 
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
@@ -406,5 +411,6 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'kpi-gesamt-marge': 'Ø Gewinnmarge (gesamt)',
   'chart-gesamt-revenue': 'Jahresvergleich-Chart (gesamt)',
   'chart-gesamt-cashflow': 'Cashflow-Chart (alle Jahre)',
+  'list-abos': 'Aktive Abos',
 };
 
