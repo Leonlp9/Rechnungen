@@ -42,6 +42,16 @@ export interface DashboardData {
   forecastAus: number;
   forecastItems: ReturnType<typeof forecastCurrentMonth>;
   lastTen: Invoice[];
+  // Gesamt (alle Jahre)
+  gesamtEinnahmen: number;
+  gesamtAusgaben: number;
+  gesamtSaldo: number;
+  gesamtBelege: number;
+  gesamtBestesJahr: { year: number; einnahmen: number } | null;
+  gesamtAvgYearlyEinnahmen: number;
+  gesamtAvgYearlyAusgaben: number;
+  gesamtMarge: number;
+  gesamtByYear: { year: number; einnahmen: number; ausgaben: number }[];
 }
 
 export function useDashboardData(): DashboardData {
@@ -135,6 +145,42 @@ export function useDashboardData(): DashboardData {
 
   const lastTen = yearInvoices.slice(0, 10);
 
+  // ── Gesamt-Kennzahlen (alle Jahre) ───────────────────────────────────────
+  const gesamtData = useMemo(() => {
+    const gesamtEinnahmen = invoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
+    const gesamtAusgaben = invoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+    const gesamtSaldo = gesamtEinnahmen - gesamtAusgaben;
+    const gesamtBelege = invoices.length;
+
+    // Per-year aggregates
+    const yearMap = new Map<number, { einnahmen: number; ausgaben: number }>();
+    for (const inv of invoices) {
+      if (!yearMap.has(inv.year)) yearMap.set(inv.year, { einnahmen: 0, ausgaben: 0 });
+      const entry = yearMap.get(inv.year)!;
+      if (inv.type === 'einnahme') entry.einnahmen += inv.brutto;
+      else entry.ausgaben += inv.brutto;
+    }
+    const gesamtByYear = Array.from(yearMap.entries())
+      .map(([year, v]) => ({ year, ...v }))
+      .sort((a, b) => a.year - b.year);
+
+    const numYears = gesamtByYear.length || 1;
+    const gesamtAvgYearlyEinnahmen = gesamtEinnahmen / numYears;
+    const gesamtAvgYearlyAusgaben = gesamtAusgaben / numYears;
+
+    const gesamtBestesJahr = gesamtByYear.length
+      ? gesamtByYear.reduce((best, cur) => cur.einnahmen > best.einnahmen ? cur : best)
+      : null;
+
+    const gesamtMarge = gesamtEinnahmen > 0 ? ((gesamtEinnahmen - gesamtAusgaben) / gesamtEinnahmen) * 100 : 0;
+
+    return {
+      gesamtEinnahmen, gesamtAusgaben, gesamtSaldo, gesamtBelege,
+      gesamtBestesJahr, gesamtAvgYearlyEinnahmen, gesamtAvgYearlyAusgaben,
+      gesamtMarge, gesamtByYear,
+    };
+  }, [invoices]);
+
   return {
     loading,
     invoices,
@@ -168,6 +214,7 @@ export function useDashboardData(): DashboardData {
     forecastAus,
     forecastItems,
     lastTen,
+    ...gesamtData,
   };
 }
 

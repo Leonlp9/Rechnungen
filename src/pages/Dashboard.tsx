@@ -248,6 +248,17 @@ export default function Dashboard() {
     doReorder(newLayout); setLayout(newLayout);
   }, [layout, setLayout]);
 
+  const handleUpdateNodeProps = useCallback((nodeId: string, props: Record<string, unknown>) => {
+    const newLayout = JSON.parse(JSON.stringify(layout));
+    function doUpdate(node: DashboardNode): boolean {
+      if (node.id === nodeId) { node.props = props; return true; }
+      if (node.children) for (const c of node.children) if (doUpdate(c)) return true;
+      if (node.pages) for (const p of node.pages) for (const c of p.children) if (doUpdate(c)) return true;
+      return false;
+    }
+    doUpdate(newLayout); setLayout(newLayout);
+  }, [layout, setLayout]);
+
   const handleReset = () => {
     setConfirmReset(true);
   };
@@ -333,6 +344,7 @@ export default function Dashboard() {
               onDeletePage={handleDeletePage}
               onRenamePage={handleRenamePage}
               onReorderPages={handleReorderPages}
+              onUpdateNodeProps={handleUpdateNodeProps}
             />
           </div>
 

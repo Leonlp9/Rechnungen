@@ -18,9 +18,12 @@ import { TopPartnerCard } from './TopPartnerCard';
 import { JahresvergleichCard } from './JahresvergleichCard';
 import { MonatsuebersichtCard } from './MonatsuebersichtCard';
 import { KleinunternehmerCard } from './KleinunternehmerCard';
+import { GesamtRevenueChart } from './GesamtRevenueChart';
+import { GesamtCashflowChart } from './GesamtCashflowChart';
 import { useAppStore } from '@/store';
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
+  Star, BarChart3,
 } from 'lucide-react';
 import { fmtCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -54,6 +57,9 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
     forecastEin, forecastAus,
     yearInvoices, invoices, lastTen, prevYearInvoices,
     selectedMonth, selectedYear,
+    gesamtEinnahmen, gesamtAusgaben, gesamtSaldo, gesamtBelege,
+    gesamtBestesJahr, gesamtAvgYearlyEinnahmen, gesamtAvgYearlyAusgaben,
+    gesamtMarge, gesamtByYear,
   } = ctx;
 
 
@@ -285,6 +291,74 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
           privacyMode={privacyMode}
         />
       );
+
+    // ── Gesamt-Elemente (alle Jahre) ──────────────────────────────────────────
+    case 'kpi-gesamt-einnahmen':
+      return (
+        <KPICard loading={loading} title="Einnahmen gesamt"
+          value={fmtCurrency(gesamtEinnahmen, privacyMode)}
+          icon={<TrendingUp className="h-4 w-4 text-green-600" />}
+          tooltip="Summe aller Einnahmen über alle Jahre" />
+      );
+    case 'kpi-gesamt-ausgaben':
+      return (
+        <KPICard loading={loading} title="Ausgaben gesamt"
+          value={fmtCurrency(gesamtAusgaben, privacyMode)}
+          icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+          tooltip="Summe aller Ausgaben über alle Jahre" />
+      );
+    case 'kpi-gesamt-saldo':
+      return (
+        <KPICard loading={loading} title="Saldo gesamt"
+          value={fmtCurrency(gesamtSaldo, privacyMode)}
+          icon={<Euro className="h-4 w-4 text-primary" />}
+          tooltip="Einnahmen minus Ausgaben über alle Jahre" />
+      );
+    case 'kpi-gesamt-belege':
+      return (
+        <KPICard loading={loading} title="Belege gesamt"
+          value={String(gesamtBelege)}
+          icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+          tooltip="Gesamtanzahl aller erfassten Belege" />
+      );
+    case 'kpi-gesamt-bestes-jahr':
+      return (
+        <KPICard loading={loading} title="Bestes Jahr"
+          value={gesamtBestesJahr ? String(gesamtBestesJahr.year) : '–'}
+          icon={<Star className="h-4 w-4 text-amber-500" />}
+          tooltip={gesamtBestesJahr ? `${gesamtBestesJahr.year} hatte die höchsten Einnahmen: ${fmtCurrency(gesamtBestesJahr.einnahmen, privacyMode)}` : 'Noch keine Daten'} />
+      );
+    case 'kpi-gesamt-avg-yearly-einnahmen':
+      return (
+        <KPICard loading={loading} title="Ø Einnahmen / Jahr"
+          value={fmtCurrency(gesamtAvgYearlyEinnahmen, privacyMode)}
+          icon={<TrendingUp className="h-4 w-4 text-green-600" />}
+          tooltip="Durchschnittliche Einnahmen pro Jahr" />
+      );
+    case 'kpi-gesamt-avg-yearly-ausgaben':
+      return (
+        <KPICard loading={loading} title="Ø Ausgaben / Jahr"
+          value={fmtCurrency(gesamtAvgYearlyAusgaben, privacyMode)}
+          icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+          tooltip="Durchschnittliche Ausgaben pro Jahr" />
+      );
+    case 'kpi-gesamt-marge': {
+      return (
+        <KPICard loading={loading} title="Ø Gewinnmarge (gesamt)"
+          value={`${gesamtMarge.toFixed(1)} %`}
+          icon={<BarChart3 className="h-4 w-4 text-violet-500" />}
+          tooltip="Durchschnittliche Gewinnmarge über alle Jahre: (Einnahmen − Ausgaben) / Einnahmen × 100" />
+      );
+    }
+    case 'chart-gesamt-revenue':
+      return (
+        <GesamtRevenueChart loading={loading} data={gesamtByYear} privacyMode={privacyMode} />
+      );
+    case 'chart-gesamt-cashflow':
+      return (
+        <GesamtCashflowChart loading={loading} invoices={invoices} privacyMode={privacyMode} />
+      );
+
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
   }
@@ -321,5 +395,16 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'list-recent-emails': 'Letzte E-Mails',
   'list-recent-invoices': 'Letzte 10 Belege',
   'kpi-kleinunternehmer': 'Kleinunternehmergrenze',
+  // Gesamt
+  'kpi-gesamt-einnahmen': 'Einnahmen gesamt',
+  'kpi-gesamt-ausgaben': 'Ausgaben gesamt',
+  'kpi-gesamt-saldo': 'Saldo gesamt',
+  'kpi-gesamt-belege': 'Belege gesamt',
+  'kpi-gesamt-bestes-jahr': 'Bestes Jahr',
+  'kpi-gesamt-avg-yearly-einnahmen': 'Ø Einnahmen / Jahr',
+  'kpi-gesamt-avg-yearly-ausgaben': 'Ø Ausgaben / Jahr',
+  'kpi-gesamt-marge': 'Ø Gewinnmarge (gesamt)',
+  'chart-gesamt-revenue': 'Jahresvergleich-Chart (gesamt)',
+  'chart-gesamt-cashflow': 'Cashflow-Chart (alle Jahre)',
 };
 

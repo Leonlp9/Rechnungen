@@ -49,12 +49,13 @@ interface GridNodeProps {
   onDeletePage: (gridId: string, pageId: string) => void;
   onRenamePage: (gridId: string, pageId: string, label: string) => void;
   onReorderPages: (gridId: string, newPageIds: string[]) => void;
+  onUpdateNodeProps: (nodeId: string, props: Record<string, unknown>) => void;
   depth?: number;
 }
 
 export function DashboardGridNode({
   node, editMode, overContainerId, overItemId, activeDragId,
-  onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, depth = 0,
+  onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, onUpdateNodeProps, depth = 0,
 }: GridNodeProps) {
   const [activePageId, setActivePageId] = useState<string | undefined>(
     node.type === 'grid-pages' ? node.pages?.[0]?.id : undefined,
@@ -144,7 +145,7 @@ export function DashboardGridNode({
                 <button
                   key={cols}
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); /* TODO: update props */ }}
+                  onClick={(e) => { e.stopPropagation(); onUpdateNodeProps(node.id, { ...node.props, columns: cols }); }}
                   className={cn(
                     'text-[10px] px-1.5 py-0.5 rounded border transition-colors',
                     bentoColumns === cols
@@ -239,6 +240,7 @@ export function DashboardGridNode({
                   onDeletePage={onDeletePage}
                   onRenamePage={onRenamePage}
                   onReorderPages={onReorderPages}
+                  onUpdateNodeProps={onUpdateNodeProps}
                   depth={depth + 1}
                 />
               </>
@@ -274,6 +276,7 @@ interface SortableItemProps {
   onDeletePage: (gridId: string, pageId: string) => void;
   onRenamePage: (gridId: string, pageId: string, label: string) => void;
   onReorderPages: (gridId: string, newPageIds: string[]) => void;
+  onUpdateNodeProps: (nodeId: string, props: Record<string, unknown>) => void;
   depth: number;
 }
 
@@ -281,7 +284,7 @@ function SortableItem({
   node, editMode, isHorizontal, itemIndex,
   isSidebar, isBento, isMasonry, isAccordion, accordionOpen, onAccordionToggle,
   overContainerId, overItemId, activeDragId,
-  onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, depth,
+  onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, onUpdateNodeProps, depth,
 }: SortableItemProps) {
   const isGrid = isGridType(node.type);
   const hasSettings = !isGrid && ELEMENTS_WITH_SETTINGS.has(node.type);
@@ -424,6 +427,7 @@ function SortableItem({
             onDeletePage={onDeletePage}
             onRenamePage={onRenamePage}
             onReorderPages={onReorderPages}
+            onUpdateNodeProps={onUpdateNodeProps}
             depth={depth}
           />
         ) : (

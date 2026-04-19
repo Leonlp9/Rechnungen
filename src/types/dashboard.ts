@@ -30,7 +30,18 @@ export type ElementType =
   | 'list-top-einnahmen'
   | 'card-monatsuebersicht'
   | 'card-jahresvergleich'
-  | 'kpi-kleinunternehmer';
+  | 'kpi-kleinunternehmer'
+  // ── Gesamt (alle Jahre) ──
+  | 'kpi-gesamt-einnahmen'
+  | 'kpi-gesamt-ausgaben'
+  | 'kpi-gesamt-saldo'
+  | 'kpi-gesamt-belege'
+  | 'kpi-gesamt-bestes-jahr'
+  | 'kpi-gesamt-avg-yearly-einnahmen'
+  | 'kpi-gesamt-avg-yearly-ausgaben'
+  | 'kpi-gesamt-marge'
+  | 'chart-gesamt-revenue'
+  | 'chart-gesamt-cashflow';
 
 export type GridType =
   | 'grid-vertical'
@@ -72,6 +83,17 @@ export type NodeType =
   | 'card-monatsuebersicht'
   | 'card-jahresvergleich'
   | 'kpi-kleinunternehmer'
+  // ── Gesamt (alle Jahre) ──
+  | 'kpi-gesamt-einnahmen'
+  | 'kpi-gesamt-ausgaben'
+  | 'kpi-gesamt-saldo'
+  | 'kpi-gesamt-belege'
+  | 'kpi-gesamt-bestes-jahr'
+  | 'kpi-gesamt-avg-yearly-einnahmen'
+  | 'kpi-gesamt-avg-yearly-ausgaben'
+  | 'kpi-gesamt-marge'
+  | 'chart-gesamt-revenue'
+  | 'chart-gesamt-cashflow'
   | 'grid-vertical'
   | 'grid-horizontal'
   | 'grid-pages'
@@ -448,6 +470,35 @@ export const DEFAULT_LAYOUT: DashboardNode = {
             // Zeile 3 – Partner + Monatsübersicht
             { id: 'g7', type: 'list-top-partner',         props: { colSpan: 2 } },
             { id: 'g8', type: 'card-monatsuebersicht',    props: { colSpan: 2 } },
+          ],
+        },
+      ],
+    },
+
+    // ── Seite 6: Gesamt (alle Jahre) ─────────────────────────────────────────
+    {
+      id: 'page6',
+      label: '🌍 Gesamt',
+      children: [
+        {
+          id: 'b6',
+          type: 'grid-bento',
+          props: { columns: 4 },
+          children: [
+            // Zeile 1 – Gesamt-KPIs
+            { id: 'h1', type: 'kpi-gesamt-einnahmen',             props: { colSpan: 1 } },
+            { id: 'h2', type: 'kpi-gesamt-ausgaben',              props: { colSpan: 1 } },
+            { id: 'h3', type: 'kpi-gesamt-saldo',                 props: { colSpan: 1 } },
+            { id: 'h4', type: 'kpi-gesamt-belege',                props: { colSpan: 1 } },
+            // Zeile 2 – Jahresvergleichs-Chart groß + bestes Jahr
+            { id: 'h5', type: 'chart-gesamt-revenue',             props: { colSpan: 3 } },
+            { id: 'h6', type: 'kpi-gesamt-bestes-jahr',           props: { colSpan: 1 } },
+            // Zeile 3 – Cashflow über alle Jahre (volle Breite)
+            { id: 'h9b', type: 'chart-gesamt-cashflow',           props: { colSpan: 4 } },
+            // Zeile 4 – Durchschnittswerte + Marge
+            { id: 'h7', type: 'kpi-gesamt-avg-yearly-einnahmen',  props: { colSpan: 1 } },
+            { id: 'h8', type: 'kpi-gesamt-avg-yearly-ausgaben',   props: { colSpan: 1 } },
+            { id: 'h9', type: 'kpi-gesamt-marge',                 props: { colSpan: 2 } },
           ],
         },
       ],

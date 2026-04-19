@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
 } from 'recharts';
@@ -8,11 +8,11 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Invoice } from '@/types';
+import { ClickableLegend } from './ClickableLegend';
 
 const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -31,16 +31,8 @@ interface Props {
 }
 
 export function CashflowChart({ loading, invoices, privacyMode }: Props) {
-  if (loading) {
-    return (
-      <Card className="rounded-xl shadow-sm h-full flex flex-col">
-        <CardHeader><Skeleton className="h-5 w-40" /></CardHeader>
-        <CardContent className="flex-1 min-h-0 pb-4">
-          <Skeleton className="h-full min-h-[220px] w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const toggle = (key: string) => setHidden((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   // Build month-by-month cumulative cashflow
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -54,6 +46,17 @@ export function CashflowChart({ loading, invoices, privacyMode }: Props) {
       return { name, Monatssaldo: ein - aus, Kumuliert: cumulative };
     });
   }, [invoices]);
+
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm h-full flex flex-col">
+        <CardHeader><Skeleton className="h-5 w-40" /></CardHeader>
+        <CardContent className="flex-1 min-h-0 pb-4">
+          <Skeleton className="h-full min-h-[220px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   const hasData = invoices.length > 0;
 
@@ -70,43 +73,14 @@ export function CashflowChart({ loading, invoices, privacyMode }: Props) {
           <ChartContainer config={chartConfig} className="h-[280px] w-full">
             <LineChart data={data}>
               <CartesianGrid vertical={false} className="stroke-border/50" />
-              <XAxis
-                dataKey="name"
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-                width={80}
-                tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))}
-                  />
-                }
-              />
-              <ChartLegend content={<ChartLegendContent />} />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} width={80}
+                tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)} />
+              <ChartTooltip content={<ChartTooltipContent formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))} />} />
+              <ChartLegend content={<ClickableLegend hiddenKeys={hidden} onToggle={toggle} />} />
               <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 2" />
-              <Line
-                type="monotone"
-                dataKey="Kumuliert"
-                stroke="var(--color-Kumuliert)"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="Monatssaldo"
-                stroke="var(--color-Monatssaldo)"
-                strokeWidth={2}
-                dot={false}
-                strokeDasharray="4 2"
-              />
+              <Line type="monotone" dataKey="Kumuliert" stroke="var(--color-Kumuliert)" strokeWidth={2} dot={false} hide={hidden.has('Kumuliert')} />
+              <Line type="monotone" dataKey="Monatssaldo" stroke="var(--color-Monatssaldo)" strokeWidth={2} dot={false} strokeDasharray="4 2" hide={hidden.has('Monatssaldo')} />
             </LineChart>
           </ChartContainer>
         )}
