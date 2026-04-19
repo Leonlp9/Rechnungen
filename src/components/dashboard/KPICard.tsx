@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 
@@ -8,9 +9,24 @@ interface KPICardProps {
   delta?: number;
   icon?: React.ReactNode;
   tooltip?: string;
+  loading?: boolean;
 }
 
-export function KPICard({ title, value, delta, icon, tooltip }: KPICardProps) {
+export function KPICard({ title, value, delta, icon, tooltip, loading }: KPICardProps) {
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-4 w-4 rounded-full" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-8 w-24 mb-2" />
+          <Skeleton className="h-3 w-32" />
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card className="rounded-xl shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between pb-2">

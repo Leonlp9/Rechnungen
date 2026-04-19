@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PinboardData, PinItem } from '@/store/listsStore';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, StickyNote, GripHorizontal } from 'lucide-react';
+import { Plus, Trash2, StickyNote, GripHorizontal, ImageIcon } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 
 const NOTE_COLORS = [
   '#fef9c3', '#dcfce7', '#dbeafe', '#fce7f3', '#ede9fe', '#fed7aa', '#ffffff',
@@ -9,6 +10,15 @@ const NOTE_COLORS = [
 
 function newId() {
   return `pin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function readImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 interface Props {
@@ -19,9 +29,53 @@ interface Props {
 
 export function Pinboard({ data, onChange, listName }: Props) {
   const boardRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const addImageItem = useCallback((src: string) => {
+    const d = dataRef.current;
+    const item: PinItem = {
+      id: newId(),
+      x: Math.max(0, -d.offsetX + 60),
+      y: Math.max(0, -d.offsetY + 60),
+      width: 240,
+      height: 180,
+      content: src,
+      color: '#ffffff',
+      type: 'image',
+    };
+    onChange({ ...d, items: [...d.items, item] });
+  }, [onChange]);
+
+  // Global paste handler – catches Ctrl+V anywhere on the board
+  useEffect(() => {
+    const onPaste = async (e: ClipboardEvent) => {
+      if (!boardRef.current) return;
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const imgItem = items.find((it) => it.type.startsWith('image/'));
+      if (!imgItem) return;
+      e.preventDefault();
+      const file = imgItem.getAsFile();
+      if (!file) return;
+      const src = await readImageFile(file);
+      addImageItem(src);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [addImageItem]);
+
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const src = await readImageFile(file);
+    addImageItem(src);
+    e.target.value = '';
+  };
 
   const updateItem = (item: PinItem) => {
     onChange({ ...data, items: data.items.map((i) => (i.id === item.id ? item : i)) });
@@ -118,13 +172,19 @@ export function Pinboard({ data, onChange, listName }: Props) {
         <div>
           <h2 className="text-xl font-semibold">{listName}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {data.items.length} Notizen · Alt+Drag zum Bewegen des Boards · Mittlere Maustaste zum Panning
+            {data.items.length} Einträge · Alt+Drag zum Bewegen · Strg+V zum Einfügen von Bildern
           </p>
         </div>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={addNote}>
-          <Plus className="h-4 w-4 mr-1" />
-          <StickyNote className="h-4 w-4 mr-1" /> Notiz
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button size="sm" variant="outline" onClick={addNote}>
+            <Plus className="h-4 w-4 mr-1" />
+            <StickyNote className="h-4 w-4 mr-1" /> Notiz
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <ImageIcon className="h-4 w-4 mr-1" /> Bild
+          </Button>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
+        </div>
         <Button
           size="sm"
           variant="ghost"
@@ -155,7 +215,7 @@ export function Pinboard({ data, onChange, listName }: Props) {
                 top: item.y,
                 width: item.width,
                 height: item.height,
-                background: item.color,
+                background: item.type === 'image' ? '#1a1a1a' : item.color,
               }}
             >
               {/* Drag handle */}
@@ -163,10 +223,9 @@ export function Pinboard({ data, onChange, listName }: Props) {
                 className="flex items-center justify-between px-2 pt-1.5 pb-1 cursor-grab active:cursor-grabbing shrink-0"
                 onMouseDown={(e) => startDrag(e, item)}
               >
-                <GripHorizontal className="h-3.5 w-3.5 text-black/30" />
-                {/* Color dots */}
+                <GripHorizontal className="h-3.5 w-3.5 text-black/30" style={{ color: item.type === 'image' ? 'rgba(255,255,255,0.3)' : undefined }} />
                 <div className="hidden group-hover:flex gap-1 items-center">
-                  {NOTE_COLORS.map((c) => (
+                  {item.type === 'note' && NOTE_COLORS.map((c) => (
                     <button
                       key={c}
                       className="w-3 h-3 rounded-full border border-black/20 hover:scale-125 transition-transform"
@@ -177,7 +236,7 @@ export function Pinboard({ data, onChange, listName }: Props) {
                   ))}
                   <button
                     onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => deleteItem(item.id)}
+                    onClick={() => setConfirmDeleteId(item.id)}
                     className="ml-1 text-red-400 hover:text-red-600 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -186,16 +245,26 @@ export function Pinboard({ data, onChange, listName }: Props) {
               </div>
 
               {/* Content */}
-              <textarea
-                className="flex-1 w-full resize-none bg-transparent text-sm px-3 pb-2 outline-none text-gray-800 placeholder-gray-400"
-                placeholder="Notiz…"
-                value={item.content}
-                autoFocus={editingId === item.id}
-                onFocus={() => setEditingId(item.id)}
-                onBlur={() => setEditingId(null)}
-                onChange={(e) => updateItem({ ...item, content: e.target.value })}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
+              {item.type === 'image' ? (
+                <img
+                  src={item.content}
+                  alt="Bild"
+                  className="flex-1 w-full object-contain px-1 pb-1 rounded-b-lg"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  draggable={false}
+                />
+              ) : (
+                <textarea
+                  className="flex-1 w-full resize-none bg-transparent text-sm px-3 pb-2 outline-none text-gray-800 placeholder-gray-400"
+                  placeholder="Notiz…"
+                  value={item.content}
+                  autoFocus={editingId === item.id}
+                  onFocus={() => setEditingId(item.id)}
+                  onBlur={() => setEditingId(null)}
+                  onChange={(e) => updateItem({ ...item, content: e.target.value })}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              )}
 
               {/* Resize handle */}
               <div
@@ -215,11 +284,18 @@ export function Pinboard({ data, onChange, listName }: Props) {
               style={{ transform: `translate(${-data.offsetX}px, ${-data.offsetY}px)` }}
             >
               <StickyNote className="h-10 w-10 opacity-20" />
-              <p className="text-sm">Leeres Board. Füge eine Notiz hinzu!</p>
+              <p className="text-sm">Leeres Board. Füge eine Notiz oder ein Bild hinzu!</p>
             </div>
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Element löschen?"
+        description="Dieses Element wirklich unwiderruflich vom Board entfernen?"
+        onConfirm={() => { if (confirmDeleteId) deleteItem(confirmDeleteId); setConfirmDeleteId(null); }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

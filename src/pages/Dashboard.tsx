@@ -6,6 +6,7 @@ import { CategoryDonut } from '@/components/dashboard/CategoryDonut';
 import { SonderausgabenCard } from '@/components/dashboard/SonderausgabenCard';
 import { ForecastList } from '@/components/dashboard/ForecastList';
 import { Last28DaysChart } from '@/components/dashboard/Last28DaysChart';
+import { RecentEmailsCard } from '@/components/dashboard/RecentEmailsCard';
 import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
 import { Euro, TrendingUp, TrendingDown, FileText, Calculator, CalendarDays, Sparkles } from 'lucide-react';
@@ -15,6 +16,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { CATEGORY_LABELS, TYPE_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
 import type { Invoice, Category } from '@/types';
 import { format } from 'date-fns';
@@ -111,16 +113,12 @@ export default function Dashboard() {
   const deltaMonatSaldo = prevMonatSaldo ? ((monatSaldo - prevMonatSaldo) / Math.abs(prevMonatSaldo)) * 100 : 0;
 
   // Prognose für Rest-Monat
-  const forecastItems = useMemo(() => forecastCurrentMonth(detectPatterns(invoices)), [invoices]);
+  const forecastItems = useMemo(() => !loading ? forecastCurrentMonth(detectPatterns(invoices)) : [], [invoices, loading]);
   const forecastEin = forecastItems.filter((f) => f.pattern.type === 'einnahme').reduce((s, f) => s + f.expectedBrutto, 0);
   const forecastAus = forecastItems.filter((f) => f.pattern.type === 'ausgabe').reduce((s, f) => s + f.expectedBrutto, 0);
   const monatSaldoMitPrognose = monatSaldo + forecastEin - forecastAus;
 
   const lastTen = yearInvoices.slice(0, 10);
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">Lade...</div>;
-  }
 
   return (
     <div className="space-y-6">
@@ -138,14 +136,16 @@ export default function Dashboard() {
         </Select>
       </div>
 
+      {/* Stage 0 – KPI Jahres-Karten */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <KPICard title="Einnahmen YTD" value={fmtCurrency(einnahmen, privacyMode)} delta={privacyMode ? undefined : deltaEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
-        <KPICard title="Ausgaben YTD" value={fmtCurrency(ausgaben, privacyMode)} delta={privacyMode ? undefined : deltaAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
-        <KPICard title="Saldo YTD" value={fmtCurrency(saldo, privacyMode)} delta={privacyMode ? undefined : deltaSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Tatsächlich verfügbares Geld: Einnahmen minus alle Ausgaben (inkl. Krankenkasse, Spenden, Privat)" />
-        <KPICard title="Betriebsergebnis" value={fmtCurrency(betriebsergebnis, privacyMode)} icon={<Calculator className="h-4 w-4 text-violet-600" />} tooltip={`Steuerlich relevantes Ergebnis: nur Betriebsausgaben abgezogen. Sonderausgaben & Privat (${fmtCurrency(sonderausgabenGesamt, privacyMode)}) nicht enthalten.`} />
-        <KPICard title="Belege (30 Tage)" value={String(recentCount)} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
+        <KPICard loading={loading} title="Einnahmen YTD" value={fmtCurrency(einnahmen, privacyMode)} delta={privacyMode ? undefined : deltaEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
+        <KPICard loading={loading} title="Ausgaben YTD" value={fmtCurrency(ausgaben, privacyMode)} delta={privacyMode ? undefined : deltaAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
+        <KPICard loading={loading} title="Saldo YTD" value={fmtCurrency(saldo, privacyMode)} delta={privacyMode ? undefined : deltaSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Tatsächlich verfügbares Geld: Einnahmen minus alle Ausgaben (inkl. Krankenkasse, Spenden, Privat)" />
+        <KPICard loading={loading} title="Betriebsergebnis" value={fmtCurrency(betriebsergebnis, privacyMode)} icon={<Calculator className="h-4 w-4 text-violet-600" />} tooltip={`Steuerlich relevantes Ergebnis: nur Betriebsausgaben abgezogen. Sonderausgaben & Privat (${fmtCurrency(sonderausgabenGesamt, privacyMode)}) nicht enthalten.`} />
+        <KPICard loading={loading} title="Belege (30 Tage)" value={String(recentCount)} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
       </div>
 
+      {/* Stage 1 – Monatliche KPI-Karten */}
       {isCurrentYear && (
         <>
           <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -154,31 +154,40 @@ export default function Dashboard() {
             <span className="text-[11px] font-normal normal-case text-muted-foreground/60">vs. Vormonat</span>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KPICard title="Einnahmen (Monat)" value={fmtCurrency(monatEin, privacyMode)} delta={privacyMode ? undefined : deltaMonatEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
-            <KPICard title="Ausgaben (Monat)" value={fmtCurrency(monatAus, privacyMode)} delta={privacyMode ? undefined : deltaMonatAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
-            <KPICard title="Saldo (Monat)" value={fmtCurrency(monatSaldo, privacyMode)} delta={privacyMode ? undefined : deltaMonatSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Einnahmen minus Ausgaben im aktuellen Monat" />
-            <KPICard title="Saldo inkl. Prognose" value={fmtCurrency(monatSaldoMitPrognose, privacyMode)} icon={<Sparkles className="h-4 w-4 text-violet-500" />} tooltip={`Aktueller Monatssaldo + erwartete Einnahmen (${fmtCurrency(forecastEin, privacyMode)}) − erwartete Ausgaben (${fmtCurrency(forecastAus, privacyMode)}) bis Monatsende`} />
+            <KPICard loading={loading} title="Einnahmen (Monat)" value={fmtCurrency(monatEin, privacyMode)} delta={privacyMode ? undefined : deltaMonatEin} icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
+            <KPICard loading={loading} title="Ausgaben (Monat)" value={fmtCurrency(monatAus, privacyMode)} delta={privacyMode ? undefined : deltaMonatAus} icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
+            <KPICard loading={loading} title="Saldo (Monat)" value={fmtCurrency(monatSaldo, privacyMode)} delta={privacyMode ? undefined : deltaMonatSaldo} icon={<Euro className="h-4 w-4 text-primary" />} tooltip="Einnahmen minus Ausgaben im aktuellen Monat" />
+            <KPICard loading={loading} title="Saldo inkl. Prognose" value={fmtCurrency(monatSaldoMitPrognose, privacyMode)} icon={<Sparkles className="h-4 w-4 text-violet-500" />} tooltip={`Aktueller Monatssaldo + erwartete Einnahmen (${fmtCurrency(forecastEin, privacyMode)}) − erwartete Ausgaben (${fmtCurrency(forecastAus, privacyMode)}) bis Monatsende`} />
           </div>
         </>
       )}
 
-      {isCurrentYear && <ForecastList invoices={invoices} privacyMode={privacyMode} />}
+      {/* Stage 2 – Prognose */}
+      {isCurrentYear && <ForecastList loading={loading} invoices={invoices} privacyMode={privacyMode} />}
 
+      {/* Stage 3 – Jahres-Charts */}
       <div className={`grid grid-cols-1 gap-6 ${sonderausgabenGesamt > 0 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
-        <RevenueChart invoices={yearInvoices} privacyMode={privacyMode} />
-        <CategoryDonut invoices={yearInvoices} privacyMode={privacyMode} />
-        <SonderausgabenCard invoices={yearInvoices} privacyMode={privacyMode} />
+        <RevenueChart loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />
+        <CategoryDonut loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />
+        <SonderausgabenCard loading={loading} invoices={yearInvoices} privacyMode={privacyMode} />
       </div>
 
+      {/* Stage 4 – 28-Tage-Chart + E-Mails */}
       {isCurrentYear && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Last28DaysChart invoices={invoices} privacyMode={privacyMode} />
+          <Last28DaysChart loading={loading} invoices={invoices} privacyMode={privacyMode} />
+          <RecentEmailsCard />
         </div>
       )}
 
+      {/* Stage 5 – Letzte 10 Belege */}
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4">Letzte 10 Belege</h2>
-        {lastTen.length === 0 ? (
+        {loading ? (
+          <div className="space-y-2">
+            {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+          </div>
+        ) : lastTen.length === 0 ? (
           <p className="text-muted-foreground text-sm">Noch keine Rechnungen vorhanden.</p>
         ) : (
           <Table>

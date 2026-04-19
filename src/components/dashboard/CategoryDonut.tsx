@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/chart';
 import type { Invoice } from '@/types';
 import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, type Category } from '@/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316'];
 
@@ -20,9 +21,18 @@ const fmtEur = (v: number) =>
 interface Props {
   invoices: Invoice[];
   privacyMode?: boolean;
+  loading?: boolean;
 }
 
-export function CategoryDonut({ invoices, privacyMode }: Props) {
+export function CategoryDonut({ invoices, privacyMode, loading }: Props) {
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader><Skeleton className="h-5 w-44" /></CardHeader>
+        <CardContent><Skeleton className="h-[280px] w-full rounded-full max-w-[280px] mx-auto" /></CardContent>
+      </Card>
+    );
+  }
   const data = useMemo(() => {
     const map = new Map<string, number>();
     for (const inv of invoices) {

@@ -10,6 +10,7 @@ export interface TodoItem {
   done: boolean;
   createdAt: string;
   doneAt?: string;
+  images?: string[];
 }
 
 export interface TodoListData {
@@ -22,6 +23,7 @@ export interface KanbanCard {
   title: string;
   description?: string;
   color?: string;
+  images?: string[];
 }
 
 export interface KanbanColumn {

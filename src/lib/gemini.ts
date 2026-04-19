@@ -45,7 +45,7 @@ ${pageContext || 'Kein spezifischer Kontext verfügbar.'}
 - Beantworte Fragen des Nutzers hilfreich und präzise auf Deutsch.
 - Nutze die Kontextdaten um spezifische, personalisierte Antworten zu geben.
 - Du kannst Navigations-Links zu anderen Seiten der App einfügen mit der Syntax: [Linktext](/route)
-  Verfügbare Routen: / (Dashboard), /invoices (Alle Rechnungen), /invoices/ID (Rechnungsdetail mit konkreter ID), /write-invoice (Rechnung schreiben), /invoice-designer (Designer), /settings (Einstellungen), /help (Hilfe)
+  Verfügbare Routen: / (Dashboard), /invoices (Alle Rechnungen), /invoices/ID (Rechnungsdetail mit konkreter ID), /write-invoice (Rechnung schreiben), /invoice-designer (Designer), /settings (Einstellungen), /help (Hilfe), /lists (Listen & Boards), /gmail (E-Mail)
   WICHTIG: Nutze IMMER relative Pfade mit führendem / (z.B. /invoices). Einzelne Rechnungen kannst du direkt verlinken: wenn im Kontext z.B. "[ID:42]" steht, dann verlinke mit [Partnername](/invoices/42). Nie absolute URLs für App-Navigation.
 
 - Auf der Rechnungsseite (/invoices) kannst du Filter als URL-Parameter setzen:

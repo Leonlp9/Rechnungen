@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { Invoice } from '@/types';
 import { CATEGORY_LABELS } from '@/types';
 import { detectPatterns, forecastCurrentMonth } from '@/lib/patternDetection';
@@ -13,6 +14,7 @@ import { TrendingUp, TrendingDown, CalendarClock, ExternalLink } from 'lucide-re
 interface Props {
   invoices: Invoice[];
   privacyMode?: boolean;
+  loading?: boolean;
 }
 
 const INTERVAL_LABELS = {
@@ -28,12 +30,35 @@ function confidenceBadge(c: number) {
   return <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 text-xs">Niedrig</Badge>;
 }
 
-export function ForecastList({ invoices, privacyMode }: Props) {
+export function ForecastList({ invoices, privacyMode, loading }: Props) {
   const navigate = useNavigate();
   const forecasts = useMemo(() => {
+    if (loading) return [];
     const patterns = detectPatterns(invoices);
     return forecastCurrentMonth(patterns);
-  }, [invoices]);
+  }, [invoices, loading]);
+
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader><Skeleton className="h-5 w-52" /></CardHeader>
+        <CardContent className="space-y-3">
+          {[1,2,3].map(i => (
+            <div key={i} className="flex items-center justify-between py-1">
+              <div className="flex gap-3 flex-1">
+                <Skeleton className="h-4 w-20 shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <Skeleton className="h-5 w-16" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (forecasts.length === 0) return null;
 

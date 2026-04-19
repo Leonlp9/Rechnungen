@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { TodoListData, TodoItem } from '@/store/listsStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, CheckSquare, Square } from 'lucide-react';
+import { Plus, Trash2, CheckSquare, Square, ImageIcon, XCircle } from 'lucide-react';
+import { ImageLightbox } from './ImageLightbox';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface Props {
   data: TodoListData;
@@ -24,19 +26,57 @@ function formatDateTime(iso: string) {
   );
 }
 
+function readImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export function TodoList({ data, onChange, listName }: Props) {
   const [input, setInput] = useState('');
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  // track which id was just toggled for the checkmark burst animation
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [burstId, setBurstId] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; id: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const addItem = () => {
     const text = input.trim();
-    if (!text) return;
-    const item: TodoItem = { id: newId(), text, done: false, createdAt: new Date().toISOString() };
+    if (!text && pendingImages.length === 0) return;
+    const item: TodoItem = {
+      id: newId(),
+      text: text || '📷 Bild',
+      done: false,
+      createdAt: new Date().toISOString(),
+      images: pendingImages.length ? pendingImages : undefined,
+    };
     onChange({ items: [...data.items, item] });
     setInput('');
+    setPendingImages([]);
     inputRef.current?.focus();
+  };
+
+  const handleInputPaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imgItem = items.find((it) => it.type.startsWith('image/'));
+    if (!imgItem) return;
+    e.preventDefault();
+    const file = imgItem.getAsFile();
+    if (!file) return;
+    const src = await readImageFile(file);
+    setPendingImages((prev) => [...prev, src]);
+  };
+
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const src = await readImageFile(file);
+    setPendingImages((prev) => [...prev, src]);
+    e.target.value = '';
   };
 
   const toggle = (id: string) => {
@@ -66,6 +106,7 @@ export function TodoList({ data, onChange, listName }: Props) {
   );
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b border-border px-6 py-4 shrink-0">
@@ -76,18 +117,41 @@ export function TodoList({ data, onChange, listName }: Props) {
       </div>
 
       {/* Input */}
-      <div className="px-6 py-3 border-b border-border shrink-0 flex gap-2">
-        <Input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Neuer Eintrag…"
-          onKeyDown={(e) => e.key === 'Enter' && addItem()}
-          className="flex-1"
-        />
-        <Button onClick={addItem} size="sm">
-          <Plus className="h-4 w-4" />
-        </Button>
+      <div className="px-6 py-3 border-b border-border shrink-0 space-y-2">
+        <div className="flex gap-2">
+          <Input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Neuer Eintrag… (Strg+V für Bilder)"
+            onKeyDown={(e) => e.key === 'Enter' && addItem()}
+            onPaste={handleInputPaste}
+            className="flex-1"
+          />
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} title="Bild hinzufügen">
+            <ImageIcon className="h-4 w-4" />
+          </Button>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
+          <Button onClick={addItem} size="sm">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+        {/* Pending image previews */}
+        {pendingImages.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {pendingImages.map((src, i) => (
+              <div key={i} className="relative group/img">
+                <img src={src} alt="" className="h-14 w-14 object-cover rounded border" />
+                <button
+                  className="absolute -top-1 -right-1 text-destructive bg-background rounded-full opacity-0 group-hover/img:opacity-100 transition-opacity"
+                  onClick={() => setPendingImages((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* List */}
@@ -111,7 +175,7 @@ export function TodoList({ data, onChange, listName }: Props) {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 40, scale: 0.9, transition: { duration: 0.25 } }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="flex items-center gap-3 group rounded-lg px-3 py-2.5 hover:bg-muted/50 transition-colors relative overflow-hidden"
+              className="flex items-start gap-3 group rounded-lg px-3 py-2.5 hover:bg-muted/50 transition-colors relative overflow-hidden"
             >
               {/* Burst overlay */}
               <AnimatePresence>
@@ -132,19 +196,36 @@ export function TodoList({ data, onChange, listName }: Props) {
                 whileTap={{ scale: 0.75, rotate: 10 }}
                 whileHover={{ scale: 1.15 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                className="shrink-0 text-muted-foreground hover:text-primary transition-colors relative z-10"
+                className="shrink-0 text-muted-foreground hover:text-primary transition-colors relative z-10 mt-0.5"
               >
                 <Square className="h-5 w-5" />
               </motion.button>
               <div className="flex-1 min-w-0 relative z-10">
                 <span className="text-sm">{item.text}</span>
+                {item.images && item.images.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {item.images.map((src, i) => {
+                      const lid = `todo-img-${item.id}-${i}`;
+                      return (
+                        <motion.img
+                          key={i}
+                          layoutId={lid}
+                          src={src}
+                          alt=""
+                          className="h-16 w-16 object-cover rounded border cursor-zoom-in hover:brightness-110 transition-all"
+                          onClick={() => setLightbox({ src, id: lid })}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                   Erstellt: {formatDateTime(item.createdAt)}
                 </p>
               </div>
               <button
-                onClick={() => remove(item.id)}
-                className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all relative z-10"
+                onClick={() => setConfirmDelete(item.id)}
+                className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all relative z-10 mt-0.5"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -175,19 +256,36 @@ export function TodoList({ data, onChange, listName }: Props) {
               animate={{ opacity: 0.6, x: 0, scale: 1 }}
               exit={{ opacity: 0, height: 0, marginBottom: 0, transition: { duration: 0.2 } }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="flex items-center gap-3 group rounded-lg px-3 py-2.5 hover:bg-muted/50 transition-colors"
+              className="flex items-start gap-3 group rounded-lg px-3 py-2.5 hover:bg-muted/50 transition-colors"
             >
               <motion.button
                 onClick={() => toggle(item.id)}
                 whileTap={{ scale: 0.75 }}
                 whileHover={{ scale: 1.15 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                className="shrink-0 text-primary transition-colors"
+                className="shrink-0 text-primary transition-colors mt-0.5"
               >
                 <CheckSquare className="h-5 w-5" />
               </motion.button>
               <div className="flex-1 min-w-0">
                 <span className="text-sm line-through text-muted-foreground">{item.text}</span>
+                {item.images && item.images.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {item.images.map((src, i) => {
+                      const lid = `todo-img-done-${item.id}-${i}`;
+                      return (
+                        <motion.img
+                          key={i}
+                          layoutId={lid}
+                          src={src}
+                          alt=""
+                          className="h-16 w-16 object-cover rounded border opacity-60 cursor-zoom-in hover:opacity-80 transition-all"
+                          onClick={() => setLightbox({ src, id: lid })}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
                 {item.doneAt && (
                   <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                     Erledigt: {formatDateTime(item.doneAt)}
@@ -195,8 +293,8 @@ export function TodoList({ data, onChange, listName }: Props) {
                 )}
               </div>
               <button
-                onClick={() => remove(item.id)}
-                className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                onClick={() => setConfirmDelete(item.id)}
+                className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all mt-0.5"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -205,5 +303,18 @@ export function TodoList({ data, onChange, listName }: Props) {
         </AnimatePresence>
       </div>
     </div>
+    <ImageLightbox
+      src={lightbox?.src ?? null}
+      layoutId={lightbox?.id ?? null}
+      onClose={() => setLightbox(null)}
+    />
+    <ConfirmDialog
+      open={confirmDelete !== null}
+      title="Eintrag löschen?"
+      description="Diesen Eintrag wirklich unwiderruflich löschen?"
+      onConfirm={() => { if (confirmDelete) remove(confirmDelete); setConfirmDelete(null); }}
+      onCancel={() => setConfirmDelete(null)}
+    />
+    </>
   );
 }

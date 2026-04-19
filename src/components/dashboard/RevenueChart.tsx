@@ -16,6 +16,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import type { Invoice } from '@/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -30,9 +31,18 @@ const chartConfig = {
 interface Props {
   invoices: Invoice[];
   privacyMode?: boolean;
+  loading?: boolean;
 }
 
-export function RevenueChart({ invoices, privacyMode }: Props) {
+export function RevenueChart({ invoices, privacyMode, loading }: Props) {
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader><Skeleton className="h-5 w-44" /></CardHeader>
+        <CardContent><Skeleton className="h-[280px] w-full" /></CardContent>
+      </Card>
+    );
+  }
   const data = useMemo(() =>
     MONTH_SHORT.map((name, idx) => {
       const m = idx + 1;

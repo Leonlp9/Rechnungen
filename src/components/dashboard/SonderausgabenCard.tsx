@@ -4,10 +4,12 @@ import type { Invoice, Category } from '@/types';
 import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
 import { fmtCurrency } from '@/lib/utils';
 import { Heart } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Props {
   invoices: Invoice[];
   privacyMode?: boolean;
+  loading?: boolean;
 }
 
 const ACCENT_COLORS: Record<string, string> = {
@@ -19,7 +21,7 @@ const ACCENT_COLORS: Record<string, string> = {
 
 const ALL_SPECIAL: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
 
-export function SonderausgabenCard({ invoices, privacyMode }: Props) {
+export function SonderausgabenCard({ invoices, privacyMode, loading }: Props) {
   const { sonderRows, privatRows } = useMemo(() => {
     const map = new Map<string, number>();
     for (const inv of invoices) {
@@ -42,6 +44,17 @@ export function SonderausgabenCard({ invoices, privacyMode }: Props) {
   const privatGesamt = privatRows.reduce((s, r) => s + r.total, 0);
   const isEmpty = sonderRows.length === 0 && privatRows.length === 0;
   if (isEmpty) return null;
+
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader><Skeleton className="h-5 w-48" /></CardHeader>
+        <CardContent className="space-y-3">
+          {[1,2,3].map(i => <Skeleton key={i} className="h-6 w-full" />)}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="rounded-xl shadow-sm">

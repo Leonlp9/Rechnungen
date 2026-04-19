@@ -1,10 +1,8 @@
 import { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
   type ChartConfig,
@@ -12,6 +10,7 @@ import {
 import type { Invoice } from '@/types';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const fmtEur = (v: number) =>
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
@@ -24,9 +23,38 @@ const chartConfig = {
 interface Props {
   invoices: Invoice[];
   privacyMode?: boolean;
+  loading?: boolean;
 }
 
-export function Last28DaysChart({ invoices, privacyMode }: Props) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload, privacyMode }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-md text-xs space-y-1">
+      <p className="font-semibold text-foreground mb-1">{d.fullDate}</p>
+      {payload.map((p: { name: string; value: number; color: string }) => (
+        <div key={p.name} className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color }} />
+          <span className="text-muted-foreground">{p.name}:</span>
+          <span className="font-medium">{privacyMode ? '€€€€' : fmtEur(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Last28DaysChart({ invoices, privacyMode, loading }: Props) {
+  if (loading) {
+    return (
+      <Card className="rounded-xl shadow-sm h-full flex flex-col">
+        <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+        <CardContent className="flex-1 min-h-0 pb-4">
+          <Skeleton className="h-full min-h-[220px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
   const data = useMemo(() => {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
@@ -35,43 +63,42 @@ export function Last28DaysChart({ invoices, privacyMode }: Props) {
       const dayStr = format(day, 'yyyy-MM-dd');
       const dayInvoices = invoices.filter((inv) => inv.date.startsWith(dayStr));
       return {
-        name: (27 - i) % 7 === 0 ? format(day, 'dd.MM', { locale: de }) : '',
         fullDate: format(day, 'dd.MM.yyyy', { locale: de }),
-        Einnahmen: dayInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0),
-        Ausgaben:  dayInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0),
+        shortDate: format(day, 'dd.MM', { locale: de }),
+        dayIndex: i, // 0..27
+        Einnahmen: dayInvoices.filter((inv) => inv.type === 'einnahme').reduce((s, inv) => s + inv.brutto, 0),
+        Ausgaben:  dayInvoices.filter((inv) => inv.type === 'ausgabe').reduce((s, inv) => s + inv.brutto, 0),
       };
     });
   }, [invoices]);
 
   return (
-    <Card className="rounded-xl shadow-sm">
+    <Card className="rounded-xl shadow-sm h-full flex flex-col">
       <CardHeader>
         <CardTitle className="text-base">Letzte 28 Tage</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig} className="h-[280px] w-full">
+      <CardContent className="flex-1 min-h-0 pb-4">
+        <ChartContainer config={chartConfig} className="h-full min-h-[220px] w-full">
           <BarChart data={data} barGap={2}>
             <CartesianGrid vertical={false} className="stroke-border/50" />
             <XAxis
-              dataKey="name"
+              dataKey="fullDate"
               tickLine={false}
               axisLine={false}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11 }}
+              interval={0}
+              tickFormatter={(_, index) => (index % 7 === 0 ? data[index]?.shortDate ?? '' : '')}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               tick={{ fontSize: 12 }}
               width={80}
-              tickFormatter={(v) => privacyMode ? '€ ***' : fmtEur(v)}
+              tickFormatter={(v) => (privacyMode ? '€ ***' : fmtEur(v))}
             />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelKey="fullDate"
-                  formatter={(value) => privacyMode ? '€€€€' : fmtEur(Number(value))}
-                />
-              }
+            <Tooltip
+              content={<CustomTooltip privacyMode={privacyMode} />}
+              cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
             />
             <ChartLegend content={<ChartLegendContent />} />
             <Bar dataKey="Einnahmen" fill="var(--color-Einnahmen)" radius={[3, 3, 0, 0]} />

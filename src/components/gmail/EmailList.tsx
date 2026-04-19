@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { format } from '@/lib/emailDate';
 
@@ -586,10 +587,9 @@ export function EmailList({
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           {isAllMode
-            ? <><Layers className="h-4 w-4 text-muted-foreground" /><h2 className="font-semibold">Alle Postfächer</h2></>
-            : <h2 className="font-semibold">{activeFolderLabel}</h2>
-          }
-          {(refreshing || (isAllMode && allLoading)) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+              ? <><Layers className="h-4 w-4 text-muted-foreground" /><h2 className="font-semibold">Alle Postfächer</h2></>
+              : <h2 className="font-semibold">{activeFolderLabel}</h2>
+            }
         </div>
         <div className="flex items-center gap-1">
           {active && !isAllMode && (
@@ -709,8 +709,17 @@ export function EmailList({
       {/* List */}
       <div className="flex-1 overflow-y-auto">
         {displayEmails.length === 0 && isDisplayLoading && (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="divide-y divide-border">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="px-4 py-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-3.5 w-32" />
+                  <Skeleton className="h-3 w-10" />
+                </div>
+                <Skeleton className="h-3.5 w-48" />
+                <Skeleton className="h-3 w-full" />
+              </div>
+            ))}
           </div>
         )}
         {displayEmails.length === 0 && !isDisplayLoading && (
