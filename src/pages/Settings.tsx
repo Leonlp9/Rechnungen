@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation, Trash2, Download, Upload, DatabaseBackup } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation, Trash2, Download, Upload, DatabaseBackup, Receipt } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
@@ -54,6 +54,8 @@ export default function SettingsPage() {
 	const setAnimations = useAppStore((s) => s.setAnimations);
 	const hiddenNavItems = useAppStore((s) => s.hiddenNavItems);
 	const toggleNavItem = useAppStore((s) => s.toggleNavItem);
+	const steuerregelung = useAppStore((s) => s.steuerregelung);
+	const setSteuerregelung = useAppStore((s) => s.setSteuerregelung);
 	const [profile, setProfile] = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
@@ -186,6 +188,67 @@ export default function SettingsPage() {
 							<Save className="mr-2 h-4 w-4" />
 							Profil speichern
 						</Button>
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Steuerregelung */}
+			<Card className="rounded-xl shadow-sm">
+				<CardHeader>
+					<div className="flex items-center gap-2">
+						<Receipt className="h-5 w-5 text-primary" />
+						<CardTitle className="text-base">Steuerregelung</CardTitle>
+					</div>
+					<p className="text-xs text-muted-foreground mt-1">
+						Bestimmt, wie das Dashboard-Widget „Kleinunternehmergrenze" angezeigt wird.
+						Kein Ersatz für steuerliche Beratung.
+					</p>
+				</CardHeader>
+				<CardContent className="space-y-3">
+					<div className="grid grid-cols-2 gap-3">
+						{/* Kleinunternehmer */}
+						<button
+							type="button"
+							onClick={() => setSteuerregelung('kleinunternehmer')}
+							className={`relative rounded-xl border-2 p-4 text-left transition-all hover:shadow-md focus:outline-none ${
+								steuerregelung === 'kleinunternehmer'
+									? 'border-primary shadow-md bg-primary/5'
+									: 'border-border hover:border-primary/50'
+							}`}
+						>
+							{steuerregelung === 'kleinunternehmer' && (
+								<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+									<Check className="h-3 w-3" />
+								</span>
+							)}
+							<p className="text-sm font-semibold">Kleinunternehmer</p>
+							<p className="text-xs text-muted-foreground mt-1">
+								Umsatz unter 25.000 € (2025+) – keine USt auf Rechnungen, keine Abführung ans
+								Finanzamt. Dashboard zeigt Fortschritt zur Grenze.
+							</p>
+						</button>
+
+						{/* Regelbesteuerung */}
+						<button
+							type="button"
+							onClick={() => setSteuerregelung('regelbesteuerung')}
+							className={`relative rounded-xl border-2 p-4 text-left transition-all hover:shadow-md focus:outline-none ${
+								steuerregelung === 'regelbesteuerung'
+									? 'border-primary shadow-md bg-primary/5'
+									: 'border-border hover:border-primary/50'
+							}`}
+						>
+							{steuerregelung === 'regelbesteuerung' && (
+								<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+									<Check className="h-3 w-3" />
+								</span>
+							)}
+							<p className="text-sm font-semibold">Regelbesteuerung</p>
+							<p className="text-xs text-muted-foreground mt-1">
+								USt-pflichtig – du weist Umsatzsteuer aus und führst sie ab.
+								Dashboard zeigt deine Einnahmen ohne Grenzbalken.
+							</p>
+						</button>
 					</div>
 				</CardContent>
 			</Card>
@@ -389,6 +452,45 @@ export default function SettingsPage() {
 						</div>
 						<p className="text-sm font-medium">Stone</p>
 						<p className="text-xs text-muted-foreground">Warm-neutrales Beige, weich</p>
+					</button>
+
+					{/* Windows 11 Theme */}
+					<button
+						type="button"
+						onClick={() => setTheme('windows11')}
+						className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+							theme === 'windows11'
+								? 'border-primary shadow-md'
+								: 'border-border hover:border-primary/50'
+						}`}
+					>
+						{theme === 'windows11' && (
+							<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+								<Check className="h-3 w-3" />
+							</span>
+						)}
+						<div className="mb-2 h-16 rounded-lg overflow-hidden flex flex-col gap-1 p-2"
+							style={{
+								background: darkMode ? 'oklch(0.115 0.012 248)' : 'oklch(0.975 0.006 240)',
+								border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid oklch(0.870 0.012 240)',
+							}}
+						>
+							{/* Titelleiste-Simulation */}
+							<div className="flex items-center gap-1 mb-0.5">
+								<div className="h-1.5 w-1.5 rounded-full" style={{ background: 'oklch(0.50 0.19 257)' }} />
+								<div className="h-1.5 w-8 rounded" style={{ background: darkMode ? 'oklch(0.945 0.008 240)' : 'oklch(0.12 0.01 250)', opacity: 0.8 }} />
+							</div>
+							<div className="h-2 w-3/4 rounded" style={{ background: darkMode ? 'oklch(0.945 0.008 240)' : 'oklch(0.12 0.01 250)', opacity: 0.85 }} />
+							<div className="h-2 w-1/2 rounded" style={{ background: darkMode ? 'oklch(0.62 0.014 248)' : 'oklch(0.44 0.012 250)', opacity: 0.5 }} />
+							<div className="mt-1 h-5 w-full rounded"
+								style={{
+									background: darkMode ? 'oklch(0.210 0.018 248)' : 'oklch(0.930 0.010 240)',
+									border: darkMode ? '1px solid oklch(1 0 0 / 10%)' : '1px solid oklch(0.870 0.012 240)',
+								}}
+							/>
+						</div>
+						<p className="text-sm font-medium">Windows 11</p>
+						<p className="text-xs text-muted-foreground">Fluent Design, Windows-Blau</p>
 					</button>
 
 					{/* Chroma Theme */}

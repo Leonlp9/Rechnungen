@@ -875,6 +875,116 @@
 
 
 /* ══════════════════════════════════════════
+   Windows 11 Theme (Light) – Mica/Fluent Design
+   Akzentfarbe: Windows-Blau #0067C0  ≈  oklch(0.50 0.19 257)
+   ══════════════════════════════════════════ */
+.windows11 {
+  --background: oklch(0.975 0.006 240);
+  --foreground: oklch(0.12 0.01 250);
+  --card: oklch(0.995 0.003 240);
+  --card-foreground: oklch(0.12 0.01 250);
+  --popover: oklch(0.995 0.003 240);
+  --popover-foreground: oklch(0.12 0.01 250);
+  --primary: oklch(0.50 0.19 257);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.930 0.010 240);
+  --secondary-foreground: oklch(0.12 0.01 250);
+  --muted: oklch(0.930 0.008 240);
+  --muted-foreground: oklch(0.44 0.012 250);
+  --accent: oklch(0.920 0.030 255);
+  --accent-foreground: oklch(0.12 0.01 250);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.870 0.012 240);
+  --input: oklch(0.870 0.012 240);
+  --ring: oklch(0.50 0.19 257 / 55%);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.955 0.008 240);
+  --sidebar-foreground: oklch(0.12 0.01 250);
+  --sidebar-primary: oklch(0.50 0.19 257);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.920 0.025 255);
+  --sidebar-accent-foreground: oklch(0.12 0.01 250);
+  --sidebar-border: oklch(0.870 0.012 240);
+  --sidebar-ring: oklch(0.50 0.19 257 / 40%);
+  --chart-1: oklch(0.50 0.19 257);
+  --chart-2: oklch(0.56 0.16 210);
+  --chart-3: oklch(0.58 0.14 185);
+  --chart-4: oklch(0.62 0.12 280);
+  --chart-5: oklch(0.55 0.18 230);
+}
+
+/* Windows 11 Theme (Dark) – Dark Mica */
+.windows11.dark {
+  --background: oklch(0.115 0.012 248);
+  --foreground: oklch(0.945 0.008 240);
+  --card: oklch(0.155 0.015 248);
+  --card-foreground: oklch(0.945 0.008 240);
+  --popover: oklch(0.175 0.016 248);
+  --popover-foreground: oklch(0.945 0.008 240);
+  --primary: oklch(0.60 0.20 257);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.210 0.018 248);
+  --secondary-foreground: oklch(0.945 0.008 240);
+  --muted: oklch(0.200 0.015 248);
+  --muted-foreground: oklch(0.62 0.014 248);
+  --accent: oklch(0.230 0.030 255);
+  --accent-foreground: oklch(0.945 0.008 240);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.60 0.20 257 / 50%);
+  --sidebar: oklch(0.140 0.014 248);
+  --sidebar-foreground: oklch(0.945 0.008 240);
+  --sidebar-primary: oklch(0.60 0.20 257);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.210 0.025 255);
+  --sidebar-accent-foreground: oklch(0.945 0.008 240);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.60 0.20 257 / 40%);
+  --chart-1: oklch(0.60 0.20 257);
+  --chart-2: oklch(0.64 0.16 210);
+  --chart-3: oklch(0.66 0.14 185);
+  --chart-4: oklch(0.68 0.12 280);
+  --chart-5: oklch(0.62 0.18 230);
+}
+
+/* Mica-ähnlicher Hintergrund-Verlauf */
+.windows11 body {
+  background-image:
+    radial-gradient(ellipse at 30% 15%, oklch(0.60 0.18 257 / 12%) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 85%, oklch(0.58 0.14 210 / 10%) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+.windows11.dark body {
+  background-image:
+    radial-gradient(ellipse at 30% 15%, oklch(0.40 0.18 257 / 25%) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 85%, oklch(0.38 0.14 210 / 20%) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Acrylic-Effekt auf Cards */
+.windows11 [data-slot="card"],
+.windows11 .glass-surface {
+  backdrop-filter: blur(8px) saturate(130%);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 80, 180, 0.06);
+}
+
+.windows11.dark [data-slot="card"],
+.windows11.dark .glass-surface {
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.30),
+    0 0 0 1px rgba(100, 160, 255, 0.08);
+}
+
+/* ══════════════════════════════════════════
    UI Animations (toggled via .animations-enabled on <html>)
    ══════════════════════════════════════════ */
 
@@ -1040,6 +1150,29 @@
   --anim-nav-icon-scale:  1.10;
   --anim-fadeup-y:        6px;
   --anim-fadeup-dur:      0.20s;
+}
+
+/* ── Windows 11 – flüssig & präzise (Fluent Motion) ── */
+.animations-enabled.windows11 {
+  --anim-ease-spring:     cubic-bezier(0.22, 1, 0.36, 1);
+  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
+  --anim-ease-page:       cubic-bezier(0.22, 1, 0.36, 1);
+  --anim-duration-fast:   0.10s;
+  --anim-duration-base:   0.18s;
+  --anim-duration-slow:   0.28s;
+  --anim-card-y:          -2px;
+  --anim-card-scale:      1.003;
+  --anim-card-shadow:
+    0 4px 16px -4px oklch(0.50 0.19 257 / 18%),
+    0 1px 4px  -1px oklch(0 0 0 / 10%),
+    0 0 0 1px oklch(0.50 0.19 257 / 12%);
+  --anim-btn-y:           -1px;
+  --anim-btn-scale:       1.015;
+  --anim-btn-shadow:      0 2px 10px -2px oklch(0.50 0.19 257 / 30%);
+  --anim-nav-icon-rotate: 0deg;
+  --anim-nav-icon-scale:  1.10;
+  --anim-fadeup-y:        6px;
+  --anim-fadeup-dur:      0.18s;
 }
 
 /* ─────────────────────────────────────────

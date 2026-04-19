@@ -8,6 +8,7 @@ import {
   BarChart2, PieChart, Activity, Receipt,
   Sparkles, Mail, List, RotateCcw, X, Info, CalendarRange,
   Percent, PiggyBank, Table2,
+  PanelLeft, LayoutGrid, LayoutDashboard, AlignJustify,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -136,6 +137,34 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             description="Tab-Seiten mit eigenem Inhalt"
             tooltip="Erstellt mehrere benannte Tab-Seiten in einem Container. So kannst du z. B. verschiedene Zeiträume oder Themenbereiche trennen, ohne Platz zu verschwenden."
           />
+          <SidebarDraggableItem
+            type="grid-sidebar"
+            label="Sidebar"
+            icon={<PanelLeft className="h-4 w-4 text-cyan-500" />}
+            description="Schmale Seitenleiste + Hauptbereich"
+            tooltip="Zwei-Spalten-Layout: Das erste Kind erhält eine feste Breite als Seitenleiste (240 px), alle weiteren Kinder füllen den verbleibenden Platz. Ideal für Navigation + Inhalt."
+          />
+          <SidebarDraggableItem
+            type="grid-masonry"
+            label="Masonry"
+            icon={<LayoutGrid className="h-4 w-4 text-emerald-500" />}
+            description="Wasserfall-Layout (2 Spalten)"
+            tooltip="Karten fließen automatisch in zwei Spalten – ähnlich wie Pinterest. Unterschiedlich hohe Widgets füllen sich lückenlos. Kein manuelles Ausrichten nötig."
+          />
+          <SidebarDraggableItem
+            type="grid-accordion"
+            label="Akkordeon"
+            icon={<AlignJustify className="h-4 w-4 text-rose-500" />}
+            description="Aufklappbare Sektionen"
+            tooltip="Jedes Kind-Element bekommt einen klickbaren Header und kann einzeln ein- oder ausgeklappt werden. Spart Platz bei vielen Widgets."
+          />
+          <SidebarDraggableItem
+            type="grid-bento"
+            label="Bento"
+            icon={<LayoutDashboard className="h-4 w-4 text-violet-500" />}
+            description="Konfigurierbares CSS-Grid (3 Spalten)"
+            tooltip="Modernes Bento-Box-Layout mit 3 gleichmäßigen Spalten. Kinder können über 'colSpan' in den Props mehrere Spalten einnehmen – für eine magazinartige Aufteilung."
+          />
         </Section>
 
         <Section title="Kennzahlen">
@@ -191,10 +220,14 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
             icon={<PiggyBank className="h-4 w-4 text-amber-500" />}
             description="Empfohlene Rücklage für Einkommensteuer"
             tooltip="Richtwert: 30 % des Betriebsergebnisses als Steuerrücklage einplanen. Kein Steuerberaterersatz." />
-          <SidebarDraggableItem type="kpi-ust-jahr" label="Umsatzsteuer (Jahr)"
+          <SidebarDraggableItem type="kpi-ust-jahr" label="USt-Zahllast (Jahr)"
             icon={<FileText className="h-4 w-4 text-muted-foreground" />}
-            description="Summe der ausgewiesenen USt im Jahr"
-            tooltip="Zeigt die Summe der ausgewiesenen Umsatzsteuer aller Belege im gewählten Jahr." />
+            description="Nur für Regelbesteuerer sinnvoll"
+            tooltip="Nur für regelbesteuerte Unternehmer relevant: Zeigt die USt, die du von Kunden eingenommen hast, minus der Vorsteuer aus deinen Einkäufen = Betrag ans Finanzamt. Als Kleinunternehmer (§ 19 UStG) zahlst du keine USt ans Finanzamt – dieses Widget zeigt dann einen entsprechenden Hinweis." />
+          <SidebarDraggableItem type="kpi-kleinunternehmer" label="Kleinunternehmergrenze"
+            icon={<Receipt className="h-4 w-4 text-emerald-500" />}
+            description="Fortschritt zur USt-Pflichtgrenze"
+            tooltip="Zeigt deine aktuellen Jahreseinnahmen im Verhältnis zur Kleinunternehmergrenze (25.000 € ab 2025). Farbige Warnung wenn du dich der Grenze näherst oder sie überschreitest. Steuerregelung in den Einstellungen konfigurierbar." />
         </Section>
 
         <Section title="Statistiken">

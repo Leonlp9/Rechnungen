@@ -12,7 +12,11 @@ import type { DashboardNode } from '@/types/dashboard';
 import { isGridType } from '@/types/dashboard';
 import { DashboardElementNode, ELEMENT_LABELS } from './DashboardElementNode';
 import { cn } from '@/lib/utils';
-import { GripVertical, X, Plus, BookOpen, Columns2, Rows2, Settings } from 'lucide-react';
+import {
+  GripVertical, X, Plus, BookOpen, Columns2, Rows2, Settings,
+  PanelLeft, LayoutGrid, LayoutDashboard, AlignJustify,
+  ChevronDown, ChevronRight,
+} from 'lucide-react';
 
 // Element types that expose a settings panel
 const ELEMENTS_WITH_SETTINGS = new Set(['list-recent-emails']);
@@ -55,13 +59,16 @@ export function DashboardGridNode({
   const [activePageId, setActivePageId] = useState<string | undefined>(
     node.type === 'grid-pages' ? node.pages?.[0]?.id : undefined,
   );
+  const [openAccordionIds, setOpenAccordionIds] = useState<Set<string>>(new Set());
 
   const isRoot = node.id === 'root';
   const isHorizontal = node.type === 'grid-horizontal';
   const isPages = node.type === 'grid-pages';
+  const isMasonry = node.type === 'grid-masonry';
+  const isAccordion = node.type === 'grid-accordion';
+  const isSidebar = node.type === 'grid-sidebar';
+  const isBento = node.type === 'grid-bento';
 
-  // Use a separate droppable id so hovering over child items doesn't
-  // accidentally trigger "drop into this container"
   const dropId = `${node.id}__drop`;
 
   const { setNodeRef: setDropRef } = useDroppable({
@@ -76,19 +83,40 @@ export function DashboardGridNode({
 
   const childIds = children.map((c) => c.id);
 
-  // Show container highlight when targeted but NOT when we have a specific item lined up
   const isTargeted = overContainerId === node.id;
-  // Show end-of-container line when targeted and no specific item is being hovered
   const showEndLine = editMode && isTargeted && !overItemId && children.length > 0;
-  // Show empty hint when targeted and empty
   const showEmptyHint = editMode && children.length === 0;
 
-  const gridLabel = isHorizontal ? 'Horizontal' : isPages ? 'Seiten' : 'Vertikal';
-  const GridIcon = isHorizontal ? Columns2 : isPages ? BookOpen : Rows2;
+  const gridLabel =
+    isHorizontal ? 'Horizontal'
+    : isPages ? 'Seiten'
+    : isMasonry ? 'Masonry'
+    : isAccordion ? 'Akkordeon'
+    : isSidebar ? 'Sidebar'
+    : isBento ? 'Bento'
+    : 'Vertikal';
+
+  const GridIcon =
+    isHorizontal ? Columns2
+    : isPages ? BookOpen
+    : isMasonry ? LayoutGrid
+    : isAccordion ? AlignJustify
+    : isSidebar ? PanelLeft
+    : isBento ? LayoutDashboard
+    : Rows2;
+
+  const sortingStrategy =
+    isHorizontal || isSidebar ? horizontalListSortingStrategy : verticalListSortingStrategy;
 
   const containerClass = cn(
     'relative transition-all',
-    isHorizontal ? 'flex flex-row gap-3 items-stretch' : 'flex flex-col gap-3',
+    isHorizontal || isSidebar
+      ? 'flex flex-row gap-3 items-stretch'
+      : isBento
+        ? 'grid gap-3'
+        : isMasonry
+          ? 'columns-2 gap-3'
+          : 'flex flex-col gap-3',
     editMode && [
       'rounded-xl border-2 border-dashed p-3',
       isTargeted
@@ -97,6 +125,9 @@ export function DashboardGridNode({
       showEmptyHint && 'min-h-[80px]',
     ],
   );
+
+  // Bento columns from props (default 3)
+  const bentoColumns = isBento ? (node.props?.columns as number ?? 3) : undefined;
 
   return (
     <div className="w-full">
@@ -107,6 +138,29 @@ export function DashboardGridNode({
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
             {gridLabel}
           </span>
+          {isBento && (
+            <div className="flex items-center gap-1 ml-2">
+              {[2, 3, 4].map((cols) => (
+                <button
+                  key={cols}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); /* TODO: update props */ }}
+                  className={cn(
+                    'text-[10px] px-1.5 py-0.5 rounded border transition-colors',
+                    bentoColumns === cols
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'text-muted-foreground border-muted hover:bg-muted',
+                  )}
+                  title={`${cols} Spalten`}
+                >
+                  {cols}
+                </button>
+              ))}
+            </div>
+          )}
+          {isSidebar && (
+            <span className="text-[10px] text-muted-foreground/60 ml-1">(1. Kind = Seitenleiste)</span>
+          )}
           <button
             onClick={() => onDelete(node.id)}
             className="ml-auto h-5 w-5 rounded hover:bg-destructive/10 hover:text-destructive flex items-center justify-center text-muted-foreground transition-colors"
@@ -130,35 +184,53 @@ export function DashboardGridNode({
         />
       )}
 
-      <SortableContext
-        items={childIds}
-        strategy={isHorizontal ? horizontalListSortingStrategy : verticalListSortingStrategy}
-      >
-        <div ref={setDropRef} className={containerClass}>
+      <SortableContext items={childIds} strategy={sortingStrategy}>
+        <div
+          ref={setDropRef}
+          className={containerClass}
+          style={isBento ? { gridTemplateColumns: `repeat(${bentoColumns ?? 3}, 1fr)` } : undefined}
+        >
           {/* Empty hint */}
           {showEmptyHint && (
             <div className={cn(
               'flex items-center justify-center h-16 text-xs rounded-lg border-2 border-dashed transition-colors pointer-events-none',
+              isBento && 'col-span-3',
               isTargeted ? 'border-primary/60 text-primary' : 'border-muted-foreground/20 text-muted-foreground/40',
             )}>
               Element hierher ziehen
             </div>
           )}
 
-          {children.map((child) => {
-            // Show insertion line BEFORE this child when it's the over target
-            // (but not if this child IS the thing being dragged)
+          {children.map((child, index) => {
             const showLineBefore =
               editMode && overItemId === child.id && activeDragId !== child.id;
 
+            const accordionOpen = openAccordionIds.has(child.id);
+            const toggleAccordion = () => {
+              setOpenAccordionIds((prev) => {
+                const next = new Set(prev);
+                next.has(child.id) ? next.delete(child.id) : next.add(child.id);
+                return next;
+              });
+            };
+
             return (
               <>
-                {showLineBefore && <InsertionLine key={`line-${child.id}`} horizontal={isHorizontal} />}
+                {showLineBefore && (
+                  <InsertionLine key={`line-${child.id}`} horizontal={isHorizontal || isSidebar} />
+                )}
                 <SortableItem
                   key={child.id}
                   node={child}
                   editMode={editMode}
-                  isHorizontal={isHorizontal}
+                  isHorizontal={isHorizontal || isSidebar}
+                  itemIndex={index}
+                  isSidebar={isSidebar}
+                  isBento={isBento}
+                  isMasonry={isMasonry}
+                  isAccordion={isAccordion}
+                  accordionOpen={accordionOpen}
+                  onAccordionToggle={toggleAccordion}
                   overContainerId={overContainerId}
                   overItemId={overItemId}
                   activeDragId={activeDragId}
@@ -174,7 +246,7 @@ export function DashboardGridNode({
           })}
 
           {/* End-of-container insertion line */}
-          {showEndLine && <InsertionLine horizontal={isHorizontal} />}
+          {showEndLine && <InsertionLine horizontal={isHorizontal || isSidebar} />}
         </div>
       </SortableContext>
     </div>
@@ -187,6 +259,13 @@ interface SortableItemProps {
   node: DashboardNode;
   editMode: boolean;
   isHorizontal: boolean;
+  itemIndex: number;
+  isSidebar: boolean;
+  isBento: boolean;
+  isMasonry: boolean;
+  isAccordion: boolean;
+  accordionOpen: boolean;
+  onAccordionToggle: () => void;
   overContainerId: string | null;
   overItemId: string | null;
   activeDragId: string | null;
@@ -199,7 +278,9 @@ interface SortableItemProps {
 }
 
 function SortableItem({
-  node, editMode, isHorizontal, overContainerId, overItemId, activeDragId,
+  node, editMode, isHorizontal, itemIndex,
+  isSidebar, isBento, isMasonry, isAccordion, accordionOpen, onAccordionToggle,
+  overContainerId, overItemId, activeDragId,
   onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, depth,
 }: SortableItemProps) {
   const isGrid = isGridType(node.type);
@@ -214,22 +295,35 @@ function SortableItem({
     disabled: !editMode,
   });
 
+  // Compute the per-item style based on layout context
+  let itemFlexStyle: React.CSSProperties = {};
+  if (isSidebar) {
+    itemFlexStyle = itemIndex === 0
+      ? { flex: '0 0 240px', minWidth: 0 }
+      : { flex: '1 1 0', minWidth: 0 };
+  } else if (isBento) {
+    const colSpan = (node.props?.colSpan as number) ?? 1;
+    itemFlexStyle = { gridColumn: `span ${colSpan}` };
+  } else if (isHorizontal) {
+    itemFlexStyle = { flex: '1 1 0', minWidth: 0 };
+  }
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.2 : 1,
-    flex: isHorizontal ? '1 1 0' : undefined,
-    minWidth: isHorizontal ? 0 : undefined,
-    // Stretch to full row height so all cards in a horizontal grid are equal height
     alignSelf: isHorizontal ? 'stretch' : undefined,
+    ...itemFlexStyle,
   };
 
   const label = isGrid
     ? ''
     : ELEMENT_LABELS[node.type as keyof typeof ELEMENT_LABELS] ?? node.type;
 
-  // For element nodes: apply drag listeners to the entire wrapper (content is pointer-events-none anyway)
-  // For grid nodes: keep listeners on the dedicated grip handle to avoid interfering with tabs/buttons
+  const accordionLabel = isGrid
+    ? node.type.replace('grid-', '').charAt(0).toUpperCase() + node.type.replace('grid-', '').slice(1)
+    : label;
+
   const wrapperListeners = !isGrid && editMode ? listeners : {};
   const wrapperAttributes = !isGrid && editMode ? attributes : {};
 
@@ -241,8 +335,11 @@ function SortableItem({
       {...wrapperListeners}
       className={cn(
         'relative group',
-        isHorizontal && 'flex-1 min-w-0',
-        // Grab-cursor for the whole element node
+        isHorizontal && !isSidebar && !isBento && 'flex-1 min-w-0',
+        // Propagate full height via flex-col so h-full works on all descendants
+        // (except masonry where natural content height is desired)
+        !isMasonry && 'flex flex-col',
+        isMasonry && 'break-inside-avoid mb-3',
         editMode && !isGrid && 'cursor-grab active:cursor-grabbing',
       )}
     >
@@ -295,38 +392,55 @@ function SortableItem({
         </div>
       )}
 
-      {/* ── Content ── */}
-      {isGrid ? (
-        <DashboardGridNode
-          node={node}
-          editMode={editMode}
-          overContainerId={overContainerId}
-          overItemId={overItemId}
-          activeDragId={activeDragId}
-          onDelete={onDelete}
-          onAddPage={onAddPage}
-          onDeletePage={onDeletePage}
-          onRenamePage={onRenamePage}
-          onReorderPages={onReorderPages}
-          depth={depth}
-        />
-      ) : (
-        // pointer-events-none so the whole wrapper captures drag events
-        // flex flex-col + flex-1 on inner ensures the card stretches to full height
-        <div className={cn(
-          'flex flex-col',
-          isHorizontal && 'h-full',
-          editMode && 'pointer-events-none select-none',
-        )}>
-          <div className="flex-1 flex flex-col">
-            <DashboardElementNode
-              type={node.type as any}
-              settingsOpen={settingsOpen}
-              onSettingsClose={() => setSettingsOpen(false)}
-            />
-          </div>
-        </div>
+      {/* ── Accordion toggle header ── */}
+      {isAccordion && (
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onAccordionToggle(); }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/60 hover:bg-muted mb-1 text-left transition-colors select-none"
+        >
+          {accordionOpen
+            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          }
+          <span className="text-xs font-medium flex-1 truncate">{accordionLabel}</span>
+        </button>
       )}
+
+      {/* ── Content (hidden when accordion collapsed) ── */}
+      <div className={cn(
+        !isMasonry && 'flex-1 flex flex-col',
+        isAccordion && !accordionOpen && 'hidden',
+      )}>
+        {isGrid ? (
+          <DashboardGridNode
+            node={node}
+            editMode={editMode}
+            overContainerId={overContainerId}
+            overItemId={overItemId}
+            activeDragId={activeDragId}
+            onDelete={onDelete}
+            onAddPage={onAddPage}
+            onDeletePage={onDeletePage}
+            onRenamePage={onRenamePage}
+            onReorderPages={onReorderPages}
+            depth={depth}
+          />
+        ) : (
+          <div className={cn(
+            'flex flex-col flex-1',
+            editMode && 'pointer-events-none select-none',
+          )}>
+            <div className="flex-1 flex flex-col">
+              <DashboardElementNode
+                type={node.type as any}
+                settingsOpen={settingsOpen}
+                onSettingsClose={() => setSettingsOpen(false)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

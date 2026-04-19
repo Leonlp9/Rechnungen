@@ -78,7 +78,7 @@ export function Last28DaysChart({ invoices, privacyMode, loading }: Props) {
         <CardTitle className="text-base">Letzte 28 Tage</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 min-h-[240px] pb-4 relative">
-        <ChartContainer config={chartConfig} className="h-[260px] w-full">
+        <ChartContainer config={chartConfig} className="min-h-[260px] h-full w-full">
           <BarChart data={data} barGap={2}>
             <CartesianGrid vertical={false} className="stroke-border/50" />
             <XAxis

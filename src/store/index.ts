@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Invoice } from '@/types';
 
-export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk' | 'zinc' | 'stone' | 'chroma';
+export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk' | 'zinc' | 'stone' | 'windows11' | 'chroma';
+export type Steuerregelung = 'kleinunternehmer' | 'regelbesteuerung';
 
 interface AppState {
   invoices: Invoice[];
@@ -24,6 +25,8 @@ interface AppState {
   hiddenNavItems: string[];
   setHiddenNavItems: (items: string[]) => void;
   toggleNavItem: (path: string) => void;
+  steuerregelung: Steuerregelung;
+  setSteuerregelung: (r: Steuerregelung) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -53,10 +56,12 @@ export const useAppStore = create<AppState>()(
             ? s.hiddenNavItems.filter((p) => p !== path)
             : [...s.hiddenNavItems, path],
         })),
+      steuerregelung: 'kleinunternehmer' as Steuerregelung,
+      setSteuerregelung: (steuerregelung) => set({ steuerregelung }),
     }),
     {
       name: 'rechnungs-manager-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung }),
     }
   )
 );

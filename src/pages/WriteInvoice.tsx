@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import type { LineItem, ItemsElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { SaveInvoiceDialog } from '@/components/invoices/SaveInvoiceDialog';
+import { useAppStore } from '@/store';
 const SETTINGS_KEYS = [
   'profile_name', 'profile_address', 'profile_email', 'profile_phone',
   'profile_tax_number', 'profile_vat_id', 'profile_iban', 'profile_bic', 'profile_business_type',
@@ -26,6 +27,8 @@ function emptyItem(): LineItem {
 }
 export default function WriteInvoice() {
   const { templates } = useTemplateStore();
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
+  const isKleinunternehmer = steuerregelung === 'kleinunternehmer';
   const [selectedId, setSelectedId] = useState<string>(templates[0]?.id ?? '');
   const [values, setValues] = useState<Record<string, string>>({});
   const [settingsValues, setSettingsValues] = useState<Record<string, string>>({});
@@ -58,7 +61,7 @@ export default function WriteInvoice() {
     window.addEventListener('mouseup', onUp);
   };
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
-  const [includeMwst, setIncludeMwst] = useState(true);
+  const [includeMwst, setIncludeMwst] = useState(!isKleinunternehmer);
   const [simpleMode, setSimpleMode] = useState(false);
   const template = templates.find((t) => t.id === selectedId) ?? null;
   const itemsEl = template?.elements.find((e) => e.type === 'items') as ItemsElement | undefined;
@@ -220,9 +223,20 @@ export default function WriteInvoice() {
                         <input type="checkbox" checked={simpleMode} onChange={(e) => setSimpleMode(e.target.checked)} className="accent-primary" />
                         Einfach
                       </label>
-                      <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                        <input type="checkbox" checked={includeMwst} onChange={(e) => setIncludeMwst(e.target.checked)} className="accent-primary" />
+                      <label
+                        className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
+                        title={isKleinunternehmer ? 'Als Kleinunternehmer (§ 19 UStG) weist du keine MwSt. auf Rechnungen aus. Du kannst die Checkbox trotzdem aktivieren, falls du die Regelbesteuerung wählst.' : ''}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={includeMwst}
+                          onChange={(e) => setIncludeMwst(e.target.checked)}
+                          className="accent-primary"
+                        />
                         MwSt. ({mwstRate} %)
+                        {isKleinunternehmer && !includeMwst && (
+                          <span className="text-muted-foreground/70 text-[10px]">(Kleinunternehmer)</span>
+                        )}
                       </label>
                     </div>
                   </CardHeader>

@@ -66,7 +66,7 @@ function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
     // Theme-Klassen: alle entfernen, dann aktives setzen
-    document.documentElement.classList.remove('liquid-glass', 'aurora-borealis', 'crimson-dusk', 'zinc', 'stone', 'chroma');
+    document.documentElement.classList.remove('liquid-glass', 'aurora-borealis', 'crimson-dusk', 'zinc', 'stone', 'windows11', 'chroma');
     if (theme !== 'default') {
       document.documentElement.classList.add(theme);
     }

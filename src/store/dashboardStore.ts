@@ -17,7 +17,7 @@ export const useDashboardStore = create<DashboardStore>()(
       resetLayout: () => set({ layout: DEFAULT_LAYOUT }),
     }),
     {
-      name: 'dashboard-layout-v1',
+      name: 'dashboard-layout-v4',
     },
   ),
 );

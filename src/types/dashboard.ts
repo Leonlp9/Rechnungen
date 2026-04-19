@@ -29,10 +29,56 @@ export type ElementType =
   | 'kpi-steuerruecklage'
   | 'list-top-einnahmen'
   | 'card-monatsuebersicht'
-  | 'card-jahresvergleich';
+  | 'card-jahresvergleich'
+  | 'kpi-kleinunternehmer';
 
-export type GridType = 'grid-vertical' | 'grid-horizontal' | 'grid-pages';
-export type NodeType = GridType | ElementType;
+export type GridType =
+  | 'grid-vertical'
+  | 'grid-horizontal'
+  | 'grid-pages'
+  | 'grid-masonry'
+  | 'grid-accordion'
+  | 'grid-sidebar'
+  | 'grid-bento';
+
+export type NodeType =
+  | 'kpi-einnahmen-ytd'
+  | 'kpi-ausgaben-ytd'
+  | 'kpi-saldo-ytd'
+  | 'kpi-betriebsergebnis'
+  | 'kpi-belege-30d'
+  | 'kpi-einnahmen-monat'
+  | 'kpi-ausgaben-monat'
+  | 'kpi-saldo-monat'
+  | 'kpi-saldo-prognose'
+  | 'chart-revenue'
+  | 'chart-category-donut'
+  | 'chart-last28days'
+  | 'chart-month'
+  | 'card-sonderausgaben'
+  | 'list-forecast'
+  | 'list-forecast-28d'
+  | 'list-recent-emails'
+  | 'list-recent-invoices'
+  | 'chart-cashflow'
+  | 'list-top-ausgaben'
+  | 'list-top-partner'
+  | 'kpi-ust-jahr'
+  | 'kpi-avg-einnahmen-monat'
+  | 'kpi-avg-ausgaben-monat'
+  | 'kpi-marge'
+  | 'kpi-steuerruecklage'
+  | 'list-top-einnahmen'
+  | 'card-monatsuebersicht'
+  | 'card-jahresvergleich'
+  | 'kpi-kleinunternehmer'
+  | 'grid-vertical'
+  | 'grid-horizontal'
+  | 'grid-pages'
+  | 'grid-masonry'
+  | 'grid-accordion'
+  | 'grid-sidebar'
+  | 'grid-bento';
 
 export interface PageDef {
   id: string;
@@ -57,7 +103,14 @@ export function genId(): string {
 
 export function createNode(type: NodeType): DashboardNode {
   const id = genId();
-  if (type === 'grid-vertical' || type === 'grid-horizontal') {
+  if (
+    type === 'grid-vertical' ||
+    type === 'grid-horizontal' ||
+    type === 'grid-masonry' ||
+    type === 'grid-accordion' ||
+    type === 'grid-sidebar' ||
+    type === 'grid-bento'
+  ) {
     return { id, type, children: [] };
   }
   if (type === 'grid-pages') {
@@ -67,7 +120,15 @@ export function createNode(type: NodeType): DashboardNode {
 }
 
 export function isGridType(type: NodeType): type is GridType {
-  return type === 'grid-vertical' || type === 'grid-horizontal' || type === 'grid-pages';
+  return (
+    type === 'grid-vertical' ||
+    type === 'grid-horizontal' ||
+    type === 'grid-pages' ||
+    type === 'grid-masonry' ||
+    type === 'grid-accordion' ||
+    type === 'grid-sidebar' ||
+    type === 'grid-bento'
+  );
 }
 
 // ─── Tree Helpers ────────────────────────────────────────────────────────────
@@ -227,108 +288,166 @@ export const DEFAULT_LAYOUT: DashboardNode = {
   id: 'root',
   type: 'grid-pages',
   pages: [
+    // ── Seite 1: Aktueller Monat (Bento 4-spaltig) ──────────────────────────
     {
       id: 'page1',
-      label: 'Übersicht',
+      label: '📊 Monat',
       children: [
         {
-          id: 'v1',
-          type: 'grid-vertical',
+          id: 'b1',
+          type: 'grid-bento',
+          props: { columns: 4 },
           children: [
-            {
-              id: 'h1',
-              type: 'grid-horizontal',
-              children: [
-                { id: 'e1', type: 'kpi-einnahmen-monat' },
-                { id: 'e2', type: 'kpi-ausgaben-monat' },
-                { id: 'e3', type: 'kpi-saldo-monat' },
-                { id: 'e4', type: 'kpi-saldo-prognose' },
-              ],
-            },
-            {
-              id: 'h2',
-              type: 'grid-horizontal',
-              children: [
-                { id: 'e5', type: 'chart-cashflow' },
-                { id: 'e6', type: 'chart-last28days' },
-              ],
-            },
-            {
-              id: 'h3',
-              type: 'grid-horizontal',
-              children: [
-                { id: 'e7', type: 'list-forecast' },
-                { id: 'e8', type: 'list-recent-invoices' },
-              ],
-            },
+            // Zeile 1 – 4 KPI-Kacheln
+            { id: 'e1', type: 'kpi-einnahmen-monat', props: { colSpan: 1 } },
+            { id: 'e2', type: 'kpi-ausgaben-monat',  props: { colSpan: 1 } },
+            { id: 'e3', type: 'kpi-saldo-monat',     props: { colSpan: 1 } },
+            { id: 'e4', type: 'kpi-saldo-prognose',  props: { colSpan: 1 } },
+            // Zeile 2 – Cashflow-Chart breit + Prognose-Liste schmal
+            { id: 'e5', type: 'chart-cashflow',      props: { colSpan: 3 } },
+            { id: 'e6', type: 'list-forecast',       props: { colSpan: 1 } },
+            // Zeile 3 – Letzte 28 Tage + Letzte Rechnungen
+            { id: 'e7', type: 'chart-last28days',      props: { colSpan: 2 } },
+            { id: 'e8', type: 'list-recent-invoices',  props: { colSpan: 2 } },
           ],
         },
       ],
     },
+
+    // ── Seite 2: Jahresanalyse (Bento 4-spaltig) ────────────────────────────
     {
       id: 'page2',
-      label: 'Analyse & YTD',
+      label: '📈 Jahr',
       children: [
         {
-          id: 'v2',
-          type: 'grid-vertical',
+          id: 'b2',
+          type: 'grid-bento',
+          props: { columns: 4 },
           children: [
+            // Zeile 1 – YTD-KPIs
+            { id: 'e9',  type: 'kpi-einnahmen-ytd',      props: { colSpan: 1 } },
+            { id: 'e10', type: 'kpi-ausgaben-ytd',        props: { colSpan: 1 } },
+            { id: 'e11', type: 'kpi-saldo-ytd',           props: { colSpan: 1 } },
+            { id: 'e12', type: 'kpi-betriebsergebnis',    props: { colSpan: 1 } },
+            // Zeile 2 – Umsatz-Chart groß + Donut-Chart klein
+            { id: 'e13', type: 'chart-revenue',           props: { colSpan: 3 } },
+            { id: 'e14', type: 'chart-category-donut',    props: { colSpan: 1 } },
+            // Zeile 3 – Jahresvergleich + Monatsübersicht
+            { id: 'e15', type: 'card-jahresvergleich',    props: { colSpan: 2 } },
+            { id: 'e16', type: 'card-monatsuebersicht',   props: { colSpan: 2 } },
+            // Zeile 4 – Steuerkennzahlen
+            { id: 'e17', type: 'kpi-ust-jahr',            props: { colSpan: 1 } },
+            { id: 'e18', type: 'kpi-steuerruecklage',     props: { colSpan: 1 } },
+            { id: 'e19', type: 'kpi-marge',               props: { colSpan: 1 } },
+            { id: 'e20', type: 'card-sonderausgaben',     props: { colSpan: 1 } },
+            // Zeile 5 – Kleinunternehmergrenze (volle Breite für gute Lesbarkeit)
+            { id: 'e20b', type: 'kpi-kleinunternehmer',  props: { colSpan: 2 } },
+          ],
+        },
+      ],
+    },
+
+    // ── Seite 3: Details (Sidebar-Layout) ───────────────────────────────────
+    {
+      id: 'page3',
+      label: '🔍 Details',
+      children: [
+        {
+          id: 'sb1',
+          type: 'grid-sidebar',
+          children: [
+            // Seitenleiste (erstes Kind = 240 px breit)
             {
-              id: 'h4',
-              type: 'grid-horizontal',
+              id: 'vside',
+              type: 'grid-vertical',
               children: [
-                { id: 'e9', type: 'kpi-einnahmen-ytd' },
-                { id: 'e10', type: 'kpi-ausgaben-ytd' },
-                { id: 'e11', type: 'kpi-saldo-ytd' },
-                { id: 'e12', type: 'kpi-betriebsergebnis' },
-                { id: 'e13', type: 'kpi-ust-jahr' },
+                { id: 'e21', type: 'kpi-belege-30d' },
+                { id: 'e22', type: 'kpi-avg-einnahmen-monat' },
+                { id: 'e23', type: 'kpi-avg-ausgaben-monat' },
+                { id: 'e24', type: 'list-top-partner' },
               ],
             },
+            // Hauptbereich
             {
-              id: 'h5',
-              type: 'grid-horizontal',
+              id: 'vmain',
+              type: 'grid-vertical',
               children: [
-                { id: 'e14', type: 'chart-revenue' },
-                { id: 'e15', type: 'chart-category-donut' },
-              ],
-            },
-            {
-              id: 'h6',
-              type: 'grid-horizontal',
-              children: [
-                { id: 'e16', type: 'card-jahresvergleich' },
-                { id: 'e17', type: 'card-sonderausgaben' },
+                {
+                  id: 'hd1',
+                  type: 'grid-horizontal',
+                  children: [
+                    { id: 'e25', type: 'list-top-einnahmen' },
+                    { id: 'e26', type: 'list-top-ausgaben' },
+                  ],
+                },
+                {
+                  id: 'hd2',
+                  type: 'grid-horizontal',
+                  children: [
+                    { id: 'e27', type: 'list-forecast-28d' },
+                    { id: 'e28', type: 'list-recent-emails' },
+                  ],
+                },
               ],
             },
           ],
         },
       ],
     },
+    // ── Seite 4: Cashflow & Prognose ────────────────────────────────────────
     {
-      id: 'page3',
-      label: 'Details',
+      id: 'page4',
+      label: '💰 Cashflow',
       children: [
         {
-          id: 'v3',
-          type: 'grid-vertical',
+          id: 'b4',
+          type: 'grid-bento',
+          props: { columns: 4 },
           children: [
+            // Zeile 1 – Liquiditätskennzahlen
+            { id: 'f1', type: 'kpi-saldo-monat',      props: { colSpan: 1 } },
+            { id: 'f2', type: 'kpi-saldo-prognose',   props: { colSpan: 1 } },
+            { id: 'f3', type: 'kpi-steuerruecklage',  props: { colSpan: 1 } },
+            { id: 'f4', type: 'kpi-marge',            props: { colSpan: 1 } },
+            // Zeile 2 – kumulierter Cashflow über das Jahr (breit)
+            { id: 'f5', type: 'chart-cashflow',       props: { colSpan: 4 } },
+            // Zeile 3 – 28-Tage-Tagesansicht + Prognose-Listen
+            { id: 'f6', type: 'chart-last28days',     props: { colSpan: 2 } },
             {
-              id: 'h7',
-              type: 'grid-horizontal',
+              id: 'fv1',
+              type: 'grid-vertical',
+              props: { colSpan: 2 },
               children: [
-                { id: 'e18', type: 'kpi-avg-einnahmen-monat' },
-                { id: 'e19', type: 'kpi-belege-30d' },
+                { id: 'f7', type: 'list-forecast' },
+                { id: 'f8', type: 'list-forecast-28d' },
               ],
             },
-            {
-              id: 'h8',
-              type: 'grid-horizontal',
-              children: [
-                { id: 'e20', type: 'list-top-partner' },
-                { id: 'e21', type: 'list-top-ausgaben' },
-              ],
-            },
-            { id: 'e22', type: 'list-recent-emails' },
+          ],
+        },
+      ],
+    },
+
+    // ── Seite 5: Top-Analyse ─────────────────────────────────────────────────
+    {
+      id: 'page5',
+      label: '📋 Analyse',
+      children: [
+        {
+          id: 'b5',
+          type: 'grid-bento',
+          props: { columns: 4 },
+          children: [
+            // Zeile 1 – Kategorien-Donut + Betriebsergebnis-KPIs
+            { id: 'g1', type: 'chart-category-donut',     props: { colSpan: 1 } },
+            { id: 'g2', type: 'kpi-betriebsergebnis',     props: { colSpan: 1 } },
+            { id: 'g3', type: 'kpi-ust-jahr',             props: { colSpan: 1 } },
+            { id: 'g4', type: 'card-sonderausgaben',      props: { colSpan: 1 } },
+            // Zeile 2 – Top-Listen nebeneinander
+            { id: 'g5', type: 'list-top-einnahmen',       props: { colSpan: 2 } },
+            { id: 'g6', type: 'list-top-ausgaben',        props: { colSpan: 2 } },
+            // Zeile 3 – Partner + Monatsübersicht
+            { id: 'g7', type: 'list-top-partner',         props: { colSpan: 2 } },
+            { id: 'g8', type: 'card-monatsuebersicht',    props: { colSpan: 2 } },
           ],
         },
       ],

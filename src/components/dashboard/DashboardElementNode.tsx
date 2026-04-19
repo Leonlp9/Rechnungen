@@ -17,6 +17,8 @@ import { TopEinnahmenCard } from './TopEinnahmenCard';
 import { TopPartnerCard } from './TopPartnerCard';
 import { JahresvergleichCard } from './JahresvergleichCard';
 import { MonatsuebersichtCard } from './MonatsuebersichtCard';
+import { KleinunternehmerCard } from './KleinunternehmerCard';
+import { useAppStore } from '@/store';
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
 } from 'lucide-react';
@@ -40,6 +42,7 @@ interface DashboardElementNodeProps {
 export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: DashboardElementNodeProps) {
   const ctx = useDashboardContext();
   const navigate = useNavigate();
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
 
   const {
@@ -120,12 +123,31 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
           tooltip={`Aktueller Monatssaldo + erwartete Einnahmen (${fmtCurrency(forecastEin, privacyMode)}) − erwartete Ausgaben (${fmtCurrency(forecastAus, privacyMode)}) bis Monatsende`} />
       );
     case 'kpi-ust-jahr': {
-      const ustSum = yearInvoices.reduce((s, i) => s + (i.ust ?? 0), 0);
+      // Nur relevant für Regelbesteuerer
+      if (steuerregelung === 'kleinunternehmer') {
+        return (
+          <KPICard
+            loading={loading}
+            title="USt-Zahllast"
+            value="Nicht relevant"
+            icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+            tooltip="Als Kleinunternehmer (§ 19 UStG) weist du keine Umsatzsteuer auf deinen Rechnungen aus und schuldest dem Finanzamt keine USt. Die Steuer in Rechnungen die du bekommst (z. B. Spotify, Software) hast du zwar mitbezahlt – aber das ist Sache des jeweiligen Anbieters, nicht deine. Dieses Widget ist nur für regelbesteuerte Unternehmer sinnvoll."
+          />
+        );
+      }
+      // Regelbesteuerung: USt auf Einnahmen minus Vorsteuer aus Ausgaben
+      const ustEinnahmen = yearInvoices
+        .filter((i) => i.type === 'einnahme')
+        .reduce((s, i) => s + (i.ust ?? 0), 0);
+      const vorsteuer = yearInvoices
+        .filter((i) => i.type === 'ausgabe')
+        .reduce((s, i) => s + (i.ust ?? 0), 0);
+      const zahllast = ustEinnahmen - vorsteuer;
       return (
-        <KPICard loading={loading} title="USt (Jahr)"
-          value={fmtCurrency(ustSum, privacyMode)}
+        <KPICard loading={loading} title="USt-Zahllast (Jahr)"
+          value={fmtCurrency(zahllast, privacyMode)}
           icon={<FileText className="h-4 w-4 text-muted-foreground" />}
-          tooltip="Summe der ausgewiesenen Umsatzsteuer für das ausgewählte Jahr" />
+          tooltip={`Du sammelst USt von deinen Kunden ein (${fmtCurrency(ustEinnahmen, privacyMode)}) und kannst die USt aus deinen eigenen Einkäufen als Vorsteuer gegenrechnen (${fmtCurrency(vorsteuer, privacyMode)}). Die Differenz (${fmtCurrency(zahllast, privacyMode)}) musst du ans Finanzamt abführen.`} />
       );
     }
     case 'kpi-avg-einnahmen-monat': {
@@ -254,6 +276,15 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
           )}
         </>
       );
+    case 'kpi-kleinunternehmer':
+      return (
+        <KleinunternehmerCard
+          loading={loading}
+          einnahmen={einnahmen}
+          selectedYear={selectedYear}
+          privacyMode={privacyMode}
+        />
+      );
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
   }
@@ -277,7 +308,7 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'card-sonderausgaben': 'Sonderausgaben',
   'list-top-ausgaben': 'Top Ausgaben',
   'list-top-partner': 'Top Kunden',
-  'kpi-ust-jahr': 'USt (Jahr)',
+  'kpi-ust-jahr': 'USt-Zahllast (Jahr)',
   'kpi-avg-einnahmen-monat': 'Ø Einnahmen / Monat',
   'kpi-avg-ausgaben-monat': 'Ø Ausgaben / Monat',
   'kpi-marge': 'Gewinnmarge',
@@ -289,5 +320,6 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'list-forecast-28d': 'Prognose (28 Tage)',
   'list-recent-emails': 'Letzte E-Mails',
   'list-recent-invoices': 'Letzte 10 Belege',
+  'kpi-kleinunternehmer': 'Kleinunternehmergrenze',
 };
 
