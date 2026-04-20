@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
+import { useTutorialStore } from '@/store/tutorialStore';
+import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
 import {
   Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink,
   Code2, Navigation, Trash2, Download, Upload, DatabaseBackup, Receipt, ScrollText, FileDown,
@@ -255,6 +257,17 @@ export default function SettingsPage() {
   const activeIdx = visibleTabs.findIndex((t) => t.id === activeTab);
   const prevTab = activeIdx > 0 ? visibleTabs[activeIdx - 1] : null;
   const nextTab = activeIdx < visibleTabs.length - 1 ? visibleTabs[activeIdx + 1] : null;
+
+  // Tutorial: Automatisch zum richtigen Tab wechseln
+  const tutorialActive = useTutorialStore((s) => s.isActive);
+  const tutorialStep = useTutorialStore((s) => s.currentStep);
+  useEffect(() => {
+    if (!tutorialActive) return;
+    const step = TUTORIAL_STEPS[tutorialStep];
+    if (step?.route === '/settings' && step.settingsTab) {
+      setActiveTab(step.settingsTab as TabId);
+    }
+  }, [tutorialActive, tutorialStep]);
 
   return (
     <div className="flex h-full overflow-hidden">

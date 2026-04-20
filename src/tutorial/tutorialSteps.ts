@@ -7,6 +7,8 @@ export interface TutorialStep {
   placement: 'top' | 'bottom' | 'left' | 'right';
   /** click = User muss das Element anklicken (Navigation). observe = Nur zeigen, Weiter-Button. */
   action: 'click' | 'observe';
+  /** Wenn gesetzt: Settings-Tab, der vor dem Highlighting aktiviert werden soll. */
+  settingsTab?: 'profil' | 'ki' | 'erscheinungsbild' | 'daten' | 'ueber' | 'dev';
 }
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
@@ -209,6 +211,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     description: 'Trage hier Name, Adresse, Steuernummer und IBAN ein. Diese Daten erscheinen in deinen Rechnungen und helfen der KI.',
     placement: 'right',
     action: 'observe',
+    settingsTab: 'profil',
   },
   // ── 15. OBSERVE: Steuerregelung-Karte zeigen ──
   {
@@ -219,6 +222,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     description: 'Wichtig: Wähle ob du Kleinunternehmer (§ 19 UStG) oder regelbesteuert bist. Das beeinflusst alle Rechnungen und das Dashboard-Widget.',
     placement: 'right',
     action: 'observe',
+    settingsTab: 'profil',
   },
   // ── 16. OBSERVE: Erscheinungsbild-Karte zeigen ──
   {
@@ -229,6 +233,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     description: 'Hier wählst du Dark Mode und dein Farbthema – von klassisch bis Liquid Glass. Probiere es nach dem Tutorial aus!',
     placement: 'right',
     action: 'observe',
+    settingsTab: 'erscheinungsbild',
   },
   // ── 17. OBSERVE: Backup-Karte zeigen ──
   {
@@ -239,6 +244,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     description: 'Sichere alle Rechnungen, PDFs und Einstellungen als .rmbackup-Datei. Erstelle regelmäßig Backups!',
     placement: 'right',
     action: 'observe',
+    settingsTab: 'daten',
   },
   // ── 18. OBSERVE: Suchleiste zeigen ──
   {
