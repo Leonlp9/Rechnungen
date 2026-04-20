@@ -4,19 +4,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useTemplateStore } from '@/store/templateStore';
 import { DesignerCanvas } from '@/components/designer/DesignerCanvas';
 import { generateTemplatePdf } from '@/lib/pdfExport';
-import { getSetting } from '@/lib/db';
+import { getSetting, customers } from '@/lib/db';
+import type { Customer } from '@/lib/db';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
-import { FileDown, Eye, EyeOff, FileText, Plus, Trash2, ReceiptText, ArrowLeftRight, Maximize2 } from 'lucide-react';
+import { FileDown, Eye, EyeOff, FileText, Plus, Trash2, ReceiptText, ArrowLeftRight, Maximize2, Users, Check, ChevronsUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import type { LineItem, ItemsElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { SaveInvoiceDialog } from '@/components/invoices/SaveInvoiceDialog';
 import { useAppStore } from '@/store';
+import { cn } from '@/lib/utils';
 const SETTINGS_KEYS = [
   'profile_name', 'profile_address', 'profile_email', 'profile_phone',
   'profile_tax_number', 'profile_vat_id', 'profile_iban', 'profile_bic', 'profile_business_type',
@@ -43,6 +46,36 @@ export default function WriteInvoice() {
   const isResizing = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(320);
+
+  // Customer picker state
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    customers.getAll().then(setAllCustomers).catch(() => {});
+  }, []);
+
+  const filteredCustomers = allCustomers.filter((c) =>
+    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    (c.customer_number ?? '').toLowerCase().includes(customerSearch.toLowerCase())
+  );
+
+  function applyCustomer(c: Customer) {
+    setSelectedCustomerId(c.id);
+    setCustomerPickerOpen(false);
+    setCustomerSearch('');
+    const addressParts = [c.street, [c.zip, c.city].filter(Boolean).join(' ')].filter(Boolean);
+    setValue('receiver_name', c.name);
+    setValue('receiver_address', addressParts.join('\n'));
+    if (c.payment_days) {
+      const due = new Date();
+      due.setDate(due.getDate() + c.payment_days);
+      setValue('due_date', format(due, 'dd.MM.yyyy'));
+      setValue('payment_terms', `Zahlbar innerhalb von ${c.payment_days} Tagen`);
+    }
+  }
   const handleResizeStart = (e: React.MouseEvent) => {
     isResizing.current = true;
     startX.current = e.clientX;
@@ -195,6 +228,54 @@ export default function WriteInvoice() {
           </div>
           {template && (
             <>
+              {/* Kunden-Schnellauswahl */}
+              {allCustomers.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5" />
+                    Empfänger aus Kunden wählen
+                  </Label>
+                  <Popover open={customerPickerOpen} onOpenChange={setCustomerPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between text-sm font-normal h-9">
+                        <span className={cn(!selectedCustomerId && 'text-muted-foreground')}>
+                          {selectedCustomerId
+                            ? (allCustomers.find((c) => c.id === selectedCustomerId)?.name ?? 'Kunde wählen…')
+                            : 'Kunde wählen…'}
+                        </span>
+                        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-2" align="start">
+                      <Input
+                        placeholder="Suchen…"
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        className="h-8 text-sm mb-2"
+                        autoFocus
+                      />
+                      <div className="max-h-52 overflow-y-auto space-y-0.5">
+                        {filteredCustomers.length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-3">Keine Kunden gefunden</p>
+                        )}
+                        {filteredCustomers.map((c) => (
+                          <button
+                            key={c.id}
+                            className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted transition-colors text-left"
+                            onClick={() => applyCustomer(c)}
+                          >
+                            <Check className={cn('h-3.5 w-3.5 shrink-0', selectedCustomerId === c.id ? 'opacity-100' : 'opacity-0')} />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{c.name}</p>
+                              {c.customer_number && <p className="text-xs text-muted-foreground font-mono">{c.customer_number}</p>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
               {manualVars.length > 0 && (
                 <Card className="rounded-xl">
                   <CardHeader className="py-3 px-4"><CardTitle className="text-sm">Dokumentdaten</CardTitle></CardHeader>
