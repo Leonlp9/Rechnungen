@@ -17,6 +17,8 @@ const sharedVars: TemplateVariable[] = [
   { key: 'doc_number', label: 'Dokumenten-Nr.', defaultValue: 'R-2024-001', settingsKey: '', multiline: false },
   { key: 'doc_date', label: 'Datum', defaultValue: '', settingsKey: '', multiline: false },
   { key: 'due_date', label: 'Fällig bis', defaultValue: '', settingsKey: '', multiline: false },
+  { key: 'delivery_date', label: 'Leistungszeitpunkt', defaultValue: '', settingsKey: '', multiline: false },
+  { key: 'payment_terms', label: 'Zahlungsbedingungen', defaultValue: '', settingsKey: '', multiline: false },
   { key: 'notes', label: 'Hinweise', defaultValue: 'Zahlung per Überweisung innerhalb von 14 Tagen nach Erhalt der Rechnung.', settingsKey: '', multiline: true },
   // Auto-calculated from line items – not shown as manual inputs
   { key: 'netto', label: 'Nettobetrag', defaultValue: '0,00 €', settingsKey: '', multiline: false, autoCalculated: true },
@@ -40,13 +42,15 @@ function buildInvoiceElements(titleText: string, titleColor: string): TemplateEl
     { id: uid(), type: 'rectangle', x: 0, y: 100, width: 794, height: 3, zIndex: 1, backgroundColor: titleColor, borderColor: 'transparent', borderWidth: 0, borderRadius: 0 },
 
     // -- Invoice meta box (top right) --
-    { id: uid(), type: 'rectangle', x: 494, y: 115, width: 270, height: 92, zIndex: 1, backgroundColor: '#f8fafc', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 6 },
+    { id: uid(), type: 'rectangle', x: 494, y: 115, width: 270, height: 115, zIndex: 1, backgroundColor: '#f8fafc', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 6 },
     { id: uid(), type: 'text', x: 504, y: 125, width: 120, height: 18, zIndex: 3, content: 'Dokument-Nr.:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 624, y: 125, width: 130, height: 18, zIndex: 3, variableKey: 'doc_number', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
     { id: uid(), type: 'text', x: 504, y: 148, width: 120, height: 18, zIndex: 3, content: 'Datum:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 624, y: 148, width: 130, height: 18, zIndex: 3, variableKey: 'doc_date', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
-    { id: uid(), type: 'text', x: 504, y: 171, width: 120, height: 18, zIndex: 3, content: 'Fällig bis:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
-    { id: uid(), type: 'variable', x: 624, y: 171, width: 130, height: 18, zIndex: 3, variableKey: 'due_date', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
+    { id: uid(), type: 'text', x: 504, y: 171, width: 120, height: 18, zIndex: 3, content: 'Leistungsdatum:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'variable', x: 624, y: 171, width: 130, height: 18, zIndex: 3, variableKey: 'delivery_date', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
+    { id: uid(), type: 'text', x: 504, y: 194, width: 120, height: 18, zIndex: 3, content: 'Fällig bis:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'variable', x: 624, y: 194, width: 130, height: 18, zIndex: 3, variableKey: 'due_date', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
 
     // -- Receiver --
     { id: uid(), type: 'text', x: 30, y: 118, width: 250, height: 16, zIndex: 2, content: 'Rechnungsempfänger', fontSize: 8, fontWeight: 'normal', fontStyle: 'normal', color: '#bbb', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { getSetting, setSetting } from '@/lib/db';
+import { getSetting, setSetting, deleteAllStornoInvoices, getAllInvoices } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -369,6 +369,27 @@ export default function SettingsPage() {
 							{rechtsform === 'freiberufler' ? 'Steuererklärung: Anlage S · Keine Gewerbesteuer' : 'Steuererklärung: Anlage G · Gewerbesteuer ab 24.500 € Gewinn'}
 							{branchenprofil === 'content_creator' ? ' · Erweiterte Kategorien: Donations, Sponsoring, Affiliate, Reverse Charge, Sachzuwendungen' :
 							 branchenprofil === 'ecommerce' ? ' · Erweiterte Kategorien: Reverse Charge' : ''}
+						</p>
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Steuerwerte */}
+			<Card className="rounded-xl shadow-sm">
+				<CardHeader>
+					<CardTitle className="text-base">Steuerwerte</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-3">
+					<div className="space-y-1.5">
+						<Label>Grundfreibetrag (€)</Label>
+						<Input
+							type="number"
+							value={useAppStore.getState().grundfreibetrag}
+							onChange={(e) => useAppStore.getState().setGrundfreibetrag(Number(e.target.value) || 12348)}
+							className="w-40"
+						/>
+						<p className="text-xs text-muted-foreground">
+							Wird für die Steuerrücklage-Berechnung verwendet. 2025: 12.096 €, 2026: ca. 12.348 €.
 						</p>
 					</div>
 				</CardContent>
@@ -1137,6 +1158,18 @@ export default function SettingsPage() {
             <Button variant="outline" size="sm" onClick={() => startPreview('confirm')}>Phase: confirm</Button>
             <Button variant="outline" size="sm" onClick={() => startPreview('downloading')}>Phase: downloading (animiert)</Button>
             <Button variant="outline" size="sm" onClick={() => startPreview('done')}>Phase: done</Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                const count = await deleteAllStornoInvoices();
+                const all = await getAllInvoices();
+                useAppStore.getState().setInvoices(all);
+                toast.success(`${count} Stornobuchung(en) gelöscht & Originalbelege entsperrt`);
+              }}
+            >
+              <Trash2 className="mr-1 h-3 w-3" /> Alle Test-Stornos löschen
+            </Button>
           </CardContent>
         </Card>
       )}

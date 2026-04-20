@@ -754,7 +754,7 @@ const ARTICLES: HelpArticle[] = [
             {[
               ['Unveränderbarkeit', 'Festgeschriebene Belege dürfen nicht gelöscht oder spurlos geändert werden'],
               ['Korrekturen', 'Nur über Stornobuchungen oder Korrekturbelege'],
-              ['Aufbewahrung', '10 Jahre Aufbewahrungspflicht für Rechnungen und Belege'],
+              ['Aufbewahrung', '8 Jahre Aufbewahrungspflicht für Rechnungen und Belege (seit BEG IV 2025)'],
               ['Verknüpfung', 'Jeder Buchungssatz muss mit dem digitalen Beleg verknüpft sein'],
             ].map(([k, v]) => (
               <div key={k} className="flex gap-3">

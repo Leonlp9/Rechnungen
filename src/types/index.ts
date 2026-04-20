@@ -248,6 +248,14 @@ export interface Invoice {
   note: string;
   created_at: string;
   updated_at: string;
+  /** GoBD: Festgeschriebener Beleg – kann nur noch per Stornobuchung korrigiert werden */
+  is_locked: boolean;
+  /** SHA-256 Hash des Original-PDFs für Integritätsprüfung */
+  pdf_sha256: string;
+  /** Leistungszeitpunkt / Lieferdatum (Pflichtangabe § 14 Abs. 4 UStG) */
+  delivery_date: string;
+  /** Falls Stornobuchung: ID des stornierten Belegs */
+  storno_of: string;
 }
 
 export interface Setting {

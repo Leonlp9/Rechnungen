@@ -11,6 +11,7 @@ import { CSS } from '@dnd-kit/utilities';
 import type { DashboardNode } from '@/types/dashboard';
 import { isGridType } from '@/types/dashboard';
 import { DashboardElementNode, ELEMENT_LABELS } from './DashboardElementNode';
+import { DashboardErrorBoundary } from './DashboardErrorBoundary';
 import { cn } from '@/lib/utils';
 import {
   GripVertical, X, Plus, BookOpen, Columns2, Rows2, Settings,
@@ -436,11 +437,13 @@ function SortableItem({
             editMode && 'pointer-events-none select-none',
           )}>
             <div className="flex-1 flex flex-col">
-              <DashboardElementNode
-                type={node.type as any}
-                settingsOpen={settingsOpen}
-                onSettingsClose={() => setSettingsOpen(false)}
-              />
+              <DashboardErrorBoundary widgetName={ELEMENT_LABELS[node.type as keyof typeof ELEMENT_LABELS] ?? node.type}>
+                <DashboardElementNode
+                  type={node.type as any}
+                  settingsOpen={settingsOpen}
+                  onSettingsClose={() => setSettingsOpen(false)}
+                />
+              </DashboardErrorBoundary>
             </div>
           </div>
         )}

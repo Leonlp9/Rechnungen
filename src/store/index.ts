@@ -58,6 +58,9 @@ interface AppState {
   /** Laufender KI-Fix – wird in InvoiceDetail ausgeführt */
   activeAiFix: ActiveAiFix | null;
   setActiveAiFix: (fix: ActiveAiFix | null) => void;
+  /** Konfigurierbarer Grundfreibetrag für Steuerrücklage-Berechnung */
+  grundfreibetrag: number;
+  setGrundfreibetrag: (v: number) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -102,10 +105,12 @@ export const useAppStore = create<AppState>()(
       setBranchenprofil: (branchenprofil) => set({ branchenprofil }),
       activeAiFix: null,
       setActiveAiFix: (activeAiFix) => set({ activeAiFix }),
+      grundfreibetrag: 12_348,
+      setGrundfreibetrag: (grundfreibetrag) => set({ grundfreibetrag }),
     }),
     {
       name: 'rechnungs-manager-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag }),
       merge: (persisted, current) => ({ ...current, ...(persisted as object), drafts: [] }),
     }
   )

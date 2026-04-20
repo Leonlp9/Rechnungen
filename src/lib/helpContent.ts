@@ -82,7 +82,7 @@ Kategorien sind nach Typ getrennt – jede Kategorie steht nur für den passende
 - Jede Anlage, Änderung und Löschung einer Rechnung wird automatisch protokolliert.
 - Änderungshistorie zeigt Zeitstempel, geändertes Feld, alter und neuer Wert.
 - Festgeschriebene Belege dürfen nur über Stornobuchungen korrigiert werden.
-- Aufbewahrungspflicht: 10 Jahre.
+- Aufbewahrungspflicht: 8 Jahre (seit BEG IV 2025 für Buchungsbelege/Rechnungen).
 
 ### DATEV-Export
 - Export im DATEV-kompatiblen CSV-Format (Buchungsstapel).

@@ -21,7 +21,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { getInvoiceById, updateInvoice, deleteInvoice, getAllInvoices } from '@/lib/db';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { getInvoiceById, updateInvoice, deleteInvoice, lockInvoice, getAllInvoices } from '@/lib/db';
 import { getAbsolutePdfPath, readPdfAsBase64 } from '@/lib/pdf';
 import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
@@ -32,6 +42,7 @@ import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '@/lib/utils';
 import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, getNutzungsdauer } from '@/lib/afa';
+import { StornoDialog } from './StornoDialog';
 
 const schema = z.object({
   date: z.string().min(1),
@@ -60,6 +71,8 @@ export default function InvoiceDetail() {
   const [pdfUrl, setPdfUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmLock, setConfirmLock] = useState(false);
+  const [stornoDialogOpen, setStornoDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiFixLoading, setAiFixLoading] = useState(false);
 
@@ -207,11 +220,29 @@ export default function InvoiceDetail() {
   const handleDelete = async () => {
     if (!invoice) return;
     try {
+      if (invoice.is_locked) {
+        toast.error('Festgeschriebene Belege können nicht gelöscht werden. Verwende eine Stornobuchung.');
+        return;
+      }
       await deleteInvoice(invoice.id);
       const all = await getAllInvoices();
       setInvoices(all);
       toast.success('Rechnung gelöscht');
       navigate('/invoices');
+    } catch (e) {
+      toast.error('Fehler: ' + String(e));
+    }
+  };
+
+  const handleLock = async () => {
+    if (!invoice) return;
+    try {
+      await lockInvoice(invoice.id);
+      const updated = await getInvoiceById(invoice.id);
+      if (updated) setInvoice(updated);
+      const all = await getAllInvoices();
+      setInvoices(all);
+      toast.success('Beleg festgeschrieben – nur noch per Storno korrigierbar.');
     } catch (e) {
       toast.error('Fehler: ' + String(e));
     }
@@ -367,19 +398,54 @@ export default function InvoiceDetail() {
             <Input {...form.register('note')} />
           </div>
 
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1">
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Speichern
-            </Button>
-            <Button type="button" variant="outline" onClick={handleReveal}>
-              <FolderOpen className="mr-2 h-4 w-4" />
-              Zeigen
-            </Button>
-            <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          <div className="flex flex-col gap-2 pt-2">
+            {/* Zeile 1: Primäraktion + PDF */}
+            <div className="flex gap-2">
+              <Button type="submit" disabled={saving || invoice?.is_locked} className="flex-1">
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Speichern
+              </Button>
+              <Button type="button" variant="outline" onClick={handleReveal} title="PDF im Explorer anzeigen">
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+            </div>
+            {/* Zeile 2: GoBD-Aktionen + Löschen */}
+            <div className="flex gap-2">
+              {!invoice?.is_locked && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setConfirmLock(true)}
+                  title="Beleg festschreiben – danach nur noch per Storno korrigierbar (GoBD)"
+                >
+                  🔒 Festschreiben
+                </Button>
+              )}
+              {!invoice?.storno_of && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                  onClick={() => setStornoDialogOpen(true)}
+                  title="Gegenbuchung erstellen, die diesen Beleg buchhalterisch aufhebt (GoBD-konform)"
+                >
+                  ↩ Stornieren
+                </Button>
+              )}
+              {!invoice?.is_locked && (
+                <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)} title="Beleg löschen">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
+          {invoice?.is_locked && (
+            <p className="text-xs text-amber-600 mt-1">🔒 Dieser Beleg ist festgeschrieben. Änderungen sind nur über eine Stornobuchung möglich.</p>
+          )}
+          {invoice?.storno_of && (
+            <p className="text-xs text-orange-600 mt-1">↩ Dies ist eine Stornobuchung zu Beleg: {invoice.storno_of}</p>
+          )}
         </form>
       </div>
 
@@ -396,6 +462,34 @@ export default function InvoiceDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Festschreiben confirm dialog */}
+      <AlertDialog open={confirmLock} onOpenChange={setConfirmLock}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Beleg festschreiben?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>Der Beleg wird <strong>dauerhaft gesperrt</strong> und kann danach <strong>nicht mehr bearbeitet oder gelöscht</strong> werden.</p>
+                <p>Das entspricht den <strong>GoBD-Anforderungen</strong> (Grundsätze ordnungsgemäßer Buchführung): Einmal verbuchte Belege dürfen nachträglich nicht verändert werden.</p>
+                <p className="text-amber-600 dark:text-amber-400">Falls du den Beleg später korrigieren musst, ist nur noch eine <strong>Stornobuchung</strong> möglich – eine neue Gegenbuchung mit negativen Beträgen.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLock}>🔒 Jetzt festschreiben</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Storno Dialog */}
+      <StornoDialog
+        open={stornoDialogOpen}
+        invoice={invoice}
+        onClose={() => setStornoDialogOpen(false)}
+        onSuccess={(stornoId) => { setStornoDialogOpen(false); navigate(`/invoices/${stornoId}`); }}
+      />
     </div>
   );
 }

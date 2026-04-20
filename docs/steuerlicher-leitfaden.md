@@ -114,7 +114,7 @@ Netto-Rechnung + USt-IdNr. beider Parteien + Hinweis auf Reverse Charge.
 - Buchungssatz ↔ Beleg fest verknüpft
 
 ### Aufbewahrung
-- **10 Jahre** Aufbewahrungspflicht
+- **8 Jahre** Aufbewahrungspflicht (seit BEG IV 2025 für Buchungsbelege/Rechnungen)
 - Backup-Konzept
 - Betriebsprüfer-Zugriff (IDEA-Export / strukturierte Daten)
 

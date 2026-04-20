@@ -274,6 +274,10 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
         note: data.note,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        is_locked: false,
+        pdf_sha256: '',
+        delivery_date: '',
+        storno_of: '',
       };
 
       await insertInvoice(invoice);

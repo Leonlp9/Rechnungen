@@ -63,10 +63,11 @@ export default function WriteInvoice() {
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
   const [includeMwst, setIncludeMwst] = useState(!isKleinunternehmer);
   const [simpleMode, setSimpleMode] = useState(false);
+  const [customMwstRate, setCustomMwstRate] = useState<number | null>(null);
   const template = templates.find((t) => t.id === selectedId) ?? null;
   const itemsEl = template?.elements.find((e) => e.type === 'items') as ItemsElement | undefined;
   const hasItemsTable = !!itemsEl;
-  const mwstRate = itemsEl?.mwstRate ?? 19;
+  const mwstRate = customMwstRate ?? (itemsEl?.mwstRate ?? 19);
   const netto = lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const mwstAmt = includeMwst ? netto * (mwstRate / 100) : 0;
   const brutto = netto + mwstAmt;
@@ -208,6 +209,27 @@ export default function WriteInvoice() {
                         )}
                       </div>
                     ))}
+                    {/* Leistungszeitpunkt – Pflichtangabe § 14 Abs. 4 UStG */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Leistungszeitpunkt *</Label>
+                      <Input
+                        value={values['delivery_date'] ?? ''}
+                        onChange={(e) => setValue('delivery_date', e.target.value)}
+                        placeholder="z.B. März 2026 oder 01.03.2026 – 31.03.2026"
+                        className="text-sm"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Pflichtangabe auf jeder Rechnung (§ 14 Abs. 4 UStG)</p>
+                    </div>
+                    {/* Zahlungsbedingungen */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Zahlungsbedingungen</Label>
+                      <Input
+                        value={values['payment_terms'] ?? ''}
+                        onChange={(e) => setValue('payment_terms', e.target.value)}
+                        placeholder="z.B. Zahlbar innerhalb von 14 Tagen"
+                        className="text-sm"
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -223,6 +245,16 @@ export default function WriteInvoice() {
                         <input type="checkbox" checked={simpleMode} onChange={(e) => setSimpleMode(e.target.checked)} className="accent-primary" />
                         Einfach
                       </label>
+                      <Select value={String(mwstRate)} onValueChange={(v) => setCustomMwstRate(Number(v))}>
+                        <SelectTrigger className="h-6 w-[80px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="19">19 %</SelectItem>
+                          <SelectItem value="7">7 %</SelectItem>
+                          <SelectItem value="0">0 %</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <label
                         className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
                         title={isKleinunternehmer ? 'Als Kleinunternehmer (§ 19 UStG) weist du keine MwSt. auf Rechnungen aus. Du kannst die Checkbox trotzdem aktivieren, falls du die Regelbesteuerung wählst.' : ''}

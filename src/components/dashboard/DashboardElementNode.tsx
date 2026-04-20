@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ElementType } from '@/types/dashboard';
 import { useDashboardContext } from './DashboardContext';
+import { useAppStore } from '@/store';
 import { KPICard } from './KPICard';
 import { RevenueChart } from './RevenueChart';
 import { CategoryDonut } from './CategoryDonut';
@@ -27,7 +28,6 @@ import { AfaUebersichtCard } from './AfaUebersichtCard';
 import { AfaBarChart, AfaDonutChart, AfaTimelineChart } from './AfaChart';
 import { VermoegenCheckCard, InvestitionsSpiegelCard } from './VermoegenCards';
 import { BetriebsergebnisDialog } from './BetriebsergebnisDialog';
-import { useAppStore } from '@/store';
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
   Star, BarChart3,
@@ -215,8 +215,8 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
     }
     case 'kpi-steuerruecklage': {
       const basis = betriebsergebnisNachAfa;
-      // Grundfreibetrag 2026 (ca.) – darunter fällt keine Einkommensteuer an
-      const GRUNDFREIBETRAG = 12_348;
+      // Grundfreibetrag aus Store (konfigurierbar unter Einstellungen)
+      const GRUNDFREIBETRAG = useAppStore.getState().grundfreibetrag;
       const zuVersteuern = Math.max(0, basis - GRUNDFREIBETRAG);
       const ruecklage = Math.round(zuVersteuern * 0.3 * 100) / 100;
       return (
