@@ -12,16 +12,17 @@ Eine Desktop-Anwendung für persönliches Rechnungs-Management – gebaut mit **
 ## ✨ Features
 
 ### 📊 Dashboard (vollständig anpassbar)
-Das Dashboard ist ein **drag-and-drop-fähiges Widget-System** mit 6 Standard-Seiten:
+Das Dashboard ist ein **drag-and-drop-fähiges Widget-System** mit 7 Standard-Seiten:
 
 | Seite | Inhalt |
 |---|---|
-| 📊 Monat | Aktuelle Monatskennzahlen, Cashflow, letzte Rechnungen |
-| 📈 Jahr | Jahres-KPIs, Umsatz-Chart, Steuer, Jahresvergleich |
-| 🔍 Details | Top-Ausgaben/-Einnahmen, Partner, Abo-Liste, E-Mail-Vorschau |
-| 💰 Cashflow | Liquiditätskennzahlen, kumulierter Cashflow, Prognose |
-| 📋 Analyse | Kategorie-Donut, Betriebsergebnis, Top-Listen |
-| 🌍 Gesamt | Jahresübergreifende KPIs und Charts |
+| 📊 Übersicht | Kernkennzahlen, Cash-Gewinn, Steuerlicher Gewinn, letzte Belege, Prognosen |
+| 📅 Monat | Monatliche KPIs, Monats-Chart, 28-Tage-Ansicht, Prognose-Listen |
+| 📈 Jahr | YTD-KPIs, Umsatz-Chart, Kategorie-Donut, Cashflow, Jahresprognose, Vergleich |
+| 🧾 Steuer & AfA | Steuerlicher Gewinn, Steuerrücklage, USt, AfA-Zeitverlauf, GWG, Kleinunternehmergrenze |
+| 💰 Cashflow | Liquiditätskennzahlen, kumulierter Cashflow, 28-Tage-Chart, Prognosen |
+| 📋 Analyse | Top-Listen, Partner, Abos, AfA nach Typ, Vermögens-Check, Investitions-Spiegel |
+| 🌍 Gesamt | Jahresübergreifende KPIs, Charts, Durchschnitte, Vermögensübersicht |
 
 **Widget-Typen (47 Elemente):** KPI-Cards, Charts (Revenue, Cashflow, Donut, 28 Tage, Jahresprognose), Listen, Monatsübersicht, Jahresvergleich, Abo-Liste, Partner-Card u.v.m.
 
@@ -126,6 +127,7 @@ Das Dashboard ist ein **drag-and-drop-fähiges Widget-System** mit 6 Standard-Se
 - **Gemini API-Key**: Lokal in SQLite gespeichert, nicht hardcoded
 - **Erscheinungsbild**: Dark Mode, Theme-Auswahl, Animationen
 - **Navigation**: Einzelne Nav-Einträge aus der Sidebar ausblenden
+- **GoBD Audit-Trail**: Änderungshistorie einsehen und als CSV exportieren
 - **Backup**: Export/Import der gesamten App-Daten
 
 ---
@@ -284,6 +286,8 @@ SQLite-Datenbank wird beim ersten Start automatisch im App-Data-Ordner erstellt.
 **Tabelle `settings`**: key/value Store für API-Key, Profildaten, Theme-Einstellungen
 
 **Tabelle `drafts`**: id, file_path, file_name, added_at – zwischengespeicherte PDF-Entwürfe
+
+**Tabelle `audit_log`**: id, invoice_id, action, field_name, old_value, new_value, timestamp, user_note – GoBD-konformes Änderungsprotokoll
 
 PDFs werden in `AppData/pdfs/` kopiert, der relative Pfad in der DB gespeichert.
 

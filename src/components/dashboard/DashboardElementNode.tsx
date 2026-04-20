@@ -25,6 +25,7 @@ import { PartnerCard } from './PartnerCard';
 import { JahresprognoseChart } from './JahresprognoseChart';
 import { AfaUebersichtCard } from './AfaUebersichtCard';
 import { AfaBarChart, AfaDonutChart, AfaTimelineChart } from './AfaChart';
+import { VermoegenCheckCard, InvestitionsSpiegelCard } from './VermoegenCards';
 import { BetriebsergebnisDialog } from './BetriebsergebnisDialog';
 import { useAppStore } from '@/store';
 import {
@@ -431,6 +432,10 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
       return <AfaDonutChart />;
     case 'chart-afa-timeline':
       return <AfaTimelineChart />;
+    case 'card-vermoegenscheck':
+      return <VermoegenCheckCard />;
+    case 'card-investitionsspiegel':
+      return <InvestitionsSpiegelCard />;
 
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
@@ -488,5 +493,7 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'chart-afa-typ': 'AfA nach Typ (Balken)',
   'chart-afa-donut': 'AfA-Verteilung (Donut)',
   'chart-afa-timeline': 'AfA-Zeitverlauf',
+  'card-vermoegenscheck': 'Vermögens-Check',
+  'card-investitionsspiegel': 'Investitions-Spiegel',
 };
 

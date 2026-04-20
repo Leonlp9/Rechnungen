@@ -50,7 +50,9 @@ export type ElementType =
   | 'kpi-afa-jahres'
   | 'chart-afa-typ'
   | 'chart-afa-donut'
-  | 'chart-afa-timeline';
+  | 'chart-afa-timeline'
+  | 'card-vermoegenscheck'
+  | 'card-investitionsspiegel';
 
 export type GridType =
   | 'grid-vertical'
@@ -112,6 +114,8 @@ export type NodeType =
   | 'chart-afa-typ'
   | 'chart-afa-donut'
   | 'chart-afa-timeline'
+  | 'card-vermoegenscheck'
+  | 'card-investitionsspiegel'
   | 'grid-vertical'
   | 'grid-horizontal'
   | 'grid-pages'
@@ -533,6 +537,8 @@ export const DEFAULT_LAYOUT: DashboardNode = {
             { id: 'g8', type: 'kpi-gesamt-avg-yearly-einnahmen',   props: { colSpan: 1 } },
             { id: 'g9', type: 'kpi-gesamt-avg-yearly-ausgaben',    props: { colSpan: 1 } },
             { id: 'g10', type: 'kpi-gesamt-marge',                 props: { colSpan: 2 } },
+            { id: 'g11', type: 'card-vermoegenscheck',               props: { colSpan: 2 } },
+            { id: 'g12', type: 'card-investitionsspiegel',            props: { colSpan: 2 } },
           ],
         },
       ],
