@@ -306,7 +306,7 @@ function SortableItem({
       ? { flex: '0 0 240px', minWidth: 0 }
       : { flex: '1 1 0', minWidth: 0 };
   } else if (isBento) {
-    const colSpan = (node.props?.colSpan as number) ?? 1;
+    const colSpan = typeof node.props?.colSpan === 'number' ? node.props.colSpan : 1;
     itemFlexStyle = { gridColumn: `span ${colSpan}` };
   } else if (isHorizontal) {
     itemFlexStyle = { flex: '1 1 0', minWidth: 0 };

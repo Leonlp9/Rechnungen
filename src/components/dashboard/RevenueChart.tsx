@@ -17,11 +17,7 @@ import type { Invoice } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClickableLegend } from './ClickableLegend';
 import { ChartCustomTooltip } from './ChartCustomTooltip';
-
-const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-
-const fmtEur = (v: number) =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+import { fmtEurChart as fmtEur, MONTH_SHORT } from '@/lib/utils';
 
 const chartConfig = {
   Einnahmen: { label: 'Einnahmen', color: 'var(--color-emerald-500, #22c55e)' },

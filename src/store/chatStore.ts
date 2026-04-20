@@ -60,6 +60,7 @@ export const useChatStore = create<ChatState>()(
       setUseAllInvoicesForContext: (v) => set({ useAllInvoicesForContext: v }),
 
       createSession: () => {
+        const MAX_SESSIONS = 20;
         const id = newId();
         const session: ChatSession = {
           id,
@@ -67,7 +68,10 @@ export const useChatStore = create<ChatState>()(
           messages: [],
           createdAt: Date.now(),
         };
-        set((s) => ({ sessions: [session, ...s.sessions], activeChatId: id }));
+        set((s) => ({
+          sessions: [session, ...s.sessions].slice(0, MAX_SESSIONS),
+          activeChatId: id,
+        }));
         return id;
       },
 

@@ -16,9 +16,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClickableLegend } from './ClickableLegend';
 import { ChartCustomTooltip } from './ChartCustomTooltip';
-
-const fmtEur = (v: number) =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+import { fmtEurChart as fmtEur } from '@/lib/utils';
 
 const chartConfig = {
   Einnahmen: { label: 'Einnahmen', color: 'var(--color-emerald-500, #22c55e)' },

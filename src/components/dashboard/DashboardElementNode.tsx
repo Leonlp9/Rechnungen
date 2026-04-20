@@ -53,6 +53,7 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
   const ctx = useDashboardContext();
   const navigate = useNavigate();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
+  const grundfreibetrag = useAppStore((s) => s.grundfreibetrag);
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
   const [beOpen, setBeOpen] = useState(false);
   const [beAfaOpen, setBeAfaOpen] = useState(false);
@@ -216,7 +217,7 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
     case 'kpi-steuerruecklage': {
       const basis = betriebsergebnisNachAfa;
       // Grundfreibetrag aus Store (konfigurierbar unter Einstellungen)
-      const GRUNDFREIBETRAG = useAppStore.getState().grundfreibetrag;
+      const GRUNDFREIBETRAG = grundfreibetrag;
       const zuVersteuern = Math.max(0, basis - GRUNDFREIBETRAG);
       const ruecklage = Math.round(zuVersteuern * 0.3 * 100) / 100;
       return (

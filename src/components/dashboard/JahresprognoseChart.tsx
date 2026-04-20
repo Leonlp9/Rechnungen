@@ -9,8 +9,7 @@ import type { Invoice } from '@/types';
 import { detectPatterns } from '@/lib/patternDetection';
 import { ClickableLegend } from './ClickableLegend';
 import { ChartCustomTooltip } from './ChartCustomTooltip';
-
-const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+import { fmtEurChart as fmtEur, MONTH_SHORT } from '@/lib/utils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const INTERVAL_DAYS_MAP: Record<string, number> = {
@@ -20,8 +19,6 @@ const INTERVAL_DAYS_MAP: Record<string, number> = {
   yearly: 365,
 };
 
-const fmtEur = (v: number) =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 
 const chartConfig = {
   MonatIst:      { label: 'Monatssaldo (Ist)',      color: '#22c55e' },

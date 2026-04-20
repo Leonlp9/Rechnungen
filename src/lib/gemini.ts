@@ -1,6 +1,21 @@
-import { getSetting } from '@/lib/db';
+import { getSetting, setSetting } from '@/lib/db';
 import type { GeminiResult} from '@/types';
 import {HELP_CONTENT_TEXT} from '@/lib/helpContent';
+
+// ─── DSGVO Consent ───────────────────────────────────────────────────────────
+
+export async function hasGeminiConsent(): Promise<boolean> {
+  const consent = await getSetting('gemini_consent');
+  return consent === 'true';
+}
+
+export async function setGeminiConsent(value: boolean): Promise<void> {
+  await setSetting('gemini_consent', value ? 'true' : 'false');
+}
+
+export async function ensureGeminiConsent(): Promise<boolean> {
+  return hasGeminiConsent();
+}
 
 // ─── AI Chat ────────────────────────────────────────────────────────────────
 

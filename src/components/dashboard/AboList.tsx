@@ -8,6 +8,8 @@ import { CATEGORY_LABELS } from '@/types';
 import { detectPatterns } from '@/lib/patternDetection';
 import type { DetectedPattern } from '@/lib/patternDetection';
 import { fmtCurrency } from '@/lib/utils';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { ExternalLink, RefreshCw, XCircle } from 'lucide-react';
 
 interface Props {
@@ -112,7 +114,7 @@ function NextDateLabel({ pattern, status }: { pattern: DetectedPattern; status: 
 }
 
 function fmtDate(d: Date) {
-  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return format(d, 'dd.MM.yyyy', { locale: de });
 }
 
 export function AboList({ invoices, privacyMode, loading }: Props) {

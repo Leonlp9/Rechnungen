@@ -97,6 +97,10 @@ export default function WriteInvoice() {
   const setValue = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
   const exportPdf = async () => {
     if (!template) return;
+    // § 14 Abs. 4 UStG: Leistungszeitpunkt ist Pflichtangabe
+    if (!values['delivery_date']?.trim()) {
+      toast.warning('Leistungszeitpunkt fehlt – Pflichtangabe nach § 14 Abs. 4 UStG. Bitte ausfüllen.');
+    }
     try {
       setExporting(true);
       const ab = await generateTemplatePdf(template, values, hasItemsTable ? lineItems : undefined, simpleMode);

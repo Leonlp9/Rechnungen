@@ -12,11 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { Invoice } from '@/types';
 import { ClickableLegend } from './ClickableLegend';
 import { ChartCustomTooltip } from './ChartCustomTooltip';
-
-const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-
-const fmtEur = (v: number) =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+import { fmtEurChart as fmtEur, MONTH_SHORT as MONTHS } from '@/lib/utils';
 
 const chartConfig = {
   Kumuliert: { label: 'Kumulierter Saldo', color: '#6366f1' },
@@ -34,7 +30,6 @@ export function CashflowChart({ loading, invoices, privacyMode }: Props) {
   const toggle = (key: string) => setHidden((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   // Build month-by-month cumulative cashflow
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const data = useMemo(() => {
     let cumulative = 0;
     return MONTHS.map((name, i) => {

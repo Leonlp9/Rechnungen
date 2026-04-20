@@ -153,7 +153,9 @@ export const useGmailStore = create<GmailState>()(
             type: a.type ?? 'gmail',
             email: a.email,
             token: a.token,
-            imapConfig: a.imapConfig,
+            imapConfig: a.imapConfig
+              ? { ...a.imapConfig, password: '' }
+              : undefined,
             emails: a.emails.slice(0, 50),
             nextPageToken: a.nextPageToken,
             imapPage: a.imapPage,

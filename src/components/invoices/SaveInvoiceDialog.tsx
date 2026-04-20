@@ -28,6 +28,7 @@ interface Props {
 
 export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
   const setInvoices = useAppStore((s) => s.setInvoices);
+  const branchenprofil = useAppStore((s) => s.branchenprofil);
 
   const [partner, setPartner] = useState(prefill.partner);
   const [date, setDate] = useState(prefill.date);
@@ -141,7 +142,7 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
             <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-60">
-                {getCategoriesForBranche(type, useAppStore.getState().branchenprofil, category).map((c) => (
+                {getCategoriesForBranche(type, branchenprofil, category).map((c) => (
                   <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                 ))}
               </SelectContent>

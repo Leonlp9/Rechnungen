@@ -1,8 +1,6 @@
 // Shared custom tooltip for all dashboard charts
 // Shows: header label + colored dot + series name + formatted value for each entry
-
-const fmtEur = (v: number) =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+import { fmtEurChart as fmtEur } from '@/lib/utils';
 
 interface Entry {
   name: string;

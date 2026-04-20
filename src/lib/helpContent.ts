@@ -131,7 +131,7 @@ Kategorien sind nach Typ getrennt – jede Kategorie steht nur für den passende
 - Belege werden als PDF/A archiviert und mit Buchungssätzen verknüpft.
 - Automatisches Änderungsprotokoll (Audit-Trail) mit Zeitstempel.
 - Backup-Konzept: regelmäßige .rmbackup-Dateien erstellen.
-- 10-Jahres-Aufbewahrungspflicht beachten.
+- Aufbewahrungspflicht: 8 Jahre für Buchungsbelege/Rechnungen (seit BEG IV 2025), 10 Jahre für Handelsbücher und Jahresabschlüsse.
 
 ### Einstellungen
 - Persönliche Daten: Name, Adresse, Steuernummer, IBAN usw. (werden in Rechnungen verwendet).

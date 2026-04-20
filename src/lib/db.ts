@@ -28,7 +28,6 @@ async function setSchemaVersion(db: Database, version: number): Promise<void> {
 const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
   // v0 → v1: Neue Spalten für GoBD-Konformität
   async (db) => {
-    // Spalten einzeln hinzufügen (ALTER TABLE kann nur eine Spalte pro Statement)
     const cols = [
       "ALTER TABLE invoices ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE invoices ADD COLUMN pdf_sha256 TEXT NOT NULL DEFAULT ''",
@@ -38,11 +37,21 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
     for (const sql of cols) {
       try { await db.execute(sql); } catch { /* Spalte existiert bereits */ }
     }
-    // Indizes für Performance
     await db.execute('CREATE INDEX IF NOT EXISTS idx_invoices_year ON invoices(year)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_invoices_type ON invoices(type)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_invoices_category ON invoices(category)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_invoices_partner ON invoices(partner)');
+  },
+  // v1 → v2: Atomare Rechnungsnummern-Sequenz (GoBD-lückenlos)
+  async (db) => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS invoice_sequences (
+        prefix TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        last_number INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (prefix, year)
+      )
+    `);
   },
 ];
 
@@ -342,23 +351,23 @@ export async function logInvoiceChanges(
 
 /**
  * Generiert die nächste fortlaufende Rechnungsnummer für ein Jahr.
+ * Verwendet eine atomare Sequenztabelle (GoBD-konform, lückenlos).
  * Format: {prefix}-{year}-{laufendeNummer} z.B. "R-2026-001"
  */
 export async function generateInvoiceNumber(prefix = 'R', year?: number): Promise<string> {
   const y = year ?? new Date().getFullYear();
   const db = await getDb();
-  // Suche nach dem höchsten existierenden Nummern-Suffix
-  const existing: { description: string }[] = await db.select(
-    `SELECT description FROM invoices WHERE description LIKE $1`,
-    [`%${prefix}-${y}-%`]
+  // Atomares Upsert: Erstellt oder erhöht die Sequenz
+  await db.execute(
+    `INSERT INTO invoice_sequences (prefix, year, last_number) VALUES ($1, $2, 1)
+     ON CONFLICT(prefix, year) DO UPDATE SET last_number = last_number + 1`,
+    [prefix, y]
   );
-  let maxNum = 0;
-  const regex = new RegExp(`${prefix}-${y}-(\\d+)`);
-  for (const row of existing) {
-    const match = row.description.match(regex);
-    if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
-  }
-  const next = maxNum + 1;
+  const rows: { last_number: number }[] = await db.select(
+    'SELECT last_number FROM invoice_sequences WHERE prefix = $1 AND year = $2',
+    [prefix, y]
+  );
+  const next = rows[0]?.last_number ?? 1;
   return `${prefix}-${y}-${String(next).padStart(3, '0')}`;
 }
 

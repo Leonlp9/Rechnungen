@@ -11,9 +11,7 @@ import {
 } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Invoice } from '@/types';
-
-const fmtEur = (v: number) =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+import { fmtEurChart as fmtEur } from '@/lib/utils';
 
 const COLORS = [
   '#6366f1',
@@ -30,7 +28,6 @@ interface Props {
 }
 
 export function TopPartnerCard({ loading, invoices, privacyMode }: Props) {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const data = useMemo(() => {
     const byPartner = invoices
       .filter((i) => i.type === 'einnahme')

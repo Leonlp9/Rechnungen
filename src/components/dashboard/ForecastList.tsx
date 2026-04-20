@@ -26,7 +26,7 @@ const INTERVAL_LABELS = {
   yearly: 'Jährlich',
 };
 
-function confidenceBadge(c: number) {
+export function confidenceBadge(c: number) {
   if (c >= 0.7) return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">Hoch</Badge>;
   if (c >= 0.4) return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-xs">Mittel</Badge>;
   return <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 text-xs">Niedrig</Badge>;

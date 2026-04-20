@@ -82,8 +82,13 @@ fn create_backup(
     // ── Step 2: create ZIP ────────────────────────────────────────────────────
     emit_progress(&app, "Erstelle Backup-Datei…", 0, total_files, 0, bytes_total);
 
-    let dest_file = std::fs::File::create(&dest_path)
-        .map_err(|e| format!("Backup-Datei konnte nicht erstellt werden: {e}"))?;
+    let dest_file = match std::fs::File::create(&dest_path) {
+        Ok(f) => f,
+        Err(e) => {
+            emit_progress(&app, "Fehler", 0, 0, 0, 0);
+            return Err(format!("Backup-Datei konnte nicht erstellt werden: {e}"));
+        }
+    };
 
     let mut zip = zip::ZipWriter::new(dest_file);
     let options: FileOptions = FileOptions::default()
@@ -140,10 +145,10 @@ fn restore_backup(
     let new_invoices_dir = app_data.join("invoices");
     let new_pdfs_dir = app_data.join("pdfs");
 
-    let file = std::fs::File::open(&src_path)
+    let mut file = std::fs::File::open(&src_path)
         .map_err(|e| format!("Backup-Datei konnte nicht geöffnet werden: {e}"))?;
 
-    let mut archive = zip::ZipArchive::new(file)
+    let mut archive = zip::ZipArchive::new(&mut file)
         .map_err(|e| format!("Ungültige Backup-Datei: {e}"))?;
 
     let mut local_storage_json = String::new();
@@ -168,10 +173,12 @@ fn restore_backup(
         }
     }
 
-    // Re-open archive for extraction
-    let file2 = std::fs::File::open(&src_path)
-        .map_err(|e| format!("Backup-Datei konnte nicht erneut geöffnet werden: {e}"))?;
-    let mut archive2 = zip::ZipArchive::new(file2)
+    // Re-use file handle for extraction
+    use std::io::Seek;
+    drop(archive);
+    file.seek(std::io::SeekFrom::Start(0))
+        .map_err(|e| format!("Seek fehlgeschlagen: {e}"))?;
+    let mut archive2 = zip::ZipArchive::new(&mut file)
         .map_err(|e| format!("Ungültige Backup-Datei: {e}"))?;
 
     // Second pass: extract files
@@ -683,11 +690,29 @@ async fn smtp_send_email(
 
         let body_text = {
             let mut s = body_html.clone();
-            // Simple HTML strip for plain text fallback
-            while let (Some(start), Some(end)) = (s.find('<'), s.find('>')) {
-                if end > start { s.replace_range(start..=end, ""); } else { break; }
+            // Replace common block tags with newlines
+            for tag in &["<br>", "<br/>", "<br />", "</p>", "</div>", "</li>", "</tr>"] {
+                s = s.replace(tag, "\n");
             }
-            s
+            // Strip all remaining HTML tags
+            let mut result = String::with_capacity(s.len());
+            let mut in_tag = false;
+            for ch in s.chars() {
+                match ch {
+                    '<' => in_tag = true,
+                    '>' => in_tag = false,
+                    _ if !in_tag => result.push(ch),
+                    _ => {}
+                }
+            }
+            // Decode common HTML entities
+            result = result.replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&nbsp;", " ");
+            result
         };
 
         let email = Message::builder()
