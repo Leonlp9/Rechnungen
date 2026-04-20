@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import Dashboard from "@/pages/Dashboard";
 import AllInvoices from "@/pages/AllInvoices";
 import SettingsPage from "@/pages/Settings";
@@ -81,8 +82,9 @@ function App() {
   }, [animations]);
 
   return (
-    <>
-      <RouterProvider router={router} />
+    <AppErrorBoundary>
+      <>
+        <RouterProvider router={router} />
       <Toaster richColors position="bottom-right" />
       {updateState.open && (
         <UpdateDialog
@@ -130,7 +132,8 @@ function App() {
           </div>
         </div>
       )}
-    </>
+      </>
+    </AppErrorBoundary>
   );
 }
 

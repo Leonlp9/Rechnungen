@@ -21,6 +21,7 @@ export function AIChatFloat() {
   const { isOpen, setOpen, position, setPosition } = useChatStore();
   const theme = useAppStore((s) => s.theme);
   const darkMode = useAppStore((s) => s.darkMode);
+  const showAiChat = useAppStore((s) => s.showAiChat);
   const pageContext = useChatContext();
   const hasPdf = useCurrentInvoiceHasPdf();
   const isInvoiceList = useIsInvoiceList();
@@ -109,6 +110,9 @@ export function AIChatFloat() {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [pos, size]);
+
+  // Früher Return NACH allen Hooks
+  if (!showAiChat) return null;
 
   const handleMinimize = () => { setOpen(false); setPosition({ x: 0, y: 0 }); };
   const handleReset = (e: React.MouseEvent) => {
