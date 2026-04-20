@@ -11,18 +11,35 @@ Eine Desktop-Anwendung für persönliches Rechnungs-Management – gebaut mit **
 
 ## ✨ Features
 
-### 📊 Dashboard
-- **4 KPI-Cards**: Einnahmen YTD, Ausgaben YTD, Saldo, Belege (30 Tage) – jeweils mit Delta-Indikator zum Vorjahr
-- **Line-Chart**: Einnahmen vs. Ausgaben pro Monat (Recharts)
-- **Donut-Chart**: Ausgaben nach Kategorie
-- **Letzte 10 Belege** als Schnellübersicht
-- Jahres-Switcher (2025, 2026, ...)
+### 📊 Dashboard (vollständig anpassbar)
+Das Dashboard ist ein **drag-and-drop-fähiges Widget-System** mit 6 Standard-Seiten:
+
+| Seite | Inhalt |
+|---|---|
+| 📊 Monat | Aktuelle Monatskennzahlen, Cashflow, letzte Rechnungen |
+| 📈 Jahr | Jahres-KPIs, Umsatz-Chart, Steuer, Jahresvergleich |
+| 🔍 Details | Top-Ausgaben/-Einnahmen, Partner, Abo-Liste, E-Mail-Vorschau |
+| 💰 Cashflow | Liquiditätskennzahlen, kumulierter Cashflow, Prognose |
+| 📋 Analyse | Kategorie-Donut, Betriebsergebnis, Top-Listen |
+| 🌍 Gesamt | Jahresübergreifende KPIs und Charts |
+
+**Widget-Typen (47 Elemente):** KPI-Cards, Charts (Revenue, Cashflow, Donut, 28 Tage, Jahresprognose), Listen, Monatsübersicht, Jahresvergleich, Abo-Liste, Partner-Card u.v.m.
+
+**Layout-Typen:** `grid-bento`, `grid-sidebar`, `grid-vertical`, `grid-horizontal`, `grid-pages`, `grid-masonry`, `grid-accordion`
+
+Über die **Dashboard-Edit-Sidebar** können Elemente hinzugefügt, verschoben und entfernt werden.
 
 ### 🤖 KI-gestützte Rechnungserfassung
 - PDF hochladen → **✨ Automatische KI-Erfassung** per Gemini API
 - Erkennt automatisch: Datum, Partner, Beträge, Typ (Einnahme/Ausgabe/Info), Kategorie
 - Nutzt hinterlegte **Profildaten** (Name, Steuernummer, Branche), um korrekt zwischen Einnahme und Ausgabe zu unterscheiden
 - Alle Felder nach KI-Erfassung manuell anpassbar
+- **KI-Fix**: Kategorie/Typ einzelner Belege nachträglich per KI korrigieren
+
+### 💬 KI-Chat-Assistent
+- Floating-Button öffnet **KI-Chat-Panel** (Gemini-basiert)
+- Kontext-aware: Kennt die aktuellen Finanzdaten
+- Persistente Chat-Historie via `chatStore`
 
 ### 📑 Rechnungsverwaltung
 - **Sortierbare Tabelle** (Datum, Partner, Kategorie, Brutto, Typ)
@@ -31,6 +48,34 @@ Eine Desktop-Anwendung für persönliches Rechnungs-Management – gebaut mit **
 - **Detail-Ansicht** mit Split-View: PDF-Viewer links, editierbares Formular rechts
 - **Keyboard-Navigation**: Pfeil-Links/Rechts blättert zwischen Rechnungen
 - **Im Explorer anzeigen** – öffnet den Ordner der PDF-Datei
+- **Globale Suche** (Cmd/Strg+K) über alle Seiten
+
+### ✍️ Rechnungen schreiben
+- Seite `/write-invoice`: Neue ausgehende Rechnungen erstellen
+- Wählt eine **Vorlage** aus dem Invoice Designer
+- Generiert und exportiert **PDF** via `pdfExport.ts`
+
+### 🎨 Rechnungs-Designer
+- Visueller Template-Editor unter `/invoice-designer`
+- Vorlagen speichern, laden, duplizieren, löschen
+- Eingebaute Standardvorlagen (`defaultTemplates.ts`) mit automatischer Aktualisierung
+- Typen: `src/types/template.ts`
+
+### 📋 Listen
+- Verwaltung benutzerdefinierter Listen unter `/lists`
+- State via `listsStore`
+
+### 📧 Gmail / IMAP-Integration
+- Verbindung zu Gmail via `lib/gmail.ts`
+- IMAP-Unterstützung via `lib/imap.ts`
+- E-Mail-Vorschau direkt im Dashboard (Widget `list-recent-emails`)
+- Eigene Seite `/gmail` mit `gmailStore`
+
+### 📅 Google Calendar
+- Integration via `lib/googleCalendar.ts`
+- Kalender-Ansicht unter `/calendar`
+- State via `calendarStore`
+- Muster-Erkennung via `lib/patternDetection.ts`
 
 ### 📂 Kategorien
 | Kategorie | Beschreibung |
@@ -49,17 +94,39 @@ Eine Desktop-Anwendung für persönliches Rechnungs-Management – gebaut mit **
 - 4 Sheets: *Alle Belege*, *Zusammenfassung* (nach Kategorie), *Nach Monat*, *Hinweise*
 - Ausgabepfad frei wählbar per Save-Dialog
 
+### 💾 Backup & Restore
+- Backup erzeugt `.rmbackup`-Datei (SQLite-DB + localStorage)
+- Wiederherstellung per Doppelklick auf `.rmbackup` oder in den Einstellungen
+- Fortschrittsanzeige via `BackupProgressOverlay`
+
+### 🔄 Auto-Updater
+- Prüft beim Start automatisch auf neue Versionen
+- Download & Installation ohne Browser via `@tauri-apps/plugin-updater`
+- Fortschritts-Dialog via `UpdateDialog`
+
+### 🎓 Tutorial-System
+- Interaktives Onboarding via `tutorialStore` und `tutorialSteps.ts`
+- Highlight-Overlays, Schritt-für-Schritt-Führung
+
+### ❓ Hilfe
+- In-App Hilfe unter `/help` via `lib/helpContent.ts`
+
 ### 🎨 Design-System
 - **Light + Dark Mode** per Toggle
-- **Primärfarbe** anpassbar (ColorPicker in Einstellungen)
+- **8 Themes**: `default`, `liquid-glass`, `aurora-borealis`, `crimson-dusk`, `zinc`, `stone`, `windows11`, `chroma`
+- **Privacy Mode**: Geldbeträge werden ausgeblendet (Augen-Symbol)
+- Animationen an/aus schaltbar
 - Font: **Geist** (Variable)
 - Durchgängig abgerundete Ecken, subtile Shadows
 - shadcn/ui Komponenten
 
 ### ⚙️ Einstellungen
 - **Persönliche Daten**: Name, Adresse, Steuernummer, USt-IdNr., IBAN, BIC, Branche – werden der KI als Kontext mitgegeben
+- **Steuerregelung**: Kleinunternehmer (§ 19 UStG) oder Regelbesteuerung – beeinflusst KPI-Widgets
 - **Gemini API-Key**: Lokal in SQLite gespeichert, nicht hardcoded
-- **Erscheinungsbild**: Dark Mode, Primärfarbe
+- **Erscheinungsbild**: Dark Mode, Theme-Auswahl, Animationen
+- **Navigation**: Einzelne Nav-Einträge aus der Sidebar ausblenden
+- **Backup**: Export/Import der gesamten App-Daten
 
 ---
 
@@ -76,6 +143,10 @@ Eine Desktop-Anwendung für persönliches Rechnungs-Management – gebaut mit **
 | Forms | react-hook-form + Zod |
 | KI | Google Gemini 2.5 Flash API |
 | Export | ExcelJS |
+| PDF-Generierung | pdfExport.ts (benutzerdefinierte Vorlagen) |
+| E-Mail | Gmail API + IMAP |
+| Kalender | Google Calendar API |
+| Auto-Updater | `@tauri-apps/plugin-updater` |
 | Font | Geist Variable |
 
 ---
@@ -87,24 +158,60 @@ src/
 ├── components/
 │   ├── ui/              # shadcn/ui Komponenten
 │   ├── layout/          # Sidebar, Topbar, AppLayout
-│   ├── dashboard/       # KPICard, RevenueChart, CategoryDonut
-│   └── invoices/        # InvoiceTable, InvoiceDetail, NewInvoiceDialog, ExportDialog
-├── pages/               # Dashboard, AllInvoices, ByYear, ByCategory, Settings
+│   ├── dashboard/       # KPICard, Charts, Listen, DashboardRenderer, DashboardElementNode
+│   ├── invoices/        # InvoiceTable, InvoiceDetail, NewInvoiceDialog, ExportDialog
+│   ├── designer/        # Invoice Template Designer
+│   ├── chat/            # AIChatFloat, ChatPanel, ChatMessage
+│   ├── bank/            # Bank-Integration
+│   ├── gmail/           # Gmail-Komponenten
+│   ├── lists/           # Listen-Komponenten
+│   ├── search/          # Globale Suche
+│   └── tutorial/        # Tutorial-Overlays
+├── pages/
+│   ├── Dashboard.tsx
+│   ├── AllInvoices.tsx
+│   ├── WriteInvoice.tsx
+│   ├── InvoiceDesigner.tsx
+│   ├── Lists.tsx
+│   ├── Gmail.tsx
+│   ├── Calendar.tsx
+│   ├── Settings.tsx
+│   └── Help.tsx
 ├── lib/
 │   ├── db.ts            # SQLite-Setup, Migrationen, CRUD-Queries
 │   ├── gemini.ts        # Gemini API-Wrapper mit Profil-Kontext
 │   ├── export.ts        # XLSX-Export mit ExcelJS
 │   ├── pdf.ts           # PDF-Helpers (kopieren, base64, Pfade)
-│   └── utils.ts         # cn(), Formatter
-├── store/               # Zustand-Store (UI-State)
-├── types/               # TypeScript-Interfaces & Enums
-├── App.tsx              # Router
+│   ├── pdfExport.ts     # PDF-Generierung aus Templates
+│   ├── backup.ts        # Backup/Restore (.rmbackup)
+│   ├── updater.ts       # Auto-Updater
+│   ├── gmail.ts         # Gmail API
+│   ├── imap.ts          # IMAP-Client
+│   ├── googleCalendar.ts # Google Calendar API
+│   ├── patternDetection.ts # Muster-Erkennung
+│   ├── helpContent.ts   # Hilfe-Inhalte
+│   ├── defaultTemplates.ts # Standard-Rechnungsvorlagen
+│   └── utils.ts         # cn(), Formatter, fmtCurrency()
+├── store/
+│   ├── index.ts         # useAppStore (UI-State, Theme, Privacy, Steuerregelung)
+│   ├── dashboardStore.ts
+│   ├── chatStore.ts
+│   ├── calendarStore.ts
+│   ├── gmailStore.ts
+│   ├── listsStore.ts
+│   ├── templateStore.ts
+│   └── tutorialStore.ts
+├── types/
+│   ├── index.ts         # Invoice, Kategorie, Typ, Labels
+│   ├── dashboard.ts     # ElementType, NodeType, GridType, DashboardNode, DEFAULT_LAYOUT
+│   └── template.ts      # Invoice-Template-Typen
+├── hooks/
+│   ├── useDashboardData.ts
+│   └── useChatContext.ts
+├── tutorial/
+│   └── tutorialSteps.ts
+├── App.tsx              # Router + Theme-Setup + Updater + Backup
 └── main.tsx             # Entry + DB-Init
-
-src-tauri/
-├── src/lib.rs           # Tauri-Plugins (SQL, Dialog, FS)
-├── tauri.conf.json      # App-Konfiguration
-└── capabilities/        # Berechtigungen (AppData-Scope)
 ```
 
 ---
@@ -175,6 +282,8 @@ SQLite-Datenbank wird beim ersten Start automatisch im App-Data-Ordner erstellt.
 **Tabelle `invoices`**: id, date, year, month, category, description, partner, netto, ust, brutto, type, currency, pdf_path, note, created_at, updated_at
 
 **Tabelle `settings`**: key/value Store für API-Key, Profildaten, Theme-Einstellungen
+
+**Tabelle `drafts`**: id, file_path, file_name, added_at – zwischengespeicherte PDF-Entwürfe
 
 PDFs werden in `AppData/pdfs/` kopiert, der relative Pfad in der DB gespeichert.
 
