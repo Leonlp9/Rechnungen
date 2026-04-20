@@ -41,7 +41,7 @@ import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles,
 import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '@/lib/utils';
-import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, getNutzungsdauer } from '@/lib/afa';
+import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
 import { StornoDialog } from './StornoDialog';
 
 const schema = z.object({
@@ -499,18 +499,27 @@ export default function InvoiceDetail() {
 function AfaInfoBox({ netto, category, description, partner, date }: { netto: number; category: string; description: string; partner: string; date: string }) {
   const detectedType = guessAssetType(description, partner);
   const [selectedType, setSelectedType] = useState(detectedType);
+  const [selectedMethode, setSelectedMethode] = useState<string | null>(null);
   const [showPlan, setShowPlan] = useState(false);
 
   // Vorauswahl aktualisieren wenn sich Beschreibung/Partner ändert
   useEffect(() => {
     setSelectedType(guessAssetType(description, partner));
+    setSelectedMethode(null); // Methodenauswahl zurücksetzen bei neuem Typ
   }, [description, partner]);
   const gwgLabel = getGwgKategorie(netto);
   const empfohlen = empfohlenAfaMethode(netto);
   const optionen = berechneAfaOptionen(netto, selectedType, false);
-  const nutzungsdauer = getNutzungsdauer(selectedType);
+  // Aktiv gewählte Option (oder empfohlene als Fallback)
+  const aktiveOption = optionen.find((o) => o.methode === (selectedMethode ?? empfohlen)) ?? optionen[optionen.length - 1];
+  const nutzungsdauer = aktiveOption?.nutzungsdauer ?? getNutzungsdauer(selectedType);
   const currentYear = new Date().getFullYear();
-  const proRata = nutzungsdauer > 1 ? berechneProRataAfa(netto, date, nutzungsdauer, currentYear) : null;
+  const isPool = (selectedMethode ?? empfohlen) === 'pool';
+  const proRata = nutzungsdauer > 1
+    ? (isPool
+        ? berechnePoolAfaJahresplan(netto, date, currentYear)
+        : berechneProRataAfa(netto, date, nutzungsdauer, currentYear))
+    : null;
 
   const fmtEur = (v: number) => v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 
@@ -539,7 +548,7 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
         {/* Typ-Auswahl */}
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Wirtschaftsgut-Typ:</span>
-          <Select value={selectedType} onValueChange={setSelectedType}>
+          <Select value={selectedType} onValueChange={(v) => { setSelectedType(v); setSelectedMethode(null); }}>
             <SelectTrigger className="w-[180px] h-7 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -562,7 +571,7 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
         {/* Monatliche AfA */}
         {proRata && (
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Monatliche AfA:</span>
+            <span className="text-muted-foreground">Monatliche AfA ({aktiveOption?.label ?? ''}):</span>
             <span className="font-medium">{fmtEur(proRata.monatsAfa)}</span>
           </div>
         )}
@@ -570,7 +579,8 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
           <div className="flex justify-between">
             <span className="text-muted-foreground">AfA in {currentYear}:</span>
             <span className="font-medium text-violet-600 dark:text-violet-400">
-              {fmtEur(proRata.afaBetragImJahr)} ({proRata.monateImJahr}/12 Mon.)
+              {fmtEur(proRata.afaBetragImJahr)}{!isPool && ` (${proRata.monateImJahr}/12 Mon.)`}
+              {isPool && <span className="ml-1 text-[10px] text-muted-foreground">(voller Jahresbetrag)</span>}
             </span>
           </div>
         )}
@@ -589,23 +599,39 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
 
         <div className="border-t border-blue-200/30 pt-1.5 mt-1.5 space-y-1">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Abschreibungsoptionen:</span>
-          {optionen.map((opt) => (
-            <div key={opt.methode} className={cn(
-              'rounded p-1.5 text-[11px]',
-              opt.methode === empfohlen ? 'bg-emerald-500/10 border border-emerald-400/30' : 'bg-muted/50',
-            )}>
-              <div className="flex justify-between items-center">
-                <span className="font-medium">
-                  {opt.methode === empfohlen && <span className="text-emerald-600 mr-1">✓</span>}
-                  {opt.label}
-                </span>
-                <span className="font-mono">{fmtEur(opt.jahresAbschreibung)}/Jahr</span>
-              </div>
-              {opt.nutzungsdauer > 1 && (
-                <span className="text-muted-foreground">Restwert nach 1 Jahr: {fmtEur(opt.restwert)}</span>
-              )}
-            </div>
-          ))}
+          {optionen.map((opt) => {
+            const isActive = opt.methode === (selectedMethode ?? empfohlen);
+            return (
+              <button
+                key={opt.methode}
+                type="button"
+                onClick={() => { setSelectedMethode(opt.methode); setShowPlan(false); }}
+                className={cn(
+                  'w-full text-left rounded p-1.5 text-[11px] border transition-colors',
+                  isActive
+                    ? 'bg-emerald-500/10 border-emerald-400/30 ring-1 ring-emerald-400/40'
+                    : 'bg-muted/50 border-transparent hover:bg-muted',
+                )}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">
+                    {isActive && <span className="text-emerald-600 mr-1">✓</span>}
+                    {opt.label}
+                    {opt.methode === empfohlen && opt.methode !== (selectedMethode ?? empfohlen) && (
+                      <span className="ml-1 text-[9px] text-muted-foreground">(empfohlen)</span>
+                    )}
+                    {opt.methode === empfohlen && isActive && selectedMethode == null && (
+                      <span className="ml-1 text-[9px] text-muted-foreground">(empfohlen)</span>
+                    )}
+                  </span>
+                  <span className="font-mono">{fmtEur(opt.jahresAbschreibung)}/Jahr</span>
+                </div>
+                {opt.nutzungsdauer > 1 && (
+                  <span className="text-muted-foreground">Restwert nach 1 Jahr: {fmtEur(opt.restwert)}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Abschreibungsplan */}
@@ -624,7 +650,7 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
                   <thead>
                     <tr className="bg-muted/50">
                       <th className="text-left px-2 py-1 font-medium">Jahr</th>
-                      <th className="text-center px-2 py-1 font-medium">Monate</th>
+                      {!isPool && <th className="text-center px-2 py-1 font-medium">Monate</th>}
                       <th className="text-right px-2 py-1 font-medium">AfA</th>
                       <th className="text-right px-2 py-1 font-medium">Restwert</th>
                     </tr>
@@ -636,7 +662,7 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
                         row.jahr === currentYear && 'bg-violet-500/5 font-semibold',
                       )}>
                         <td className="px-2 py-1">{row.jahr}{row.jahr === currentYear ? ' ◄' : ''}</td>
-                        <td className="px-2 py-1 text-center">{row.monate}/12</td>
+                        {!isPool && <td className="px-2 py-1 text-center">{row.monate}/12</td>}
                         <td className="px-2 py-1 text-right">{fmtEur(row.betrag)}</td>
                         <td className="px-2 py-1 text-right">{fmtEur(row.restwert)}</td>
                       </tr>

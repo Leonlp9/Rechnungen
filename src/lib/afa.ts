@@ -247,6 +247,44 @@ export function berechneProRataAfa(
   };
 }
 
+/**
+ * Berechnet den Abschreibungsplan für den steuerlichen Sammelposten (§ 6 Abs. 2a EStG).
+ * Beim Sammelposten gilt KEINE zeitanteilige Aufteilung (pro rata temporis).
+ * Es wird immer der volle Jahresbetrag (1/5) angesetzt, unabhängig vom Kaufmonat.
+ */
+export function berechnePoolAfaJahresplan(
+  nettoPreis: number,
+  kaufdatum: string, // ISO date "2026-07-15"
+  fuerJahr: number,
+): ProRataAfaResult {
+  const kaufJahr = new Date(kaufdatum).getFullYear();
+  const jahresbetrag = Math.round((nettoPreis / 5) * 100) / 100;
+
+  const jahresplan: { jahr: number; monate: number; betrag: number; restwert: number }[] = [];
+  let verbleibendeKosten = nettoPreis;
+
+  for (let i = 0; i < 5; i++) {
+    const betrag = i < 4 ? jahresbetrag : Math.round(verbleibendeKosten * 100) / 100; // letztes Jahr: Restkorrrektur
+    verbleibendeKosten = Math.round((verbleibendeKosten - betrag) * 100) / 100;
+    jahresplan.push({ jahr: kaufJahr + i, monate: 12, betrag, restwert: verbleibendeKosten });
+  }
+
+  const eintrag = jahresplan.find((e) => e.jahr === fuerJahr);
+  const afaBetragImJahr = eintrag?.betrag ?? 0;
+  const restwertEndeJahr = eintrag?.restwert ?? (fuerJahr < kaufJahr ? nettoPreis : 0);
+
+  return {
+    afaBetragImJahr,
+    monateImJahr: 12, // Beim Sammelposten immer volle 12 Monate
+    volleJahresAfa: jahresbetrag,
+    monatsAfa: Math.round((jahresbetrag / 12) * 100) / 100,
+    endeJahr: kaufJahr + 4,
+    endeMonat: 12,
+    restwertEndeJahr,
+    jahresplan,
+  };
+}
+
 /** Gibt die Nutzungsdauer für einen Asset-Typ zurück */
 export function getNutzungsdauer(assetType: string, istDigital = false): number {
   if (istDigital) return 1;
