@@ -18,6 +18,11 @@ import {
   Sparkles,
   ArrowLeft,
   TrendingUp,
+  Shield,
+  Calculator,
+  FileSpreadsheet,
+  ClipboardList,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -159,12 +164,17 @@ const ARTICLES: HelpArticle[] = [
           <div className="space-y-3 text-sm">
             {[
               { name: 'Umsatzerlöse (steuerpflichtig)', color: 'bg-green-500/15 text-green-700 dark:text-green-400', desc: 'Standard für Rechnungen mit 19% oder 7% MwSt. Entspricht Zeile 14 der Anlage EÜR.' },
-              { name: 'Umsatzerlöse (steuerfrei / §19 UStG)', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', desc: 'Einnahmen ohne MwSt – z.B. Kleinunternehmer, Exporte (Reverse-Charge), steuerfreie Leistungen. Zeile 15 EÜR.' },
+              { name: 'Umsatzerlöse (steuerfrei / §19 UStG)', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', desc: 'Einnahmen ohne MwSt – z.B. Kleinunternehmer, Exporte, steuerfreie Leistungen. Zeile 15 EÜR.' },
+              { name: 'Reverse Charge (§ 13b UStG)', color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400', desc: 'Einnahmen von ausländischen Plattformen (Twitch, YouTube, Amazon). Steuerschuldumkehr – Netto-Rechnung mit USt-IdNr. beider Parteien.' },
               { name: 'USt-Erstattung vom Finanzamt', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Geld, das du vom Finanzamt zurückbekommst (Umsatzsteuererklärung). Zeile 18 EÜR.' },
               { name: 'Privateinlage', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', desc: 'Privates Geld, das du ins Unternehmen einlegst. Kein steuerpflichtiger Gewinn, erhöht aber dein Konto.' },
               { name: 'Verkauf von Anlagevermögen', color: 'bg-violet-500/15 text-violet-700 dark:text-violet-400', desc: 'Erlös aus dem Verkauf von Firmenvermögen (alter Laptop, Möbel, Fahrzeug). Buchhalterisch anders als normale Umsätze.' },
               { name: 'Erstattungen / Auslagen', color: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400', desc: 'Rückerstattungen, Auslagenerstattungen (durchlaufender Posten). Mindert zuvor gebuchte Ausgaben.' },
-              { name: 'Sonstige Einnahmen', color: 'bg-lime-500/15 text-lime-700 dark:text-lime-400', desc: 'Alle anderen Einnahmen: erhaltene Donations/Spenden, Crowdfunding, nicht zuordenbare Erträge.' },
+              { name: 'Sponsoring / Werbeleistung', color: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-400', desc: 'Zahlungen von Sponsoren für Werbeplatzierung, Product Placement, gesponserte Beiträge.' },
+              { name: 'Affiliate / Vermittlungsprovision', color: 'bg-rose-500/15 text-rose-700 dark:text-rose-400', desc: 'Provisionen aus Affiliate-Links, Empfehlungsprogrammen (Amazon PartnerNet, etc.).' },
+              { name: 'Donations / Tips (Streaming)', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-400', desc: 'Freiwillige Zuschauerzahlungen (Twitch Bits, YouTube Super Chat, Ko-fi). Sind Betriebseinnahmen, keine steuerfreien Spenden!' },
+              { name: 'Sachzuwendungen (Marktwert)', color: 'bg-orange-500/15 text-orange-700 dark:text-orange-400', desc: 'Erhaltene Produkte/PR-Samples. Marktwert als Einnahme ansetzen. Ausnahme: Rückgabepflicht, Pauschalversteuerung § 37b, Streuartikel < 10 €.' },
+              { name: 'Sonstige Einnahmen', color: 'bg-lime-500/15 text-lime-700 dark:text-lime-400', desc: 'Alle anderen Einnahmen: Crowdfunding, nicht zuordenbare Erträge.' },
             ].map(({ name, color, desc }) => (
               <div key={name} className="flex items-start gap-3">
                 <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${color}`}>{name}</span>
@@ -181,7 +191,8 @@ const ARTICLES: HelpArticle[] = [
               { name: 'Software & Abos', color: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400', desc: 'Lizenzkosten, SaaS-Abos, App-Subscriptions, Cloud-Dienste (Adobe, GitHub, Hosting).' },
               { name: 'Fremdleistungen', color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400', desc: 'Unterauftragnehmer, externe Dienstleister, Freelancer, Agenturen.' },
               { name: 'Bürobedarf & Material', color: 'bg-slate-500/15 text-slate-700 dark:text-slate-400', desc: 'Büromaterial, Druckerpatronen, Papier, Kleinmaterial.' },
-              { name: 'Reisekosten', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen.' },
+              { name: 'Reisekosten', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Fahrtkosten (0,30 €/km), Hotel, Flüge, Bahnfahrten, Verpflegungsmehraufwand (Pauschalen bei >8h Abwesenheit).' },
+              { name: 'Bewirtungskosten', color: 'bg-red-500/15 text-red-700 dark:text-red-400', desc: 'Geschäftliche Bewirtung – nur 70 % absetzbar! Angaben zu Teilnehmern und Anlass sind Pflicht. NICHT für private Restaurantbesuche.' },
               { name: 'Marketing & Werbung', color: 'bg-pink-500/15 text-pink-700 dark:text-pink-400', desc: 'Online-Werbung, Drucksachen, Messen, PR-Maßnahmen.' },
               { name: 'Weiterbildung & Fachliteratur', color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400', desc: 'Kurse, Seminare, Fachbücher, Konferenztickets.' },
               { name: 'Miete & Raumkosten', color: 'bg-lime-500/15 text-lime-700 dark:text-lime-400', desc: 'Büro-, Co-Working- oder Lagermiete.' },
@@ -631,6 +642,267 @@ const ARTICLES: HelpArticle[] = [
           Muster werden rein algorithmisch berechnet – es werden keine Daten gespeichert oder verändert.
           Die Prognose ist eine Wahrscheinlichkeit, keine Gewissheit.
         </Tip>
+      </div>
+    ),
+  },
+  {
+    id: 'steuerregelung',
+    title: 'Steuerregelung & Tätigkeitsart',
+    icon: Shield,
+    category: 'Steuern',
+    keywords: ['steuer', 'kleinunternehmer', 'regelbesteuerung', 'freiberufler', 'gewerbe', 'content creator', '§19', 'ust'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Unter Einstellungen legst du fest, wie du steuerlich aufgestellt bist. Das beeinflusst Dashboard-Widgets,
+          Rechnungserstellung und Kategorie-Empfehlungen.
+        </p>
+        <Section title="Steuerregelung">
+          <div className="space-y-3 text-sm">
+            {[
+              { name: 'Kleinunternehmer (§ 19 UStG)', desc: 'Vorjahresumsatz ≤ 25.000 € (ab 2025), lfd. Jahr < 100.000 €. Kein USt-Ausweis erlaubt, Pflichthinweis auf § 19. Dashboard zeigt Fortschrittsbalken.' },
+              { name: 'Regelbesteuerung', desc: 'USt wird auf Rechnungen ausgewiesen und ans Finanzamt abgeführt. Vorsteuerabzug möglich. Umsatzsteuer-Voranmeldung nötig.' },
+            ].map(({ name, desc }) => (
+              <div key={name} className="flex items-start gap-3">
+                <span className="shrink-0 rounded px-2 py-0.5 text-xs font-medium bg-primary/15 text-primary">{name}</span>
+                <span className="text-muted-foreground">{desc}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+        <Section title="Tätigkeitsart">
+          <div className="space-y-3 text-sm">
+            {[
+              { name: 'Freiberufler (§ 18 EStG)', desc: 'Katalogberufe (Entwickler, Designer, Berater). Keine Gewerbesteuer, keine Gewerbeanmeldung, Anlage S.' },
+              { name: 'Gewerbetreibend (§ 15 EStG)', desc: 'Gewerbeanmeldung + IHK-Pflicht. Gewerbesteuer ab 24.500 € Gewinn (Hebesatz der Kommune), Anlage G.' },
+              { name: 'Content Creator', desc: 'Streamer, YouTuber, Influencer – gewerblich. Spezielle Kategorien: Donations, Sponsoring, Affiliate, Reverse Charge, Sachzuwendungen.' },
+            ].map(({ name, desc }) => (
+              <div key={name} className="flex items-start gap-3">
+                <span className="shrink-0 rounded px-2 py-0.5 text-xs font-medium bg-blue-500/15 text-blue-700 dark:text-blue-400">{name}</span>
+                <span className="text-muted-foreground">{desc}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+        <Tip>Die Einstellung beeinflusst, wie das Dashboard die Kleinunternehmergrenze darstellt und welche Kategorien die KI bevorzugt vorschlägt.</Tip>
+      </div>
+    ),
+  },
+  {
+    id: 'reverse-charge',
+    title: 'Reverse Charge & Plattformen',
+    icon: Globe,
+    category: 'Steuern',
+    keywords: ['reverse charge', '13b', 'twitch', 'youtube', 'google', 'amazon', 'plattform', 'ausland', 'international'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Bei Leistungen von/an ausländische Plattformen greift oft das Reverse-Charge-Verfahren (§ 13b UStG).
+          Die Steuerschuld wird auf den Leistungsempfänger übertragen.
+        </p>
+        <Section title="Wann gilt Reverse Charge?">
+          <ul className="space-y-1.5 text-sm">
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Einnahmen von EU-Plattformen (z.B. Google Ireland) → Netto-Rechnung + USt-IdNr. beider Parteien</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Einnahmen von US-Firmen (z.B. Twitch Interactive) → Nicht steuerbar in DE (§ 3a Abs. 2 UStG), aber in EÜR deklarieren</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Hinweis auf Rechnung: „Steuerschuldnerschaft des Leistungsempfängers"</span></li>
+          </ul>
+        </Section>
+        <Section title="Wichtige Plattform-Stammdaten">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-1.5 pr-4 font-semibold">Plattform</th>
+                <th className="text-left py-1.5 pr-4 font-semibold">Vertragspartner</th>
+                <th className="text-left py-1.5 font-semibold">USt-IdNr.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border text-muted-foreground">
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">YouTube / AdSense</td><td className="py-1.5 pr-4">Google Ireland Ltd., Dublin</td><td className="py-1.5">IE 6388047V</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Twitch</td><td className="py-1.5 pr-4">Twitch Interactive, Inc., San Francisco</td><td className="py-1.5">– (US-Firma)</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Amazon KDP</td><td className="py-1.5 pr-4">Amazon Media EU S.à r.l., Luxemburg</td><td className="py-1.5">LU 20944528</td></tr>
+            </tbody>
+          </table>
+        </Section>
+        <Tip>Verwende die Kategorie „Reverse Charge (§ 13b UStG)" für Einnahmen von diesen Plattformen.</Tip>
+      </div>
+    ),
+  },
+  {
+    id: 'audit-trail',
+    title: 'GoBD-Audit-Trail (Änderungshistorie)',
+    icon: ClipboardList,
+    category: 'Compliance',
+    keywords: ['gobd', 'audit', 'trail', 'änderung', 'historie', 'protokoll', 'unveränderbar', 'revision', 'compliance'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Der Rechnungs-Manager protokolliert automatisch jede Anlage, Änderung und Löschung von Rechnungen –
+          ein zentrales Kriterium der GoBD-Konformität.
+        </p>
+        <Section title="Was wird protokolliert?">
+          <ul className="space-y-1.5 text-sm">
+            {['Anlegen einer neuen Rechnung', 'Ändern einzelner Felder (alter → neuer Wert)', 'Löschen einer Rechnung', 'Zeitstempel für jede Aktion'].map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </Section>
+        <Section title="GoBD-Grundsätze">
+          <div className="space-y-2 text-sm">
+            {[
+              ['Unveränderbarkeit', 'Festgeschriebene Belege dürfen nicht gelöscht oder spurlos geändert werden'],
+              ['Korrekturen', 'Nur über Stornobuchungen oder Korrekturbelege'],
+              ['Aufbewahrung', '10 Jahre Aufbewahrungspflicht für Rechnungen und Belege'],
+              ['Verknüpfung', 'Jeder Buchungssatz muss mit dem digitalen Beleg verknüpft sein'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex gap-3">
+                <span className="font-medium w-36 shrink-0">{k}</span>
+                <span className="text-muted-foreground">{v}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+        <Tip>Erstelle regelmäßig Backups (.rmbackup) – sie enthalten die Datenbank, alle PDFs und den Audit-Trail.</Tip>
+      </div>
+    ),
+  },
+  {
+    id: 'datev-export',
+    title: 'DATEV-Export',
+    icon: FileSpreadsheet,
+    category: 'Auswertungen',
+    keywords: ['datev', 'elster', 'steuerberater', 'csv', 'buchungsstapel', 'export', 'finanzbuchhaltung'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Exportiere deine Buchungen im DATEV-kompatiblen CSV-Format – ideal für den Steuerberater.
+        </p>
+        <Section title="So funktioniert der DATEV-Export">
+          <Steps>
+            <Step n={1} title="Rechnungen filtern">
+              Gehe zu „Alle Rechnungen" und wähle das gewünschte Jahr.
+            </Step>
+            <Step n={2} title='DATEV-CSV exportieren'>
+              Im Export-Menü „DATEV-CSV" wählen und Speicherort festlegen.
+            </Step>
+            <Step n={3} title="An Steuerberater senden">
+              Die CSV-Datei kann direkt in DATEV importiert werden.
+            </Step>
+          </Steps>
+        </Section>
+        <Section title="Enthaltene Felder">
+          <ul className="space-y-1.5 text-sm">
+            {['Umsatz (Brutto)', 'Soll/Haben-Kennzeichen', 'Konto & Gegenkonto', 'Belegdatum', 'Buchungstext (Partner + Beschreibung)', 'USt-Satz', 'Kategorie'].map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </Section>
+        <Tip>Der DATEV-Export ist ein vereinfachter Buchungsstapel. Für eine vollständige DATEV-Integration sprich mit deinem Steuerberater über das passende Format.</Tip>
+      </div>
+    ),
+  },
+  {
+    id: 'afa-gwg',
+    title: 'AfA-Rechner & GWG-Grenzen',
+    icon: Calculator,
+    category: 'Steuern',
+    keywords: ['afa', 'abschreibung', 'gwg', 'wirtschaftsgut', 'anlage', 'nutzungsdauer', 'sofortabschreibung', 'pool'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Wirtschaftsgüter werden je nach Wert unterschiedlich steuerlich behandelt. Die App hilft dir,
+          die richtige Abschreibungsmethode zu wählen.
+        </p>
+        <Section title="GWG-Schwellen (2025/2026)">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-1.5 pr-4 font-semibold">Netto-Preis</th>
+                <th className="text-left py-1.5 font-semibold">Behandlung</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border text-muted-foreground">
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Bis 250 €</td><td className="py-1.5">Direkter Betriebsausgabenabzug – kein Verzeichnis nötig</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">250,01 – 800 €</td><td className="py-1.5">GWG-Sofortabschreibung (vollständig im Anschaffungsjahr)</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">250,01 – 1.000 €</td><td className="py-1.5">Alternativ: Sammelposten über 5 Jahre</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Über 800 €</td><td className="py-1.5">Lineare AfA über Nutzungsdauer</td></tr>
+            </tbody>
+          </table>
+        </Section>
+        <Section title="Typische Nutzungsdauern">
+          <div className="grid grid-cols-2 gap-1 text-xs">
+            {[
+              ['Computer / Laptop', '3 Jahre'],
+              ['Monitor / Drucker', '3 Jahre'],
+              ['Smartphone', '5 Jahre'],
+              ['Büromöbel', '13 Jahre'],
+              ['Kamera / Audio', '7 Jahre'],
+              ['Fahrzeug', '6 Jahre'],
+              ['Digitale WG (Sonder-AfA)', '1 Jahr'],
+            ].map(([item, nd]) => (
+              <div key={item} className="flex justify-between rounded bg-muted px-2 py-1">
+                <span>{item}</span>
+                <span className="text-muted-foreground font-mono">{nd}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+        <Tip>Pro Jahr: Entweder GWG-Sofortabschreibung ODER Poolabschreibung – beides nebeneinander ist nicht zulässig. Digitale Wirtschaftsgüter (Software, digitale Werkzeuge) können über 1 Jahr abgeschrieben werden (de facto Sofortabzug).</Tip>
+      </div>
+    ),
+  },
+  {
+    id: 'verfahrensdoku',
+    title: 'Verfahrensdokumentation (GoBD)',
+    icon: Shield,
+    category: 'Compliance',
+    keywords: ['verfahrensdokumentation', 'gobd', 'dokumentation', 'prüfer', 'finanzamt', 'betriebsprüfung', 'archivierung'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Die GoBD verlangen, dass du dokumentierst, wie du deine Buchführung organisierst. Keine Software
+          ist „per se" GoBD-konform – die Konformität ergibt sich aus dem Zusammenspiel von Software, Hardware
+          und deinen Prozessen.
+        </p>
+        <Section title="Was muss dokumentiert werden?">
+          <ul className="space-y-1.5 text-sm">
+            {[
+              'Welche Software du für Buchführung nutzt (Rechnungs-Manager)',
+              'Wie Belege erfasst werden (PDF-Upload, KI-Erkennung, manuelle Eingabe)',
+              'Wie Belege archiviert werden (lokal als PDF/A in app_data_dir)',
+              'Wer Zugriff auf die Daten hat',
+              'Wie Backups erstellt werden (.rmbackup-Format)',
+              'Wie Korrekturen vorgenommen werden (Stornobuchung)',
+            ].map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+        <Section title="Rechnungs-Manager Compliance-Features">
+          <div className="space-y-2 text-sm">
+            {[
+              ['Audit-Trail', 'Automatisches Änderungsprotokoll für jede Rechnung'],
+              ['PDF-Archivierung', 'Belege werden lokal als PDF gespeichert und mit Buchungen verknüpft'],
+              ['Backup-System', '.rmbackup enthält DB + PDFs + Metadaten'],
+              ['Duplikat-Prüfung', 'Warnung bei gleichen Partner + Betrag + Datum'],
+              ['10-Jahres-Archiv', 'Daten werden nie automatisch gelöscht'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex gap-3">
+                <span className="font-medium w-36 shrink-0">{k}</span>
+                <span className="text-muted-foreground">{v}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+        <Tip>Erstelle ein einfaches Textdokument mit den oben genannten Punkten und bewahre es zusammen mit deinen Backups auf. Das reicht als Verfahrensdokumentation für Kleinunternehmer und Freiberufler in der Regel aus.</Tip>
       </div>
     ),
   },

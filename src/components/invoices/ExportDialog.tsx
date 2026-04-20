@@ -16,11 +16,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAppStore } from '@/store';
-import { exportToXlsx, exportToZip, exportAll } from '@/lib/export';
+import { exportToXlsx, exportToZip, exportAll, exportToDatev } from '@/lib/export';
 import { toast } from 'sonner';
 import { Loader2, Download } from 'lucide-react';
 
-type ExportFormat = 'xlsx' | 'zip' | 'all';
+type ExportFormat = 'xlsx' | 'zip' | 'all' | 'datev';
 type PeriodMode = 'month' | 'year' | 'all';
 
 const MONTH_NAMES = [
@@ -51,6 +51,7 @@ export function ExportDialog({ open, onClose }: Props) {
     xlsx: 'Excel-Datei mit 4 Sheets (Alle Belege, Zusammenfassung, Nach Monat, Hinweise)',
     zip: 'ZIP-Archiv mit PDFs geordnet nach Monat → Kategorie, Dateinamen mit Datum/Partner/Betrag',
     all: 'Beides – zuerst Excel, dann ZIP (je ein Speichern-Dialog)',
+    datev: 'CSV im DATEV-Buchungsstapel-Format – ideal für den Steuerberater oder DATEV-Import.',
   };
 
   const handleExport = async () => {
@@ -75,6 +76,7 @@ export function ExportDialog({ open, onClose }: Props) {
 
       if (format === 'xlsx') await exportToXlsx(filtered, label as number);
       else if (format === 'zip') await exportToZip(filtered, label as number);
+      else if (format === 'datev') await exportToDatev(filtered, label);
       else await exportAll(filtered, label as number);
 
       toast.success('Export erfolgreich!');
@@ -152,6 +154,7 @@ export function ExportDialog({ open, onClose }: Props) {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="xlsx">📊 Excel (XLSX)</SelectItem>
+                <SelectItem value="datev">📋 DATEV (CSV)</SelectItem>
                 <SelectItem value="zip">🗂 ZIP (Rechnungen als PDF)</SelectItem>
                 <SelectItem value="all">📦 Alles (Excel + ZIP)</SelectItem>
               </SelectContent>

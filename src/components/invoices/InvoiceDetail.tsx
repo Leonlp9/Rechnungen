@@ -25,12 +25,13 @@ import { getInvoiceById, updateInvoice, deleteInvoice, getAllInvoices } from '@/
 import { getAbsolutePdfPath, readPdfAsBase64 } from '@/lib/pdf';
 import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
-import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getDefaultCategoryForType, isCategoryValidForType } from '@/types';
+import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getCategoriesForBranche, getDefaultCategoryForType, isCategoryValidForType } from '@/types';
 import type { Invoice } from '@/types';
-import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator } from 'lucide-react';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '@/lib/utils';
+import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, getNutzungsdauer } from '@/lib/afa';
 
 const schema = z.object({
   date: z.string().min(1),
@@ -54,6 +55,7 @@ export default function InvoiceDetail() {
   const setInvoices = useAppStore((s) => s.setInvoices);
   const activeAiFix = useAppStore((s) => s.activeAiFix);
   const setActiveAiFix = useAppStore((s) => s.setActiveAiFix);
+  const branchenprofil = useAppStore((s) => s.branchenprofil);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [pdfUrl, setPdfUrl] = useState('');
   const [saving, setSaving] = useState(false);
@@ -348,12 +350,17 @@ export default function InvoiceDetail() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {getCategoriesForTypeFiltered(watchedType, watchedCategory).map((c) => (
+                {getCategoriesForBranche(watchedType, branchenprofil, watchedCategory).map((c) => (
                   <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {/* AfA / GWG Hinweis – automatisch bei relevanten Kategorien */}
+          {(watchedCategory === 'gwg' || watchedCategory === 'anlagevermoegen_afa') && form.watch('netto') > 0 && (
+            <AfaInfoBox netto={form.watch('netto')} category={watchedCategory} description={form.watch('description') ?? ''} partner={form.watch('partner') ?? ''} date={form.watch('date') ?? ''} />
+          )}
 
           <div className="space-y-1.5">
             <Label>Notiz</Label>
@@ -392,3 +399,162 @@ export default function InvoiceDetail() {
     </div>
   );
 }
+
+// ─── AfA / GWG Hinweis-Box ─────────────────────────────────────────────────
+
+function AfaInfoBox({ netto, category, description, partner, date }: { netto: number; category: string; description: string; partner: string; date: string }) {
+  const detectedType = guessAssetType(description, partner);
+  const [selectedType, setSelectedType] = useState(detectedType);
+  const [showPlan, setShowPlan] = useState(false);
+
+  // Vorauswahl aktualisieren wenn sich Beschreibung/Partner ändert
+  useEffect(() => {
+    setSelectedType(guessAssetType(description, partner));
+  }, [description, partner]);
+  const gwgLabel = getGwgKategorie(netto);
+  const empfohlen = empfohlenAfaMethode(netto);
+  const optionen = berechneAfaOptionen(netto, selectedType, false);
+  const nutzungsdauer = getNutzungsdauer(selectedType);
+  const currentYear = new Date().getFullYear();
+  const proRata = nutzungsdauer > 1 ? berechneProRataAfa(netto, date, nutzungsdauer, currentYear) : null;
+
+  const fmtEur = (v: number) => v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+
+  // Warnung wenn falsche Kategorie gewählt
+  const sollGwg = netto <= 800;
+  const sollAfa = netto > 800;
+  const falscheKategorie = (category === 'gwg' && sollAfa) || (category === 'anlagevermoegen_afa' && sollGwg);
+
+  return (
+    <div className="rounded-lg border border-blue-300/40 bg-blue-500/5 p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <Calculator className="h-4 w-4 text-blue-500" />
+        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">AfA-Einordnung</span>
+      </div>
+
+      <div className="text-xs space-y-1.5">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Netto-Preis:</span>
+          <span className="font-medium">{fmtEur(netto)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Schwelle:</span>
+          <span className="font-medium">{gwgLabel}</span>
+        </div>
+
+        {/* Typ-Auswahl */}
+        <div className="flex justify-between items-center">
+          <span className="text-muted-foreground">Wirtschaftsgut-Typ:</span>
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="w-[180px] h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ASSET_TYPES.map((t) => (
+                <SelectItem key={t} value={t} className="text-xs">
+                  {NUTZUNGSDAUER_LABELS[t] ?? t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selectedType !== detectedType && (
+          <div className="text-[10px] text-muted-foreground italic">
+            Automatisch erkannt: {NUTZUNGSDAUER_LABELS[detectedType] ?? detectedType}
+          </div>
+        )}
+
+        {/* Monatliche AfA */}
+        {proRata && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Monatliche AfA:</span>
+            <span className="font-medium">{fmtEur(proRata.monatsAfa)}</span>
+          </div>
+        )}
+        {proRata && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">AfA in {currentYear}:</span>
+            <span className="font-medium text-violet-600 dark:text-violet-400">
+              {fmtEur(proRata.afaBetragImJahr)} ({proRata.monateImJahr}/12 Mon.)
+            </span>
+          </div>
+        )}
+
+        {falscheKategorie && (
+          <div className="flex items-start gap-1.5 rounded bg-amber-500/10 border border-amber-400/30 p-2 mt-1">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <span className="text-amber-700 dark:text-amber-400 text-[11px]">
+              {sollGwg
+                ? `Netto ≤ 800 € → sollte als „GWG" kategorisiert werden (Sofortabschreibung).`
+                : `Netto > 800 € → sollte als „Anlagevermögen / AfA" kategorisiert werden (lineare Abschreibung).`
+              }
+            </span>
+          </div>
+        )}
+
+        <div className="border-t border-blue-200/30 pt-1.5 mt-1.5 space-y-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Abschreibungsoptionen:</span>
+          {optionen.map((opt) => (
+            <div key={opt.methode} className={cn(
+              'rounded p-1.5 text-[11px]',
+              opt.methode === empfohlen ? 'bg-emerald-500/10 border border-emerald-400/30' : 'bg-muted/50',
+            )}>
+              <div className="flex justify-between items-center">
+                <span className="font-medium">
+                  {opt.methode === empfohlen && <span className="text-emerald-600 mr-1">✓</span>}
+                  {opt.label}
+                </span>
+                <span className="font-mono">{fmtEur(opt.jahresAbschreibung)}/Jahr</span>
+              </div>
+              {opt.nutzungsdauer > 1 && (
+                <span className="text-muted-foreground">Restwert nach 1 Jahr: {fmtEur(opt.restwert)}</span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Abschreibungsplan */}
+        {proRata && proRata.jahresplan.length > 0 && (
+          <div className="border-t border-blue-200/30 pt-1.5 mt-1.5">
+            <button
+              type="button"
+              onClick={() => setShowPlan(!showPlan)}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              {showPlan ? '▾' : '▸'} Abschreibungsplan ({proRata.jahresplan.length} Jahre)
+            </button>
+            {showPlan && (
+              <div className="mt-1.5 rounded border overflow-hidden">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="text-left px-2 py-1 font-medium">Jahr</th>
+                      <th className="text-center px-2 py-1 font-medium">Monate</th>
+                      <th className="text-right px-2 py-1 font-medium">AfA</th>
+                      <th className="text-right px-2 py-1 font-medium">Restwert</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {proRata.jahresplan.map((row) => (
+                      <tr key={row.jahr} className={cn(
+                        'border-t',
+                        row.jahr === currentYear && 'bg-violet-500/5 font-semibold',
+                      )}>
+                        <td className="px-2 py-1">{row.jahr}{row.jahr === currentYear ? ' ◄' : ''}</td>
+                        <td className="px-2 py-1 text-center">{row.monate}/12</td>
+                        <td className="px-2 py-1 text-right">{fmtEur(row.betrag)}</td>
+                        <td className="px-2 py-1 text-right">{fmtEur(row.restwert)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

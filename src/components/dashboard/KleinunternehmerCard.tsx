@@ -11,10 +11,13 @@ interface Props {
   loading?: boolean;
 }
 
-// Grenzwert: ab 2025 gilt 25.000 €, davor 22.000 €
+// Grenzwert Vorjahr: ab 2025 gilt 25.000 €, davor 22.000 €
 function getGrenzwert(year: number) {
   return year >= 2025 ? 25_000 : 22_000;
 }
+
+// Grenzwert laufendes Jahr: ab 2025 gilt 100.000 €
+const JAHRESGRENZE = 100_000;
 
 export function KleinunternehmerCard({ einnahmen, selectedYear, privacyMode = false, loading }: Props) {
   const steuerregelung = useAppStore((s) => s.steuerregelung);
@@ -138,6 +141,31 @@ export function KleinunternehmerCard({ einnahmen, selectedYear, privacyMode = fa
               ⚠️ Grenze = <strong>Brutto-Umsatz</strong> (deine Einnahmen), nicht Gewinn.
               Ausgaben senken diese Grenze <strong>nicht</strong>. § 19 UStG – kein Steuerberaterersatz.
             </p>
+
+            {/* 100.000 € Jahresgrenze (ab 2025) */}
+            {selectedYear >= 2025 && (
+              <div className="border-t pt-2 mt-1 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-muted-foreground">
+                    Jahresgrenze (lfd. Jahr)
+                  </span>
+                  <span className={`text-[11px] font-semibold ${einnahmen >= JAHRESGRENZE ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {fmtCurrency(einnahmen, privacyMode)} / {fmtCurrency(JAHRESGRENZE, false)}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${einnahmen >= JAHRESGRENZE ? 'bg-destructive' : 'bg-blue-400'}`}
+                    style={{ width: `${Math.min((einnahmen / JAHRESGRENZE) * 100, 100)}%` }}
+                  />
+                </div>
+                {einnahmen >= JAHRESGRENZE && (
+                  <p className="text-[10px] text-destructive font-medium">
+                    ⚠️ 100.000 €-Jahresgrenze überschritten – sofortiger Wechsel zur Regelbesteuerung!
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </CardContent>

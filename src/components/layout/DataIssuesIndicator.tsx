@@ -46,6 +46,29 @@ export function detectIssues(invoices: Invoice[]): DataIssue[] {
         fixFields: ['category'],
       });
     }
+    // GWG/AfA Schwellen-Warnung
+    if (inv.category === 'gwg' && inv.netto > 800) {
+      issues.push({
+        id: `gwg-too-high-${inv.id}`,
+        invoiceId: inv.id,
+        severity: 'warning',
+        title: 'GWG-Grenze überschritten',
+        description: `Netto ${inv.netto.toFixed(2)} € > 800 € – sollte als „Anlagevermögen / AfA" (lineare Abschreibung) kategorisiert werden, nicht als GWG.`,
+        invoice: inv,
+        fixFields: ['category'],
+      });
+    }
+    if (inv.category === 'anlagevermoegen_afa' && inv.netto > 0 && inv.netto <= 800) {
+      issues.push({
+        id: `afa-too-low-${inv.id}`,
+        invoiceId: inv.id,
+        severity: 'warning',
+        title: 'AfA unter GWG-Grenze',
+        description: `Netto ${inv.netto.toFixed(2)} € ≤ 800 € – kann als GWG sofort abgeschrieben werden statt über mehrere Jahre.`,
+        invoice: inv,
+        fixFields: ['category'],
+      });
+    }
   }
   return issues;
 }

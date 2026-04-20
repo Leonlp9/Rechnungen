@@ -23,6 +23,9 @@ import { GesamtCashflowChart } from './GesamtCashflowChart';
 import { AboList } from './AboList';
 import { PartnerCard } from './PartnerCard';
 import { JahresprognoseChart } from './JahresprognoseChart';
+import { AfaUebersichtCard } from './AfaUebersichtCard';
+import { AfaBarChart, AfaDonutChart, AfaTimelineChart } from './AfaChart';
+import { BetriebsergebnisDialog } from './BetriebsergebnisDialog';
 import { useAppStore } from '@/store';
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
@@ -50,10 +53,12 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
   const navigate = useNavigate();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
+  const [beOpen, setBeOpen] = useState(false);
+  const [beAfaOpen, setBeAfaOpen] = useState(false);
 
   const {
     loading, privacyMode,
-    einnahmen, ausgaben, saldo, betriebsergebnis, recentCount,
+    einnahmen, ausgaben, saldo, betriebsergebnis, betriebsergebnisNachAfa, recentCount,
     deltaEin, deltaAus, deltaSaldo,
     monatEin, monatAus, monatSaldo, monatSaldoMitPrognose,
     deltaMonatEin, deltaMonatAus, deltaMonatSaldo,
@@ -91,10 +96,25 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
       );
     case 'kpi-betriebsergebnis':
       return (
-        <KPICard loading={loading} title="Betriebsergebnis"
-          value={fmtCurrency(betriebsergebnis, privacyMode)}
-          icon={<Calculator className="h-4 w-4 text-violet-600" />}
-          tooltip="Steuerlich relevantes Ergebnis: nur Betriebsausgaben abgezogen" />
+        <>
+          <KPICard loading={loading} title="Cash-Gewinn"
+            value={fmtCurrency(betriebsergebnis, privacyMode)}
+            icon={<Calculator className="h-4 w-4 text-violet-600" />}
+            tooltip="Cashflow-Gewinn: Einnahmen minus alle Betriebsausgaben (voller Kaufpreis). Klicken für Details."
+            onClick={() => setBeOpen(true)} />
+          <BetriebsergebnisDialog open={beOpen} onOpenChange={setBeOpen} variant="cash" />
+        </>
+      );
+    case 'kpi-betriebsergebnis-afa':
+      return (
+        <>
+          <KPICard loading={loading} title="Steuerlicher Gewinn (EÜR)"
+            value={fmtCurrency(betriebsergebnisNachAfa, privacyMode)}
+            icon={<Calculator className="h-4 w-4 text-amber-600" />}
+            tooltip="Gewinn nach AfA: Nur zeitanteilige Abschreibung statt vollem Kaufpreis. Das ist die Basis für deine Steuerlast. Klicken für Details."
+            onClick={() => setBeAfaOpen(true)} />
+          <BetriebsergebnisDialog open={beAfaOpen} onOpenChange={setBeAfaOpen} variant="afa" />
+        </>
       );
     case 'kpi-belege-30d':
       return (
@@ -193,12 +213,19 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
       );
     }
     case 'kpi-steuerruecklage': {
-      const ruecklage = Math.max(0, betriebsergebnis * 0.3);
+      const basis = betriebsergebnisNachAfa;
+      // Grundfreibetrag 2026 (ca.) – darunter fällt keine Einkommensteuer an
+      const GRUNDFREIBETRAG = 12_348;
+      const zuVersteuern = Math.max(0, basis - GRUNDFREIBETRAG);
+      const ruecklage = Math.round(zuVersteuern * 0.3 * 100) / 100;
       return (
         <KPICard loading={loading} title="Steuerrücklage (30 %)"
           value={fmtCurrency(ruecklage, privacyMode)}
           icon={<PiggyBank className="h-4 w-4 text-amber-500" />}
-          tooltip="Empfohlene Steuerrücklage: 30 % des Betriebsergebnisses als Richtwert für die Einkommensteuer" />
+          tooltip={basis <= GRUNDFREIBETRAG
+            ? `Dein steuerlicher Gewinn (${fmtCurrency(basis, privacyMode)}) liegt unter dem Grundfreibetrag (${GRUNDFREIBETRAG.toLocaleString('de-DE')} €). Voraussichtlich keine Einkommensteuer fällig.`
+            : `Empfohlene Rücklage: 30 % × (${fmtCurrency(basis, privacyMode)} Gewinn − ${GRUNDFREIBETRAG.toLocaleString('de-DE')} € Grundfreibetrag) = ${fmtCurrency(ruecklage, privacyMode)}. Jeder Selbstständige zahlt Einkommensteuer – auch Kleinunternehmer.`
+          } />
       );
     }
     case 'list-top-einnahmen':
@@ -387,6 +414,23 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
           privacyMode={privacyMode}
         />
       );
+    case 'card-afa-uebersicht':
+      return <AfaUebersichtCard />;
+    case 'kpi-afa-jahres': {
+      const { afaJahresAbschreibung, afaItems } = ctx;
+      return (
+        <KPICard loading={loading} title={`AfA-Abschreibung ${selectedYear}`}
+          value={fmtCurrency(afaJahresAbschreibung, privacyMode)}
+          icon={<Calculator className="h-4 w-4 text-violet-600" />}
+          tooltip={`Zeitanteilige Abschreibung aller ${afaItems.length} Wirtschaftsgüter (AfA + GWG) im Jahr ${selectedYear}. Dieser Betrag ist in der EÜR als Betriebsausgabe absetzbar.`} />
+      );
+    }
+    case 'chart-afa-typ':
+      return <AfaBarChart />;
+    case 'chart-afa-donut':
+      return <AfaDonutChart />;
+    case 'chart-afa-timeline':
+      return <AfaTimelineChart />;
 
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
@@ -397,7 +441,8 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'kpi-einnahmen-ytd': 'Einnahmen YTD',
   'kpi-ausgaben-ytd': 'Ausgaben YTD',
   'kpi-saldo-ytd': 'Saldo YTD',
-  'kpi-betriebsergebnis': 'Betriebsergebnis',
+  'kpi-betriebsergebnis': 'Cash-Gewinn',
+  'kpi-betriebsergebnis-afa': 'Steuerlicher Gewinn (EÜR)',
   'kpi-belege-30d': 'Belege (30 Tage)',
   'kpi-einnahmen-monat': 'Einnahmen (Monat)',
   'kpi-ausgaben-monat': 'Ausgaben (Monat)',
@@ -438,5 +483,10 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'list-abos': 'Aktive Abos',
   'card-partner': 'Partner-Umsatz',
   'chart-jahresprognose': 'Jahresprognose (Abo-Cashflow)',
+  'card-afa-uebersicht': 'AfA & GWG Übersicht',
+  'kpi-afa-jahres': 'AfA-Abschreibung (Jahr)',
+  'chart-afa-typ': 'AfA nach Typ (Balken)',
+  'chart-afa-donut': 'AfA-Verteilung (Donut)',
+  'chart-afa-timeline': 'AfA-Zeitverlauf',
 };
 

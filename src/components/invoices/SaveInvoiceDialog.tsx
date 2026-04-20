@@ -8,7 +8,7 @@ import { insertInvoice } from '@/lib/db';
 import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
 import { toast } from 'sonner';
-import { CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getDefaultCategoryForType } from '@/types';
+import { CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForBranche, getDefaultCategoryForType } from '@/types';
 import type { Category, InvoiceType } from '@/types';
 import { format, parse, isValid } from 'date-fns';
 
@@ -137,7 +137,7 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
             <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-60">
-                {getCategoriesForTypeFiltered(type, category).map((c) => (
+                {getCategoriesForBranche(type, useAppStore.getState().branchenprofil, category).map((c) => (
                   <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                 ))}
               </SelectContent>

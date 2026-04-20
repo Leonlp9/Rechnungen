@@ -5,61 +5,7 @@ export type ElementType =
   | 'kpi-ausgaben-ytd'
   | 'kpi-saldo-ytd'
   | 'kpi-betriebsergebnis'
-  | 'kpi-belege-30d'
-  | 'kpi-einnahmen-monat'
-  | 'kpi-ausgaben-monat'
-  | 'kpi-saldo-monat'
-  | 'kpi-saldo-prognose'
-  | 'chart-revenue'
-  | 'chart-category-donut'
-  | 'chart-last28days'
-  | 'chart-month'
-  | 'card-sonderausgaben'
-  | 'list-forecast'
-  | 'list-forecast-28d'
-  | 'list-recent-emails'
-  | 'list-recent-invoices'
-  | 'chart-cashflow'
-  | 'list-top-ausgaben'
-  | 'list-top-partner'
-  | 'kpi-ust-jahr'
-  | 'kpi-avg-einnahmen-monat'
-  | 'kpi-avg-ausgaben-monat'
-  | 'kpi-marge'
-  | 'kpi-steuerruecklage'
-  | 'list-top-einnahmen'
-  | 'card-monatsuebersicht'
-  | 'card-jahresvergleich'
-  | 'kpi-kleinunternehmer'
-  // ── Gesamt (alle Jahre) ──
-  | 'kpi-gesamt-einnahmen'
-  | 'kpi-gesamt-ausgaben'
-  | 'kpi-gesamt-saldo'
-  | 'kpi-gesamt-belege'
-  | 'kpi-gesamt-bestes-jahr'
-  | 'kpi-gesamt-avg-yearly-einnahmen'
-  | 'kpi-gesamt-avg-yearly-ausgaben'
-  | 'kpi-gesamt-marge'
-  | 'chart-gesamt-revenue'
-  | 'chart-gesamt-cashflow'
-  | 'list-abos'
-  | 'card-partner'
-  | 'chart-jahresprognose';
-
-export type GridType =
-  | 'grid-vertical'
-  | 'grid-horizontal'
-  | 'grid-pages'
-  | 'grid-masonry'
-  | 'grid-accordion'
-  | 'grid-sidebar'
-  | 'grid-bento';
-
-export type NodeType =
-  | 'kpi-einnahmen-ytd'
-  | 'kpi-ausgaben-ytd'
-  | 'kpi-saldo-ytd'
-  | 'kpi-betriebsergebnis'
+  | 'kpi-betriebsergebnis-afa'
   | 'kpi-belege-30d'
   | 'kpi-einnahmen-monat'
   | 'kpi-ausgaben-monat'
@@ -100,6 +46,72 @@ export type NodeType =
   | 'list-abos'
   | 'card-partner'
   | 'chart-jahresprognose'
+  | 'card-afa-uebersicht'
+  | 'kpi-afa-jahres'
+  | 'chart-afa-typ'
+  | 'chart-afa-donut'
+  | 'chart-afa-timeline';
+
+export type GridType =
+  | 'grid-vertical'
+  | 'grid-horizontal'
+  | 'grid-pages'
+  | 'grid-masonry'
+  | 'grid-accordion'
+  | 'grid-sidebar'
+  | 'grid-bento';
+
+export type NodeType =
+  | 'kpi-einnahmen-ytd'
+  | 'kpi-ausgaben-ytd'
+  | 'kpi-saldo-ytd'
+  | 'kpi-betriebsergebnis'
+  | 'kpi-betriebsergebnis-afa'
+  | 'kpi-belege-30d'
+  | 'kpi-einnahmen-monat'
+  | 'kpi-ausgaben-monat'
+  | 'kpi-saldo-monat'
+  | 'kpi-saldo-prognose'
+  | 'chart-revenue'
+  | 'chart-category-donut'
+  | 'chart-last28days'
+  | 'chart-month'
+  | 'card-sonderausgaben'
+  | 'list-forecast'
+  | 'list-forecast-28d'
+  | 'list-recent-emails'
+  | 'list-recent-invoices'
+  | 'chart-cashflow'
+  | 'list-top-ausgaben'
+  | 'list-top-partner'
+  | 'kpi-ust-jahr'
+  | 'kpi-avg-einnahmen-monat'
+  | 'kpi-avg-ausgaben-monat'
+  | 'kpi-marge'
+  | 'kpi-steuerruecklage'
+  | 'list-top-einnahmen'
+  | 'card-monatsuebersicht'
+  | 'card-jahresvergleich'
+  | 'kpi-kleinunternehmer'
+  // ── Gesamt (alle Jahre) ──
+  | 'kpi-gesamt-einnahmen'
+  | 'kpi-gesamt-ausgaben'
+  | 'kpi-gesamt-saldo'
+  | 'kpi-gesamt-belege'
+  | 'kpi-gesamt-bestes-jahr'
+  | 'kpi-gesamt-avg-yearly-einnahmen'
+  | 'kpi-gesamt-avg-yearly-ausgaben'
+  | 'kpi-gesamt-marge'
+  | 'chart-gesamt-revenue'
+  | 'chart-gesamt-cashflow'
+  | 'list-abos'
+  | 'card-partner'
+  | 'chart-jahresprognose'
+  | 'card-afa-uebersicht'
+  | 'kpi-afa-jahres'
+  | 'chart-afa-typ'
+  | 'chart-afa-donut'
+  | 'chart-afa-timeline'
   | 'grid-vertical'
   | 'grid-horizontal'
   | 'grid-pages'
@@ -316,139 +328,136 @@ export const DEFAULT_LAYOUT: DashboardNode = {
   id: 'root',
   type: 'grid-pages',
   pages: [
-    // ── Seite 1: Aktueller Monat (Bento 4-spaltig) ──────────────────────────
+    // ── Seite 1: Übersicht ──────────────────────────────────────────────────
     {
       id: 'page1',
-      label: '📊 Monat',
+      label: '📊 Übersicht',
       children: [
         {
           id: 'b1',
           type: 'grid-bento',
           props: { columns: 4 },
           children: [
-            // Zeile 1 – 4 KPI-Kacheln
-            { id: 'e1', type: 'kpi-einnahmen-monat', props: { colSpan: 1 } },
-            { id: 'e2', type: 'kpi-ausgaben-monat',  props: { colSpan: 1 } },
-            { id: 'e3', type: 'kpi-saldo-monat',     props: { colSpan: 1 } },
-            { id: 'e4', type: 'kpi-saldo-prognose',  props: { colSpan: 1 } },
-            // Zeile 2 – Cashflow-Chart breit + Prognose-Liste schmal
-            { id: 'e5', type: 'chart-cashflow',      props: { colSpan: 3 } },
-            { id: 'e6', type: 'list-forecast',       props: { colSpan: 1 } },
-            // Zeile 3 – Letzte 28 Tage + Letzte Rechnungen
-            { id: 'e7', type: 'chart-last28days',      props: { colSpan: 2 } },
-            { id: 'e8', type: 'list-recent-invoices',  props: { colSpan: 2 } },
+            // Zeile 1 – Kernkennzahlen
+            { id: 'e1', type: 'kpi-einnahmen-monat',        props: { colSpan: 1 } },
+            { id: 'e2', type: 'kpi-ausgaben-monat',          props: { colSpan: 1 } },
+            { id: 'e3', type: 'kpi-betriebsergebnis',        props: { colSpan: 1 } },
+            { id: 'e4', type: 'kpi-betriebsergebnis-afa',    props: { colSpan: 1 } },
+            // Zeile 2 – 28-Tage-Chart + Letzte Belege
+            { id: 'e5', type: 'chart-last28days',            props: { colSpan: 2 } },
+            { id: 'e6', type: 'list-recent-invoices',        props: { colSpan: 2 } },
+            // Zeile 3 – Prognose + Abos
+            { id: 'e7', type: 'list-forecast',               props: { colSpan: 2 } },
+            { id: 'e8', type: 'list-recent-emails',          props: { colSpan: 2 } },
           ],
         },
       ],
     },
 
-    // ── Seite 2: Jahresanalyse (Bento 4-spaltig) ────────────────────────────
+    // ── Seite 2: Monat ──────────────────────────────────────────────────────
     {
       id: 'page2',
-      label: '📈 Jahr',
+      label: '📅 Monat',
       children: [
         {
           id: 'b2',
           type: 'grid-bento',
           props: { columns: 4 },
           children: [
-            // Zeile 1 – YTD-KPIs
-            { id: 'e9',  type: 'kpi-einnahmen-ytd',      props: { colSpan: 1 } },
-            { id: 'e10', type: 'kpi-ausgaben-ytd',        props: { colSpan: 1 } },
-            { id: 'e11', type: 'kpi-saldo-ytd',           props: { colSpan: 1 } },
-            { id: 'e12', type: 'kpi-betriebsergebnis',    props: { colSpan: 1 } },
-            // Zeile 2 – Umsatz-Chart groß + Donut-Chart klein
-            { id: 'e13', type: 'chart-revenue',           props: { colSpan: 3 } },
-            { id: 'e14', type: 'chart-category-donut',    props: { colSpan: 1 } },
-            // Zeile 3 – Jahresvergleich + Monatsübersicht
-            { id: 'e15', type: 'card-jahresvergleich',    props: { colSpan: 2 } },
-            { id: 'e16', type: 'card-monatsuebersicht',   props: { colSpan: 2 } },
-            // Zeile 4 – Steuerkennzahlen
-            { id: 'e17', type: 'kpi-ust-jahr',            props: { colSpan: 1 } },
-            { id: 'e18', type: 'kpi-steuerruecklage',     props: { colSpan: 1 } },
-            { id: 'e19', type: 'kpi-marge',               props: { colSpan: 1 } },
-            { id: 'e20', type: 'card-sonderausgaben',     props: { colSpan: 1 } },
-            // Zeile 5 – Kleinunternehmergrenze (volle Breite für gute Lesbarkeit)
-            { id: 'e20b', type: 'kpi-kleinunternehmer',  props: { colSpan: 2 } },
+            { id: 'm1', type: 'kpi-einnahmen-monat',  props: { colSpan: 1 } },
+            { id: 'm2', type: 'kpi-ausgaben-monat',    props: { colSpan: 1 } },
+            { id: 'm3', type: 'kpi-saldo-monat',       props: { colSpan: 1 } },
+            { id: 'm4', type: 'kpi-saldo-prognose',    props: { colSpan: 1 } },
+            { id: 'm5', type: 'chart-month',            props: { colSpan: 3 } },
+            { id: 'm6', type: 'list-forecast',          props: { colSpan: 1 } },
+            { id: 'm7', type: 'chart-last28days',       props: { colSpan: 2 } },
+            { id: 'm8', type: 'list-forecast-28d',      props: { colSpan: 2 } },
           ],
         },
       ],
     },
 
-    // ── Seite 3: Details (Sidebar-Layout) ───────────────────────────────────
+    // ── Seite 3: Jahr ───────────────────────────────────────────────────────
     {
       id: 'page3',
-      label: '🔍 Details',
+      label: '📈 Jahr',
       children: [
         {
-          id: 'sb1',
-          type: 'grid-sidebar',
+          id: 'b3',
+          type: 'grid-bento',
+          props: { columns: 4 },
           children: [
-            // Seitenleiste (erstes Kind = 240 px breit)
-            {
-              id: 'vside',
-              type: 'grid-vertical',
-              children: [
-                { id: 'e21', type: 'kpi-belege-30d' },
-                { id: 'e22', type: 'kpi-avg-einnahmen-monat' },
-                { id: 'e23', type: 'kpi-avg-ausgaben-monat' },
-                { id: 'e24', type: 'list-top-partner' },
-              ],
-            },
-            // Hauptbereich
-            {
-              id: 'vmain',
-              type: 'grid-vertical',
-              children: [
-                {
-                  id: 'hd1',
-                  type: 'grid-horizontal',
-                  children: [
-                    { id: 'e25', type: 'list-top-einnahmen' },
-                    { id: 'e26', type: 'list-top-ausgaben' },
-                  ],
-                },
-                {
-                  id: 'hd2',
-                  type: 'grid-horizontal',
-                  children: [
-                    { id: 'e27', type: 'list-forecast-28d' },
-                    { id: 'e28', type: 'list-recent-emails' },
-                  ],
-                },
-                { id: 'e29', type: 'list-abos' },
-              ],
-            },
+            // YTD-KPIs
+            { id: 'j1', type: 'kpi-einnahmen-ytd',        props: { colSpan: 1 } },
+            { id: 'j2', type: 'kpi-ausgaben-ytd',          props: { colSpan: 1 } },
+            { id: 'j3', type: 'kpi-saldo-ytd',             props: { colSpan: 1 } },
+            { id: 'j4', type: 'kpi-betriebsergebnis-afa',  props: { colSpan: 1 } },
+            // Umsatz-Chart + Donut
+            { id: 'j5', type: 'chart-revenue',             props: { colSpan: 3 } },
+            { id: 'j6', type: 'chart-category-donut',      props: { colSpan: 1 } },
+            // Cashflow kumuliert + Jahresprognose
+            { id: 'j7', type: 'chart-cashflow',            props: { colSpan: 2 } },
+            { id: 'j8', type: 'chart-jahresprognose',      props: { colSpan: 2 } },
+            // Jahresvergleich + Monatsübersicht
+            { id: 'j9',  type: 'card-jahresvergleich',     props: { colSpan: 2 } },
+            { id: 'j10', type: 'card-monatsuebersicht',    props: { colSpan: 2 } },
           ],
         },
       ],
     },
-    // ── Seite 4: Cashflow & Prognose ────────────────────────────────────────
+
+    // ── Seite 4: Steuer & AfA ───────────────────────────────────────────────
     {
       id: 'page4',
-      label: '💰 Cashflow',
+      label: '🧾 Steuer & AfA',
       children: [
         {
           id: 'b4',
           type: 'grid-bento',
           props: { columns: 4 },
           children: [
-            // Zeile 1 – Liquiditätskennzahlen
-            { id: 'f1', type: 'kpi-saldo-monat',      props: { colSpan: 1 } },
-            { id: 'f2', type: 'kpi-saldo-prognose',   props: { colSpan: 1 } },
-            { id: 'f3', type: 'kpi-steuerruecklage',  props: { colSpan: 1 } },
-            { id: 'f4', type: 'kpi-marge',            props: { colSpan: 1 } },
-            // Zeile 2 – kumulierter Cashflow über das Jahr (breit)
-            { id: 'f5', type: 'chart-cashflow',       props: { colSpan: 4 } },
-            // Zeile 3 – 28-Tage-Tagesansicht + Prognose-Listen
-            { id: 'f6', type: 'chart-last28days',     props: { colSpan: 2 } },
+            // Steuer-KPIs
+            { id: 's1', type: 'kpi-betriebsergebnis-afa',  props: { colSpan: 1 } },
+            { id: 's2', type: 'kpi-steuerruecklage',        props: { colSpan: 1 } },
+            { id: 's3', type: 'kpi-ust-jahr',               props: { colSpan: 1 } },
+            { id: 's4', type: 'kpi-afa-jahres',             props: { colSpan: 1 } },
+            // AfA-Charts
+            { id: 's5', type: 'chart-afa-timeline',          props: { colSpan: 3 } },
+            { id: 's6', type: 'chart-afa-donut',             props: { colSpan: 1 } },
+            // AfA-Übersicht + Sonderausgaben
+            { id: 's7', type: 'card-afa-uebersicht',         props: { colSpan: 3 } },
+            { id: 's8', type: 'card-sonderausgaben',         props: { colSpan: 1 } },
+            // Kleinunternehmergrenze + Marge
+            { id: 's9',  type: 'kpi-kleinunternehmer',       props: { colSpan: 2 } },
+            { id: 's10', type: 'kpi-marge',                   props: { colSpan: 2 } },
+          ],
+        },
+      ],
+    },
+
+    // ── Seite 5: Cashflow & Prognose ────────────────────────────────────────
+    {
+      id: 'page5',
+      label: '💰 Cashflow',
+      children: [
+        {
+          id: 'b5',
+          type: 'grid-bento',
+          props: { columns: 4 },
+          children: [
+            { id: 'c1', type: 'kpi-saldo-monat',       props: { colSpan: 1 } },
+            { id: 'c2', type: 'kpi-saldo-prognose',    props: { colSpan: 1 } },
+            { id: 'c3', type: 'kpi-betriebsergebnis',  props: { colSpan: 1 } },
+            { id: 'c4', type: 'kpi-steuerruecklage',   props: { colSpan: 1 } },
+            { id: 'c5', type: 'chart-cashflow',         props: { colSpan: 4 } },
+            { id: 'c6', type: 'chart-last28days',       props: { colSpan: 2 } },
             {
-              id: 'fv1',
+              id: 'cv1',
               type: 'grid-vertical',
               props: { colSpan: 2 },
               children: [
-                { id: 'f7', type: 'list-forecast' },
-                { id: 'f8', type: 'list-forecast-28d' },
+                { id: 'c7', type: 'list-forecast' },
+                { id: 'c8', type: 'list-forecast-28d' },
               ],
             },
           ],
@@ -456,56 +465,74 @@ export const DEFAULT_LAYOUT: DashboardNode = {
       ],
     },
 
-    // ── Seite 5: Top-Analyse ─────────────────────────────────────────────────
+    // ── Seite 6: Analyse & Top-Listen ───────────────────────────────────────
     {
-      id: 'page5',
+      id: 'page6',
       label: '📋 Analyse',
       children: [
         {
-          id: 'b5',
-          type: 'grid-bento',
-          props: { columns: 4 },
+          id: 'sb1',
+          type: 'grid-sidebar',
           children: [
-            // Zeile 1 – Kategorien-Donut + Betriebsergebnis-KPIs
-            { id: 'g1', type: 'chart-category-donut',     props: { colSpan: 1 } },
-            { id: 'g2', type: 'kpi-betriebsergebnis',     props: { colSpan: 1 } },
-            { id: 'g3', type: 'kpi-ust-jahr',             props: { colSpan: 1 } },
-            { id: 'g4', type: 'card-sonderausgaben',      props: { colSpan: 1 } },
-            // Zeile 2 – Top-Listen nebeneinander
-            { id: 'g5', type: 'list-top-einnahmen',       props: { colSpan: 2 } },
-            { id: 'g6', type: 'list-top-ausgaben',        props: { colSpan: 2 } },
-            // Zeile 3 – Partner + Monatsübersicht
-            { id: 'g7', type: 'list-top-partner',         props: { colSpan: 2 } },
-            { id: 'g8', type: 'card-monatsuebersicht',    props: { colSpan: 2 } },
+            {
+              id: 'aside',
+              type: 'grid-vertical',
+              children: [
+                { id: 'a1', type: 'kpi-belege-30d' },
+                { id: 'a2', type: 'kpi-avg-einnahmen-monat' },
+                { id: 'a3', type: 'kpi-avg-ausgaben-monat' },
+                { id: 'a4', type: 'kpi-marge' },
+                { id: 'a5', type: 'chart-afa-typ' },
+              ],
+            },
+            {
+              id: 'amain',
+              type: 'grid-vertical',
+              children: [
+                {
+                  id: 'ah1',
+                  type: 'grid-horizontal',
+                  children: [
+                    { id: 'a6', type: 'list-top-einnahmen' },
+                    { id: 'a7', type: 'list-top-ausgaben' },
+                  ],
+                },
+                {
+                  id: 'ah2',
+                  type: 'grid-horizontal',
+                  children: [
+                    { id: 'a8', type: 'list-top-partner' },
+                    { id: 'a9', type: 'card-partner' },
+                  ],
+                },
+                { id: 'a10', type: 'list-abos' },
+              ],
+            },
           ],
         },
       ],
     },
 
-    // ── Seite 6: Gesamt (alle Jahre) ─────────────────────────────────────────
+    // ── Seite 7: Gesamt (alle Jahre) ────────────────────────────────────────
     {
-      id: 'page6',
+      id: 'page7',
       label: '🌍 Gesamt',
       children: [
         {
-          id: 'b6',
+          id: 'b7',
           type: 'grid-bento',
           props: { columns: 4 },
           children: [
-            // Zeile 1 – Gesamt-KPIs
-            { id: 'h1', type: 'kpi-gesamt-einnahmen',             props: { colSpan: 1 } },
-            { id: 'h2', type: 'kpi-gesamt-ausgaben',              props: { colSpan: 1 } },
-            { id: 'h3', type: 'kpi-gesamt-saldo',                 props: { colSpan: 1 } },
-            { id: 'h4', type: 'kpi-gesamt-belege',                props: { colSpan: 1 } },
-            // Zeile 2 – Jahresvergleichs-Chart groß + bestes Jahr
-            { id: 'h5', type: 'chart-gesamt-revenue',             props: { colSpan: 3 } },
-            { id: 'h6', type: 'kpi-gesamt-bestes-jahr',           props: { colSpan: 1 } },
-            // Zeile 3 – Cashflow über alle Jahre (volle Breite)
-            { id: 'h9b', type: 'chart-gesamt-cashflow',           props: { colSpan: 4 } },
-            // Zeile 4 – Durchschnittswerte + Marge
-            { id: 'h7', type: 'kpi-gesamt-avg-yearly-einnahmen',  props: { colSpan: 1 } },
-            { id: 'h8', type: 'kpi-gesamt-avg-yearly-ausgaben',   props: { colSpan: 1 } },
-            { id: 'h9', type: 'kpi-gesamt-marge',                 props: { colSpan: 2 } },
+            { id: 'g1', type: 'kpi-gesamt-einnahmen',              props: { colSpan: 1 } },
+            { id: 'g2', type: 'kpi-gesamt-ausgaben',               props: { colSpan: 1 } },
+            { id: 'g3', type: 'kpi-gesamt-saldo',                  props: { colSpan: 1 } },
+            { id: 'g4', type: 'kpi-gesamt-belege',                 props: { colSpan: 1 } },
+            { id: 'g5', type: 'chart-gesamt-revenue',              props: { colSpan: 3 } },
+            { id: 'g6', type: 'kpi-gesamt-bestes-jahr',            props: { colSpan: 1 } },
+            { id: 'g7', type: 'chart-gesamt-cashflow',             props: { colSpan: 4 } },
+            { id: 'g8', type: 'kpi-gesamt-avg-yearly-einnahmen',   props: { colSpan: 1 } },
+            { id: 'g9', type: 'kpi-gesamt-avg-yearly-ausgaben',    props: { colSpan: 1 } },
+            { id: 'g10', type: 'kpi-gesamt-marge',                 props: { colSpan: 2 } },
           ],
         },
       ],

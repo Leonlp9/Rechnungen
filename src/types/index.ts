@@ -15,10 +15,15 @@ export const CATEGORIES = [
   // ── Einnahmen-Kategorien ────────────────────────────────
   'umsatz_pflichtig',
   'umsatz_steuerfrei',
+  'reverse_charge',
   'ust_erstattung',
   'privateinlage',
   'anlagenverkauf',
   'erstattungen',
+  'sponsoring',
+  'affiliate',
+  'donations_tips',
+  'sachzuwendungen',
   'sonstige_einnahmen',
   'einnahmen', // legacy – veraltet, bitte neu zuordnen
   // ── Betriebsausgaben ────────────────────────────────────
@@ -30,6 +35,7 @@ export const CATEGORIES = [
   'marketing',
   'miete',
   'reisekosten',
+  'bewirtungskosten',
   'software_abos',
   'sonstiges',
   'kommunikation',
@@ -53,10 +59,15 @@ export type Category = (typeof CATEGORIES)[number];
 export const CATEGORY_LABELS: Record<Category, string> = {
   umsatz_pflichtig: 'Umsatzerlöse (steuerpflichtig)',
   umsatz_steuerfrei: 'Umsatzerlöse (steuerfrei / §19 UStG)',
+  reverse_charge: 'Reverse Charge (§ 13b UStG)',
   ust_erstattung: 'USt-Erstattung vom Finanzamt',
   privateinlage: 'Privateinlage',
   anlagenverkauf: 'Verkauf von Anlagevermögen',
   erstattungen: 'Erstattungen / Auslagen',
+  sponsoring: 'Sponsoring / Werbeleistung',
+  affiliate: 'Affiliate / Vermittlungsprovision',
+  donations_tips: 'Donations / Tips (Streaming)',
+  sachzuwendungen: 'Sachzuwendungen (Marktwert)',
   sonstige_einnahmen: 'Sonstige Einnahmen',
   einnahmen: 'Einnahmen (allgemein – bitte neu zuordnen)',
   anlagevermoegen_afa: 'Anlagevermögen / AfA',
@@ -67,6 +78,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   marketing: 'Marketing & Werbung',
   miete: 'Miete & Raumkosten',
   reisekosten: 'Reisekosten',
+  bewirtungskosten: 'Bewirtungskosten (70 % absetzbar)',
   software_abos: 'Software & Abos',
   kommunikation: 'Telefon & Internet',
   versicherungen_betrieb: 'Versicherungen (Betrieb)',
@@ -85,10 +97,15 @@ export const CATEGORY_LABELS: Record<Category, string> = {
 export const INCOME_CATEGORIES: Category[] = [
   'umsatz_pflichtig',
   'umsatz_steuerfrei',
+  'reverse_charge',
   'ust_erstattung',
   'privateinlage',
   'anlagenverkauf',
   'erstattungen',
+  'sponsoring',
+  'affiliate',
+  'donations_tips',
+  'sachzuwendungen',
   'sonstige_einnahmen',
   'einnahmen', // legacy
 ];
@@ -102,6 +119,7 @@ export const EXPENSE_CATEGORIES: Category[] = [
   'marketing',
   'miete',
   'reisekosten',
+  'bewirtungskosten',
   'software_abos',
   'kommunikation',
   'versicherungen_betrieb',
@@ -148,6 +166,54 @@ export function getDefaultCategoryForType(type: InvoiceType): Category {
 
 export function isCategoryValidForType(category: Category, type: InvoiceType): boolean {
   return (getCategoriesForType(type) as string[]).includes(category);
+}
+
+// ─── Branchenprofil-abhängige Kategorie-Filterung ─────────────────────────────
+
+/** Kategorien, die NUR für Content Creator relevant sind */
+export const CONTENT_CREATOR_CATEGORIES: Category[] = [
+  'reverse_charge',
+  'sponsoring',
+  'affiliate',
+  'donations_tips',
+  'sachzuwendungen',
+];
+
+/** Kategorien, die NUR für E-Commerce relevant sind */
+export const ECOMMERCE_CATEGORIES: Category[] = [
+  'reverse_charge',
+];
+
+type Branchenprofil = 'standard' | 'content_creator' | 'ecommerce' | 'handwerk' | 'beratung';
+
+/**
+ * Gibt die Kategorien für den Typ zurück, gefiltert nach Branchenprofil.
+ * Branchenspezifische Kategorien werden nur eingeblendet, wenn das Profil passt
+ * ODER die Kategorie bereits auf einem bestehenden Beleg ausgewählt ist.
+ */
+export function getCategoriesForBranche(
+  type: InvoiceType,
+  branchenprofil: Branchenprofil,
+  currentCategory?: Category,
+): Category[] {
+  const base = getCategoriesForTypeFiltered(type, currentCategory);
+
+  // Welche Kategorien sollen für dieses Profil VERSTECKT werden?
+  let hiddenCats: Category[] = [];
+
+  if (branchenprofil === 'standard' || branchenprofil === 'handwerk' || branchenprofil === 'beratung') {
+    hiddenCats = CONTENT_CREATOR_CATEGORIES;
+  } else if (branchenprofil === 'ecommerce') {
+    // E-Commerce sieht Reverse Charge, aber nicht die Streaming-Kategorien
+    hiddenCats = ['sponsoring', 'affiliate', 'donations_tips', 'sachzuwendungen'];
+  }
+  // content_creator sieht ALLE
+
+  return base.filter((c) => {
+    // Wenn die aktuelle Kategorie eine "versteckte" ist, trotzdem zeigen
+    if (c === currentCategory) return true;
+    return !hiddenCats.includes(c);
+  });
 }
 
 // ─── Sonder- / Privat-Kategorien ─────────────────────────────────────────────

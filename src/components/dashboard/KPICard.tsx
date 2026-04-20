@@ -10,9 +10,10 @@ interface KPICardProps {
   icon?: React.ReactNode;
   tooltip?: string;
   loading?: boolean;
+  onClick?: () => void;
 }
 
-export function KPICard({ title, value, delta, icon, tooltip, loading }: KPICardProps) {
+export function KPICard({ title, value, delta, icon, tooltip, loading, onClick }: KPICardProps) {
   if (loading) {
     return (
       <Card className="rounded-xl shadow-sm h-full flex flex-col">
@@ -28,7 +29,10 @@ export function KPICard({ title, value, delta, icon, tooltip, loading }: KPICard
     );
   }
   return (
-    <Card className="rounded-xl shadow-sm h-full flex flex-col">
+    <Card
+      className={cn('rounded-xl shadow-sm h-full flex flex-col', onClick && 'cursor-pointer hover:bg-muted/30 transition-colors')}
+      onClick={onClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
           {title}

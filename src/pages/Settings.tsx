@@ -5,13 +5,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation, Trash2, Download, Upload, DatabaseBackup, Receipt } from 'lucide-react';
+import { Save, Eye, EyeOff, User, RefreshCw, FlaskConical, Check, Bot, GitBranch, ExternalLink, Code2, Navigation, Trash2, Download, Upload, DatabaseBackup, Receipt, ScrollText, FileDown } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
 import { exportBackup, importBackup } from '@/lib/backup';
+import { getFullAuditLog } from '@/lib/db';
+import type { AuditLogEntry } from '@/lib/db';
 import { BackupProgressOverlay } from '@/components/BackupProgressOverlay';
 
 import {
@@ -57,6 +61,10 @@ export default function SettingsPage() {
 	const toggleNavItem = useAppStore((s) => s.toggleNavItem);
 	const steuerregelung = useAppStore((s) => s.steuerregelung);
 	const setSteuerregelung = useAppStore((s) => s.setSteuerregelung);
+	const rechtsform = useAppStore((s) => s.rechtsform);
+	const setRechtsform = useAppStore((s) => s.setRechtsform);
+	const branchenprofil = useAppStore((s) => s.branchenprofil);
+	const setBranchenprofil = useAppStore((s) => s.setBranchenprofil);
 	const [profile, setProfile] = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving] = useState(false);
   const [version, setVersion] = useState('');
@@ -64,6 +72,9 @@ export default function SettingsPage() {
 	const [clearingCache, setClearingCache] = useState(false);
   const [exportingBackup, setExportingBackup] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // --- Dev-Preview für UpdateDialog ---
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -193,63 +204,172 @@ export default function SettingsPage() {
 				</CardContent>
 			</Card>
 
-		{/* Steuerregelung */}
+		{/* Steuerliches Setup – 3 Schritte */}
 		<Card className="rounded-xl shadow-sm" data-tutorial="settings-steuer">
 				<CardHeader>
 					<div className="flex items-center gap-2">
 						<Receipt className="h-5 w-5 text-primary" />
-						<CardTitle className="text-base">Steuerregelung</CardTitle>
+						<CardTitle className="text-base">Steuerliches Setup</CardTitle>
 					</div>
 					<p className="text-xs text-muted-foreground mt-1">
-						Bestimmt, wie das Dashboard-Widget „Kleinunternehmergrenze" angezeigt wird.
+						Konfiguriere deinen rechtlichen Status, dein Branchen-Profil und den Steuer-Modus.
+						Das bestimmt, welche Kategorien, Widgets und Hinweise dir angezeigt werden.
 						Kein Ersatz für steuerliche Beratung.
 					</p>
 				</CardHeader>
-				<CardContent className="space-y-3">
-					<div className="grid grid-cols-2 gap-3">
-						{/* Kleinunternehmer */}
-						<button
-							type="button"
-							onClick={() => setSteuerregelung('kleinunternehmer')}
-							className={`relative rounded-xl border-2 p-4 text-left transition-all hover:shadow-md focus:outline-none ${
-								steuerregelung === 'kleinunternehmer'
-									? 'border-primary shadow-md bg-primary/5'
-									: 'border-border hover:border-primary/50'
-							}`}
-						>
-							{steuerregelung === 'kleinunternehmer' && (
-								<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-									<Check className="h-3 w-3" />
-								</span>
-							)}
-							<p className="text-sm font-semibold">Kleinunternehmer</p>
-							<p className="text-xs text-muted-foreground mt-1">
-								Umsatz unter 25.000 € (2025+) – keine USt auf Rechnungen, keine Abführung ans
-								Finanzamt. Dashboard zeigt Fortschritt zur Grenze.
-							</p>
-						</button>
+				<CardContent className="space-y-6">
 
-						{/* Regelbesteuerung */}
-						<button
-							type="button"
-							onClick={() => setSteuerregelung('regelbesteuerung')}
-							className={`relative rounded-xl border-2 p-4 text-left transition-all hover:shadow-md focus:outline-none ${
-								steuerregelung === 'regelbesteuerung'
-									? 'border-primary shadow-md bg-primary/5'
-									: 'border-border hover:border-primary/50'
-							}`}
-						>
-							{steuerregelung === 'regelbesteuerung' && (
-								<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-									<Check className="h-3 w-3" />
-								</span>
-							)}
-							<p className="text-sm font-semibold">Regelbesteuerung</p>
-							<p className="text-xs text-muted-foreground mt-1">
-								USt-pflichtig – du weist Umsatzsteuer aus und führst sie ab.
-								Dashboard zeigt deine Einnahmen ohne Grenzbalken.
-							</p>
-						</button>
+					{/* ── Schritt 1: Rechtsform ── */}
+					<div className="space-y-2">
+						<div className="flex items-center gap-2">
+							<span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+							<Label className="text-sm font-semibold">Rechtlicher Status</Label>
+						</div>
+						<p className="text-xs text-muted-foreground ml-8">
+							Bestimmt Gewerbesteuer-Pflicht und Steuererklärung (Anlage S oder G).
+						</p>
+						<div className="grid grid-cols-2 gap-3 ml-8">
+							{([
+								{ value: 'freiberufler' as const, label: 'Freiberufler', desc: '§ 18 EStG – Katalogberuf (Entwickler, Designer, Berater). Keine Gewerbesteuer, Anlage S.' },
+								{ value: 'gewerbetreibend' as const, label: 'Gewerbetreibend', desc: '§ 15 EStG – Gewerbeanmeldung, IHK-Pflicht. Gewerbesteuer ab 24.500 € Gewinn, Anlage G.' },
+							]).map((opt) => (
+								<button
+									key={opt.value}
+									type="button"
+									onClick={() => setRechtsform(opt.value)}
+									className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+										rechtsform === opt.value
+											? 'border-primary shadow-md bg-primary/5'
+											: 'border-border hover:border-primary/50'
+									}`}
+								>
+									{rechtsform === opt.value && (
+										<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+											<Check className="h-3 w-3" />
+										</span>
+									)}
+									<p className="text-sm font-semibold">{opt.label}</p>
+									<p className="text-[11px] text-muted-foreground mt-1">{opt.desc}</p>
+								</button>
+							))}
+						</div>
+					</div>
+
+					{/* ── Schritt 2: Branchenprofil ── */}
+					<div className="space-y-2 border-t pt-4">
+						<div className="flex items-center gap-2">
+							<span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+							<Label className="text-sm font-semibold">Branchen-Profil</Label>
+						</div>
+						<p className="text-xs text-muted-foreground ml-8">
+							Schaltet branchenspezifische Buchungskategorien frei (z.B. Donations, Sponsoring, Reverse Charge für Creator).
+						</p>
+						<div className="grid grid-cols-3 gap-3 ml-8">
+							{([
+								{ value: 'standard' as const, label: 'Standard', desc: 'Allgemein – Dienstleistung, IT, Büro, sonstige Freelancer-Tätigkeit.' },
+								{ value: 'content_creator' as const, label: 'Content Creator', desc: 'Streamer, YouTuber, Influencer. Kategorien: Donations, Sponsoring, Affiliate, Reverse Charge.' },
+								{ value: 'ecommerce' as const, label: 'E-Commerce', desc: 'Online-Handel, Dropshipping, Amazon FBA. Reverse Charge für internationale Plattformen.' },
+								{ value: 'handwerk' as const, label: 'Handwerk', desc: 'Handwerksbetrieb, Bauleistungen, Werkstatt. Standard-Kategorien.' },
+								{ value: 'beratung' as const, label: 'Beratung', desc: 'Consulting, Coaching, Agentur. Standard-Kategorien.' },
+							]).map((opt) => (
+								<button
+									key={opt.value}
+									type="button"
+									onClick={() => setBranchenprofil(opt.value)}
+									className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+										branchenprofil === opt.value
+											? 'border-primary shadow-md bg-primary/5'
+											: 'border-border hover:border-primary/50'
+									}`}
+								>
+									{branchenprofil === opt.value && (
+										<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+											<Check className="h-3 w-3" />
+										</span>
+									)}
+									<p className="text-sm font-semibold">{opt.label}</p>
+									<p className="text-[11px] text-muted-foreground mt-1">{opt.desc}</p>
+								</button>
+							))}
+						</div>
+					</div>
+
+					{/* ── Schritt 3: Steuer-Modus ── */}
+					<div className="space-y-2 border-t pt-4">
+						<div className="flex items-center gap-2">
+							<span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+							<Label className="text-sm font-semibold">Steuer-Modus</Label>
+						</div>
+						<p className="text-xs text-muted-foreground ml-8">
+							Entscheidet, ob auf Rechnungen MwSt berechnet wird oder der § 19 UStG-Hinweis erscheint.
+						</p>
+						<div className="grid grid-cols-2 gap-3 ml-8">
+							<button
+								type="button"
+								onClick={() => setSteuerregelung('kleinunternehmer')}
+								className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+									steuerregelung === 'kleinunternehmer'
+										? 'border-primary shadow-md bg-primary/5'
+										: 'border-border hover:border-primary/50'
+								}`}
+							>
+								{steuerregelung === 'kleinunternehmer' && (
+									<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+										<Check className="h-3 w-3" />
+									</span>
+								)}
+								<p className="text-sm font-semibold">Kleinunternehmer</p>
+								<p className="text-[11px] text-muted-foreground mt-1">
+									Umsatz unter 25.000 € (2025+) – keine USt auf Rechnungen, keine Abführung ans
+									Finanzamt. Dashboard zeigt Fortschritt zur Grenze.
+								</p>
+							</button>
+
+							<button
+								type="button"
+								onClick={() => setSteuerregelung('regelbesteuerung')}
+								className={`relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md focus:outline-none ${
+									steuerregelung === 'regelbesteuerung'
+										? 'border-primary shadow-md bg-primary/5'
+										: 'border-border hover:border-primary/50'
+								}`}
+							>
+								{steuerregelung === 'regelbesteuerung' && (
+									<span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+										<Check className="h-3 w-3" />
+									</span>
+								)}
+								<p className="text-sm font-semibold">Regelbesteuerung</p>
+								<p className="text-[11px] text-muted-foreground mt-1">
+									USt-pflichtig – du weist Umsatzsteuer aus und führst sie ab.
+									Dashboard zeigt deine Einnahmen ohne Grenzbalken.
+								</p>
+							</button>
+						</div>
+					</div>
+
+					{/* Zusammenfassung */}
+					<div className="rounded-lg bg-muted/50 border border-border p-3 ml-8 space-y-1">
+						<p className="text-xs font-semibold text-foreground">Aktuelle Konfiguration:</p>
+						<div className="flex flex-wrap gap-2 text-[11px]">
+							<span className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 font-medium">
+								{rechtsform === 'freiberufler' ? '🎓 Freiberufler' : '🏢 Gewerbetreibend'}
+							</span>
+							<span className="rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2.5 py-0.5 font-medium">
+								{branchenprofil === 'content_creator' ? '🎮 Content Creator' :
+								 branchenprofil === 'ecommerce' ? '🛒 E-Commerce' :
+								 branchenprofil === 'handwerk' ? '🔧 Handwerk' :
+								 branchenprofil === 'beratung' ? '💼 Beratung' : '📋 Standard'}
+							</span>
+							<span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 font-medium">
+								{steuerregelung === 'kleinunternehmer' ? '§19 Kleinunternehmer' : '💶 Regelbesteuerung'}
+							</span>
+						</div>
+						<p className="text-[10px] text-muted-foreground mt-1">
+							{rechtsform === 'freiberufler' ? 'Steuererklärung: Anlage S · Keine Gewerbesteuer' : 'Steuererklärung: Anlage G · Gewerbesteuer ab 24.500 € Gewinn'}
+							{branchenprofil === 'content_creator' ? ' · Erweiterte Kategorien: Donations, Sponsoring, Affiliate, Reverse Charge, Sachzuwendungen' :
+							 branchenprofil === 'ecommerce' ? ' · Erweiterte Kategorien: Reverse Charge' : ''}
+						</p>
 					</div>
 				</CardContent>
 			</Card>
@@ -770,6 +890,144 @@ export default function SettingsPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* ── Audit-Log (GoBD) ── */}
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader className="flex flex-row items-center gap-3">
+          <ScrollText className="h-5 w-5 text-primary" />
+          <CardTitle className="text-base">GoBD Audit-Trail (Änderungshistorie)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Jede Erstellung, Änderung und Löschung eines Belegs wird unveränderlich protokolliert (GoBD-konform).
+            Du kannst das Protokoll hier einsehen oder als CSV exportieren.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                setAuditLoading(true);
+                try {
+                  const log = await getFullAuditLog(500);
+                  setAuditLog(log);
+                  setAuditOpen(true);
+                } catch (e) {
+                  toast.error('Fehler beim Laden: ' + String(e));
+                } finally {
+                  setAuditLoading(false);
+                }
+              }}
+              disabled={auditLoading}
+            >
+              <ScrollText className="mr-2 h-4 w-4" />
+              {auditLoading ? 'Lade…' : 'Audit-Log anzeigen'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const log = await getFullAuditLog(10000);
+                  if (log.length === 0) {
+                    toast.info('Kein Audit-Log vorhanden.');
+                    return;
+                  }
+                  const header = 'ID;Beleg-ID;Aktion;Feld;Alter Wert;Neuer Wert;Zeitstempel;Notiz';
+                  const esc = (v: string | null) => {
+                    if (v == null) return '';
+                    return '"' + v.replace(/"/g, '""') + '"';
+                  };
+                  const rows = log.map((e) =>
+                    [e.id, e.invoice_id, e.action, e.field_name ?? '', esc(e.old_value), esc(e.new_value), e.timestamp, esc(e.user_note)].join(';'),
+                  );
+                  const csv = '\uFEFF' + header + '\n' + rows.join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success(`${log.length} Einträge als CSV exportiert.`);
+                } catch (e) {
+                  toast.error('Export fehlgeschlagen: ' + String(e));
+                }
+              }}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Als CSV exportieren
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Audit-Log Dialog */}
+      <Dialog open={auditOpen} onOpenChange={setAuditOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ScrollText className="h-5 w-5 text-primary" />
+              Audit-Log – Änderungshistorie ({auditLog.length} Einträge)
+            </DialogTitle>
+          </DialogHeader>
+          {auditLog.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Noch keine Einträge vorhanden. Sobald du Belege erstellst, änderst oder löschst, erscheinen sie hier.
+            </p>
+          ) : (
+            <div className="rounded-lg border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[140px]">Zeitpunkt</TableHead>
+                    <TableHead className="w-[80px]">Aktion</TableHead>
+                    <TableHead>Beleg-ID</TableHead>
+                    <TableHead>Feld</TableHead>
+                    <TableHead>Alter Wert</TableHead>
+                    <TableHead>Neuer Wert</TableHead>
+                    <TableHead>Notiz</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {auditLog.map((entry) => (
+                    <TableRow key={entry.id} className="text-xs">
+                      <TableCell className="font-mono text-[10px]">
+                        {new Date(entry.timestamp).toLocaleString('de-DE')}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          entry.action === 'created' ? 'bg-green-500/10 text-green-700 dark:text-green-400' :
+                          entry.action === 'deleted' ? 'bg-red-500/10 text-red-700 dark:text-red-400' :
+                          entry.action === 'updated' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {entry.action === 'created' ? 'Erstellt' :
+                           entry.action === 'deleted' ? 'Gelöscht' :
+                           entry.action === 'updated' ? 'Geändert' :
+                           entry.action === 'restored' ? 'Wiederhergestellt' :
+                           entry.action}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-[10px] max-w-[100px] truncate" title={entry.invoice_id}>
+                        {entry.invoice_id.slice(0, 12)}…
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{entry.field_name ?? '–'}</TableCell>
+                      <TableCell className="max-w-[120px] truncate text-red-600/70" title={entry.old_value ?? ''}>
+                        {entry.old_value ?? '–'}
+                      </TableCell>
+                      <TableCell className="max-w-[120px] truncate text-green-600/70" title={entry.new_value ?? ''}>
+                        {entry.new_value ?? '–'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground max-w-[100px] truncate" title={entry.user_note}>
+                        {entry.user_note || '–'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Card className="rounded-xl shadow-sm">
         <CardHeader>

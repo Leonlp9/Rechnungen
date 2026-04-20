@@ -178,3 +178,57 @@ function styleHeaderRow(ws: ExcelJS.Worksheet) {
   row.font = { bold: true };
   row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
 }
+
+// ─── DATEV-Export (CSV) ──────────────────────────────────────────────────────
+
+/**
+ * Exportiert Rechnungen im DATEV-kompatiblen CSV-Format.
+ * Angelehnt an DATEV Buchungsstapel (vereinfacht).
+ */
+export async function exportToDatev(invoices: Invoice[], year: number | string) {
+  const path = await save({
+    defaultPath: `DATEV_Buchungen_${year}.csv`,
+    filters: [{ name: 'CSV', extensions: ['csv'] }],
+  });
+  if (!path) return;
+
+  const DATEV_HEADER = [
+    'Umsatz (ohne Soll/Haben-Kz)',
+    'Soll/Haben-Kennzeichen',
+    'WKZ Umsatz',
+    'Konto',
+    'Gegenkonto (ohne BU-Schlüssel)',
+    'BU-Schlüssel',
+    'Belegdatum',
+    'Belegfeld 1',
+    'Buchungstext',
+    'USt-Satz',
+    'Belegfeld 2',
+  ].join(';');
+
+  const rows = invoices.map((inv) => {
+    const soll = inv.type === 'ausgabe' ? 'S' : 'H';
+    const konto = inv.type === 'einnahme' ? '8400' : '4900'; // Vereinfachte Konten
+    const gegenkonto = '1200'; // Bank
+    const belegDatum = format(new Date(inv.date), 'ddMM', { locale: de });
+    const ustSatz = inv.netto > 0 ? ((inv.ust / inv.netto) * 100).toFixed(0) : '0';
+    return [
+      fmtEur(Math.abs(inv.brutto)),
+      soll,
+      inv.currency,
+      konto,
+      gegenkonto,
+      '',
+      belegDatum,
+      inv.id.slice(0, 12),
+      `${inv.partner} – ${inv.description}`.slice(0, 60),
+      ustSatz,
+      CATEGORY_LABELS[inv.category] ?? inv.category,
+    ].join(';');
+  });
+
+  const csv = '\uFEFF' + [DATEV_HEADER, ...rows].join('\r\n'); // BOM for Excel
+  const encoder = new TextEncoder();
+  await writeFile(path, encoder.encode(csv));
+}
+

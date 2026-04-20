@@ -52,8 +52,8 @@ ${pageContext || 'Kein spezifischer Kontext verfügbar.'}
   • q=Suchbegriff        → Freitext-Suche nach Partner/Beschreibung
   • type=einnahme        → Typ-Filter (einnahme | ausgabe | info), mehrere mit Komma: type=einnahme,ausgabe
   • cat=software_abos   → Kategorie-Filter, mehrere mit Komma
-    Verfügbare Kategorien (Einnahmen): umsatz_pflichtig, umsatz_steuerfrei, ust_erstattung, privateinlage, anlagenverkauf, erstattungen, sonstige_einnahmen
-    Verfügbare Kategorien (Ausgaben): anlagevermoegen_afa, gwg, software_abos, fremdleistungen, buerobedarf, reisekosten, marketing, weiterbildung, miete, versicherungen_betrieb, fahrzeugkosten, kommunikation, spenden, krankenkasse, sozialversicherung, privat, privatentnahme, sonstiges
+    Verfügbare Kategorien (Einnahmen): umsatz_pflichtig, umsatz_steuerfrei, reverse_charge, ust_erstattung, privateinlage, anlagenverkauf, erstattungen, sponsoring, affiliate, donations_tips, sachzuwendungen, sonstige_einnahmen
+    Verfügbare Kategorien (Ausgaben): anlagevermoegen_afa, gwg, software_abos, fremdleistungen, buerobedarf, reisekosten, bewirtungskosten, marketing, weiterbildung, miete, versicherungen_betrieb, fahrzeugkosten, kommunikation, spenden, krankenkasse, sozialversicherung, privat, privatentnahme, sonstiges
     Verfügbare Kategorien (Info): vertraege, sonstiges
   • fyear=2025           → Jahres-Filter (Zahl oder "all")
   • sort=brutto&dir=desc → Sortierung (date|partner|category|brutto|type, asc|desc)
@@ -531,7 +531,7 @@ JSON-Schema:
   "brutto": 0.00,
   "currency": "EUR",
   "type": "einnahme | ausgabe | info",
-  "suggested_category": "umsatz_pflichtig | umsatz_steuerfrei | ust_erstattung | privateinlage | anlagenverkauf | erstattungen | sonstige_einnahmen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | privatentnahme | sonstiges"
+  "suggested_category": "umsatz_pflichtig | umsatz_steuerfrei | reverse_charge | ust_erstattung | privateinlage | anlagenverkauf | erstattungen | sponsoring | affiliate | donations_tips | sachzuwendungen | sonstige_einnahmen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | bewirtungskosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | privatentnahme | sonstiges"
 }
 
 === REGELN FÜR "type" ===
@@ -544,12 +544,17 @@ Wähle die passendste Kategorie – WICHTIG: Die Kategorie MUSS zum Typ passen!
 
 EINNAHMEN (NUR wenn type="einnahme"):
 - "umsatz_pflichtig": Standard-Umsätze mit 19% oder 7% MwSt (Rechnungen, Honorare, Dienstleistungen).
-- "umsatz_steuerfrei": Einnahmen ohne MwSt (Kleinunternehmer §19 UStG, steuerfreie Leistungen, Reverse-Charge / EU-Exporte).
+- "umsatz_steuerfrei": Einnahmen ohne MwSt (Kleinunternehmer §19 UStG, steuerfreie Leistungen).
+- "reverse_charge": Reverse Charge (§ 13b UStG) – Einnahmen von ausländischen Plattformen (z.B. Twitch, YouTube/Google Ireland, Amazon KDP). Netto-Rechnung, Steuerschuldumkehr.
 - "ust_erstattung": Geld vom Finanzamt zurück (Umsatzsteuererstattung).
 - "privateinlage": Privates Geld ins Unternehmen eingelegt (kein steuerpflichtiger Gewinn).
 - "anlagenverkauf": Erlös aus Verkauf von Firmengeräten, Möbeln, Fahrzeugen etc.
 - "erstattungen": Rückerstattungen, Gutschriften, Auslagenerstattungen an den Benutzer (durchlaufender Posten).
-- "sonstige_einnahmen": Alle anderen Einnahmen (erhaltene Spenden/Donations, Crowdfunding, sonstige Erträge).
+- "sponsoring": Sponsoring / Werbeleistung – Zahlungen von Sponsoren für Werbeplatzierung, Product Placement.
+- "affiliate": Affiliate / Vermittlungsprovision – Provisionen aus Affiliate-Links, Empfehlungsprogrammen.
+- "donations_tips": Donations / Tips (Streaming) – freiwillige Zuschauerzahlungen (Twitch Bits, YouTube Super Chat, Ko-fi, PayPal.me). Sind Betriebseinnahmen!
+- "sachzuwendungen": Sachzuwendungen – erhaltene Produkte/PR-Samples, Marktwert als Einnahme ansetzen.
+- "sonstige_einnahmen": Alle anderen Einnahmen (Crowdfunding, sonstige Erträge).
 
 BETRIEBSAUSGABEN (NUR wenn type="ausgabe"):
 - "anlagevermoegen_afa": Anschaffungen > 800€ netto, die über Jahre abgeschrieben werden (z.B. Laptop, Maschinen, Möbel über 800€).
@@ -557,7 +562,8 @@ BETRIEBSAUSGABEN (NUR wenn type="ausgabe"):
 - "software_abos": Software-Lizenzen, SaaS-Abos, Cloud-Dienste (Adobe, GitHub, Hosting, Microsoft 365).
 - "fremdleistungen": Leistungen von Dritten/Subunternehmern (Freelancer, Agentur, externer Entwickler).
 - "buerobedarf": Büromaterial, Druckerpatronen, Papier, Kleinmaterial.
-- "reisekosten": Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen, Spesen.
+- "reisekosten": Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen, Spesen, Verpflegungsmehraufwand.
+- "bewirtungskosten": Geschäftliche Bewirtung – Restaurantbesuche mit Geschäftspartnern, nur 70 % absetzbar. NICHT für private Restaurantbesuche (→ privat)!
 - "marketing": Werbung, Social-Media-Anzeigen, Drucksachen, Messen, PR.
 - "weiterbildung": Kurse, Seminare, Fachbücher, Online-Kurse, Konferenztickets.
 - "miete": Büromiete, Co-Working, Lagermiete, Raumkosten.
@@ -619,7 +625,7 @@ WICHTIG:
           type: { type: 'STRING', enum: ['einnahme', 'ausgabe', 'info'] },
           suggested_category: {
             type: 'STRING',
-            enum: ['umsatz_pflichtig', 'umsatz_steuerfrei', 'ust_erstattung', 'privateinlage', 'anlagenverkauf', 'erstattungen', 'sonstige_einnahmen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'privatentnahme', 'sonstiges'],
+            enum: ['umsatz_pflichtig', 'umsatz_steuerfrei', 'reverse_charge', 'ust_erstattung', 'privateinlage', 'anlagenverkauf', 'erstattungen', 'sponsoring', 'affiliate', 'donations_tips', 'sachzuwendungen', 'sonstige_einnahmen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'bewirtungskosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'privatentnahme', 'sonstiges'],
           },
         },
         required: ['date', 'description', 'partner', 'netto', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],

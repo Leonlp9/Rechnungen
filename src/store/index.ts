@@ -4,6 +4,9 @@ import type { Invoice } from '@/types';
 
 export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk' | 'zinc' | 'stone' | 'windows11' | 'chroma';
 export type Steuerregelung = 'kleinunternehmer' | 'regelbesteuerung';
+export type Taetigkeitsart = 'freiberufler' | 'gewerbetreibend' | 'content_creator';
+export type Rechtsform = 'freiberufler' | 'gewerbetreibend';
+export type Branchenprofil = 'standard' | 'content_creator' | 'ecommerce' | 'handwerk' | 'beratung';
 
 export interface InvoiceDraft {
   id: string;
@@ -46,6 +49,12 @@ interface AppState {
   toggleNavItem: (path: string) => void;
   steuerregelung: Steuerregelung;
   setSteuerregelung: (r: Steuerregelung) => void;
+  taetigkeitsart: Taetigkeitsart;
+  setTaetigkeitsart: (t: Taetigkeitsart) => void;
+  rechtsform: Rechtsform;
+  setRechtsform: (r: Rechtsform) => void;
+  branchenprofil: Branchenprofil;
+  setBranchenprofil: (b: Branchenprofil) => void;
   /** Laufender KI-Fix – wird in InvoiceDetail ausgeführt */
   activeAiFix: ActiveAiFix | null;
   setActiveAiFix: (fix: ActiveAiFix | null) => void;
@@ -85,12 +94,18 @@ export const useAppStore = create<AppState>()(
         })),
       steuerregelung: 'kleinunternehmer' as Steuerregelung,
       setSteuerregelung: (steuerregelung) => set({ steuerregelung }),
+      taetigkeitsart: 'gewerbetreibend' as Taetigkeitsart,
+      setTaetigkeitsart: (taetigkeitsart) => set({ taetigkeitsart }),
+      rechtsform: 'gewerbetreibend' as Rechtsform,
+      setRechtsform: (rechtsform) => set({ rechtsform }),
+      branchenprofil: 'standard' as Branchenprofil,
+      setBranchenprofil: (branchenprofil) => set({ branchenprofil }),
       activeAiFix: null,
       setActiveAiFix: (activeAiFix) => set({ activeAiFix }),
     }),
     {
       name: 'rechnungs-manager-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil }),
       merge: (persisted, current) => ({ ...current, ...(persisted as object), drafts: [] }),
     }
   )

@@ -6,6 +6,8 @@ import { SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
 import type { Category, Invoice } from '@/types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, berechneProRataAfa, getNutzungsdauer } from '@/lib/afa';
+import type { ProRataAfaResult } from '@/lib/afa';
 
 export interface DashboardData {
   loading: boolean;
@@ -23,6 +25,7 @@ export interface DashboardData {
   ausgaben: number;
   saldo: number;
   betriebsergebnis: number;
+  betriebsergebnisNachAfa: number;
   sonderausgabenGesamt: number;
   recentCount: number;
   deltaEin: number;
@@ -52,6 +55,23 @@ export interface DashboardData {
   gesamtAvgYearlyAusgaben: number;
   gesamtMarge: number;
   gesamtByYear: { year: number; einnahmen: number; ausgaben: number }[];
+  // AfA
+  afaInvoices: Invoice[];
+  gwgInvoices: Invoice[];
+  afaGesamtNetto: number;
+  gwgGesamtNetto: number;
+  afaJahresAbschreibung: number;
+  afaItems: AfaItem[];
+}
+
+export interface AfaItem {
+  invoice: Invoice;
+  assetType: string;
+  gwkKategorie: string;
+  empfohlen: string;
+  jahresAfa: number;
+  nutzungsdauer: number;
+  proRata: ProRataAfaResult | null;
 }
 
 export function useDashboardData(): DashboardData {
@@ -145,6 +165,55 @@ export function useDashboardData(): DashboardData {
 
   const lastTen = yearInvoices.slice(0, 10);
 
+  // ── AfA / GWG-Daten ───────────────────────────────────────────────────────
+  const afaData = useMemo((): Pick<DashboardData, 'afaInvoices' | 'gwgInvoices' | 'afaGesamtNetto' | 'gwgGesamtNetto' | 'afaJahresAbschreibung' | 'afaItems'> => {
+    const afaInvoices = yearInvoices.filter((i) => i.category === 'anlagevermoegen_afa');
+    const gwgInvoices = yearInvoices.filter((i) => i.category === 'gwg');
+    const afaGesamtNetto = afaInvoices.reduce((s, i) => s + i.netto, 0);
+    const gwgGesamtNetto = gwgInvoices.reduce((s, i) => s + i.netto, 0);
+
+    const allAfaGwg = [...afaInvoices, ...gwgInvoices];
+    const afaItems: DashboardData['afaItems'] = allAfaGwg.map((inv) => {
+      const assetType = guessAssetType(inv.description, inv.partner);
+      const optionen = berechneAfaOptionen(inv.netto, assetType);
+      const empf = empfohlenAfaMethode(inv.netto);
+      const empfOption = optionen.find((o) => o.methode === empf);
+      const nutzungsdauer = empfOption?.nutzungsdauer ?? getNutzungsdauer(assetType);
+
+      // Pro-rata-temporis: zeitanteilige AfA für das gewählte Jahr
+      let jahresAfa: number;
+      let proRata: ProRataAfaResult | null = null;
+      if (nutzungsdauer > 1) {
+        proRata = berechneProRataAfa(inv.netto, inv.date, nutzungsdauer, selectedYear);
+        jahresAfa = proRata.afaBetragImJahr;
+      } else {
+        // GWG / Sofortabzug: nur im Kaufjahr
+        const kaufJahr = new Date(inv.date).getFullYear();
+        jahresAfa = kaufJahr === selectedYear ? inv.netto : 0;
+      }
+
+      return {
+        invoice: inv,
+        assetType,
+        gwkKategorie: getGwgKategorie(inv.netto),
+        empfohlen: empfOption?.label ?? '',
+        jahresAfa,
+        nutzungsdauer,
+        proRata,
+      };
+    });
+
+    const afaJahresAbschreibung = afaItems.reduce((s, item) => s + item.jahresAfa, 0);
+
+    return { afaInvoices, gwgInvoices, afaGesamtNetto, gwgGesamtNetto, afaJahresAbschreibung, afaItems };
+  }, [yearInvoices, selectedYear]);
+
+  // Betriebsergebnis nach AfA: volle AfA/GWG-Käufe rausrechnen, nur zeitanteilige AfA abziehen
+  const afaVollkaufpreis = yearInvoices
+    .filter((i) => i.type === 'ausgabe' && (i.category === 'anlagevermoegen_afa' || i.category === 'gwg'))
+    .reduce((s, i) => s + i.brutto, 0);
+  const betriebsergebnisNachAfa = betriebsergebnis + afaVollkaufpreis - afaData.afaJahresAbschreibung;
+
   // ── Gesamt-Kennzahlen (alle Jahre) ───────────────────────────────────────
   const gesamtData = useMemo(() => {
     const gesamtEinnahmen = invoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
@@ -196,6 +265,7 @@ export function useDashboardData(): DashboardData {
     ausgaben,
     saldo,
     betriebsergebnis,
+    betriebsergebnisNachAfa,
     sonderausgabenGesamt,
     recentCount,
     deltaEin,
@@ -215,6 +285,7 @@ export function useDashboardData(): DashboardData {
     forecastItems,
     lastTen,
     ...gesamtData,
+    ...afaData,
   };
 }
 
