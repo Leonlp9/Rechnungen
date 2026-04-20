@@ -1,0 +1,89 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+use imap::Session;
+use native_tls::TlsStream;
+use std::net::TcpStream;
+
+type ImapSession = Session<TlsStream<TcpStream>>;
+
+pub struct ImapPool {
+    pub sessions: Mutex<HashMap<String, (ImapSession, std::time::Instant)>>,
+}
+
+const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+
+impl ImapPool {
+    pub fn new() -> Self {
+        Self {
+            sessions: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Returns an existing session or creates a new one
+    pub fn get_or_connect(
+        &self,
+        account_id: &str,
+        host: &str,
+        port: u16,
+        username: &str,
+        password: &str,
+    ) -> Result<(), String> {
+        let mut sessions = self.sessions.lock().unwrap();
+
+        if let Some((session, last_used)) = sessions.get_mut(account_id) {
+            if last_used.elapsed() > SESSION_TIMEOUT {
+                let _ = session.logout();
+                sessions.remove(account_id);
+            } else {
+                match session.noop() {
+                    Ok(_) => {
+                        *last_used = std::time::Instant::now();
+                        return Ok(());
+                    }
+                    Err(_) => {
+                        sessions.remove(account_id);
+                    }
+                }
+            }
+        }
+
+        // New connection
+        let stream = TcpStream::connect((host, port))
+            .map_err(|e| format!("TCP-Verbindung fehlgeschlagen: {e}"))?;
+        let connector = native_tls::TlsConnector::builder()
+            .build()
+            .map_err(|e| format!("TLS-Fehler: {e}"))?;
+        let tls_stream = connector
+            .connect(host, stream)
+            .map_err(|e| format!("TLS-Handshake fehlgeschlagen: {e}"))?;
+        let client = imap::Client::new(tls_stream);
+        let session = client
+            .login(username, password)
+            .map_err(|(e, _)| format!("IMAP-Login fehlgeschlagen: {e}"))?;
+
+        sessions.insert(account_id.to_string(), (session, std::time::Instant::now()));
+        Ok(())
+    }
+
+    /// Execute an operation with the session
+    pub fn with_session<F, R>(&self, account_id: &str, f: F) -> Result<R, String>
+    where
+        F: FnOnce(&mut ImapSession) -> Result<R, String>,
+    {
+        let mut sessions = self.sessions.lock().unwrap();
+        let (session, last_used) = sessions
+            .get_mut(account_id)
+            .ok_or_else(|| "Keine aktive IMAP-Session".to_string())?;
+        *last_used = std::time::Instant::now();
+        f(session)
+    }
+
+    /// Explicitly close a session
+    pub fn disconnect(&self, account_id: &str) {
+        let mut sessions = self.sessions.lock().unwrap();
+        if let Some((mut session, _)) = sessions.remove(account_id) {
+            let _ = session.logout();
+        }
+    }
+}
+

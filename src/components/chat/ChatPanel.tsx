@@ -71,6 +71,10 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
     const msg = (text ?? input).trim();
     if (!msg || loading) return;
 
+    await doSend(msg);
+  }
+
+  async function doSend(msg: string) {
     let sessionId = activeChatId;
     if (!sessionId) {
       sessionId = createSession();

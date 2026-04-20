@@ -48,6 +48,10 @@ interface GmailState {
   setLoading: (v: boolean) => void;
   setFetchingDetail: (v: boolean) => void;
   setDetailAccountEmail: (email: string | null) => void;
+
+  // Keyring-based IMAP password management
+  loadImapPasswords: () => Promise<void>;
+  saveImapAccount: (acc: GmailAccount) => Promise<void>;
 }
 
 export const useGmailStore = create<GmailState>()(
@@ -143,6 +147,36 @@ export const useGmailStore = create<GmailState>()(
           ),
           selectedEmail: s.selectedEmail?.id === messageId ? null : s.selectedEmail,
         })),
+
+      loadImapPasswords: async () => {
+        const { keyringLoad } = await import('@/lib/keyring');
+        const accounts = useGmailStore.getState().accounts;
+        const updated = await Promise.all(
+          accounts.map(async (acc) => {
+            if (acc.type !== 'imap' || !acc.imapConfig) return acc;
+            const password = await keyringLoad(`imap_password_${acc.email}`).catch(() => null);
+            return {
+              ...acc,
+              imapConfig: { ...acc.imapConfig, password: password ?? '' },
+            };
+          })
+        );
+        set({ accounts: updated });
+      },
+
+      saveImapAccount: async (acc) => {
+        const { keyringSave } = await import('@/lib/keyring');
+        if (acc.imapConfig?.password) {
+          await keyringSave(`imap_password_${acc.email}`, acc.imapConfig.password);
+        }
+        const safeAcc = {
+          ...acc,
+          imapConfig: acc.imapConfig ? { ...acc.imapConfig, password: '' } : undefined,
+        };
+        set((s) => ({
+          accounts: [...s.accounts.filter((a) => a.email !== acc.email), safeAcc],
+        }));
+      },
     }),
     {
       name: 'gmail-auth-v2',

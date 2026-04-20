@@ -53,6 +53,71 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
       )
     `);
   },
+  // v2 → v3: Fahrtenbuch + Kunden-CRM + Audit-Trail Hash-Verkettung
+  async (db) => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS fahrtenbuch (
+        id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        datum       TEXT NOT NULL,
+        abfahrt     TEXT NOT NULL,
+        ziel        TEXT NOT NULL,
+        km          REAL NOT NULL,
+        zweck       TEXT NOT NULL,
+        art         TEXT NOT NULL CHECK(art IN ('dienst', 'privat')),
+        kfz_kennz   TEXT NOT NULL DEFAULT '',
+        created_at  TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        name            TEXT NOT NULL,
+        customer_number TEXT UNIQUE,
+        email           TEXT,
+        phone           TEXT,
+        website         TEXT,
+        street          TEXT,
+        zip             TEXT,
+        city            TEXT,
+        country         TEXT DEFAULT 'DE',
+        tax_id          TEXT,
+        payment_days    INTEGER DEFAULT 14,
+        notes           TEXT,
+        created_at      TEXT DEFAULT (datetime('now')),
+        updated_at      TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)`);
+    // Audit-Trail Hash-Verkettung
+    for (const col of ['prev_hash TEXT DEFAULT ""', 'entry_hash TEXT DEFAULT ""']) {
+      try { await db.execute(`ALTER TABLE audit_log ADD COLUMN ${col}`); } catch { /* exists */ }
+    }
+    // Customer link on invoices
+    try { await db.execute(`ALTER TABLE invoices ADD COLUMN customer_id TEXT DEFAULT ''`); } catch { /* exists */ }
+  },
+  // v3 → v4: Bank-Transaktionen persistieren
+  async (db) => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS bank_transactions (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        transaction_id TEXT NOT NULL,
+        booking_date TEXT NOT NULL,
+        value_date TEXT NOT NULL DEFAULT '',
+        amount REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'EUR',
+        creditor_name TEXT,
+        debtor_name TEXT,
+        remittance_info TEXT NOT NULL DEFAULT '',
+        source_file TEXT,
+        matched_invoice_id TEXT,
+        import_batch TEXT NOT NULL DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(transaction_id, booking_date, amount)
+      )
+    `);
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_bank_tx_date ON bank_transactions(booking_date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_bank_tx_batch ON bank_transactions(import_batch)');
+  },
 ];
 
 async function migrate(db: Database) {
@@ -423,3 +488,197 @@ export async function findDuplicateInvoices(
   return db.select(query, params);
 }
 
+// --- Fahrtenbuch ---
+
+export interface Fahrt {
+  id: string;
+  datum: string;
+  abfahrt: string;
+  ziel: string;
+  km: number;
+  zweck: string;
+  art: 'dienst' | 'privat';
+  kfz_kennz: string;
+  created_at?: string;
+}
+
+export const fahrtenbuch = {
+  async getAll(): Promise<Fahrt[]> {
+    const db = await getDb();
+    return db.select<Fahrt[]>('SELECT * FROM fahrtenbuch ORDER BY datum DESC');
+  },
+
+  async add(fahrt: Omit<Fahrt, 'id' | 'created_at'>): Promise<void> {
+    const db = await getDb();
+    await db.execute(
+      `INSERT INTO fahrtenbuch (datum, abfahrt, ziel, km, zweck, art, kfz_kennz)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [fahrt.datum, fahrt.abfahrt, fahrt.ziel, fahrt.km, fahrt.zweck, fahrt.art, fahrt.kfz_kennz]
+    );
+  },
+
+  async update(id: string, fahrt: Partial<Fahrt>): Promise<void> {
+    const db = await getDb();
+    const sets = Object.keys(fahrt).filter(k => k !== 'id' && k !== 'created_at').map((k, i) => `${k}=$${i + 2}`).join(', ');
+    const values = Object.entries(fahrt).filter(([k]) => k !== 'id' && k !== 'created_at').map(([, v]) => v);
+    await db.execute(`UPDATE fahrtenbuch SET ${sets} WHERE id=$1`, [id, ...values]);
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute('DELETE FROM fahrtenbuch WHERE id=$1', [id]);
+  },
+
+  async getJahresauswertung(year: number) {
+    const db = await getDb();
+    const fahrten = await db.select<Fahrt[]>(
+      `SELECT * FROM fahrtenbuch WHERE strftime('%Y', datum) = $1`,
+      [String(year)]
+    );
+    const dienst = fahrten.filter(f => f.art === 'dienst');
+    const privat = fahrten.filter(f => f.art === 'privat');
+    const kmDienst = dienst.reduce((s, f) => s + f.km, 0);
+    const kmPrivat = privat.reduce((s, f) => s + f.km, 0);
+    // 30 Cent/km (2022+), 38 Cent ab km 21+ (vereinfacht: 30ct)
+    const absetzbar = kmDienst * 0.30;
+    return { kmDienst, kmPrivat, kmGesamt: kmDienst + kmPrivat, absetzbar, fahrten };
+  },
+};
+
+// --- Customers (CRM) ---
+
+export interface Customer {
+  id: string;
+  name: string;
+  customer_number?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  street?: string;
+  zip?: string;
+  city?: string;
+  country: string;
+  tax_id?: string;
+  payment_days: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const customers = {
+  async getAll(): Promise<Customer[]> {
+    const db = await getDb();
+    return db.select<Customer[]>('SELECT * FROM customers ORDER BY name ASC');
+  },
+
+  async getById(id: string): Promise<Customer | null> {
+    const db = await getDb();
+    const rows = await db.select<Customer[]>('SELECT * FROM customers WHERE id=$1', [id]);
+    return rows[0] ?? null;
+  },
+
+  async save(c: Omit<Customer, 'id'>): Promise<string> {
+    const db = await getDb();
+    const id = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO customers (id, name, customer_number, email, phone, website, street, zip, city, country, tax_id, payment_days, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [id, c.name, c.customer_number ?? null, c.email ?? null, c.phone ?? null, c.website ?? null,
+       c.street ?? null, c.zip ?? null, c.city ?? null, c.country ?? 'DE',
+       c.tax_id ?? null, c.payment_days ?? 14, c.notes ?? null]
+    );
+    return id;
+  },
+
+  async update(id: string, c: Partial<Customer>): Promise<void> {
+    const db = await getDb();
+    const entries = Object.entries(c).filter(([k]) => k !== 'id' && k !== 'created_at');
+    const sets = entries.map(([k], i) => `${k}=$${i + 2}`).join(', ');
+    await db.execute(
+      `UPDATE customers SET ${sets}, updated_at=datetime('now') WHERE id=$1`,
+      [id, ...entries.map(([, v]) => v)]
+    );
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute('DELETE FROM customers WHERE id=$1', [id]);
+  },
+
+  async getInvoices(customerId: string): Promise<import('@/types').Invoice[]> {
+    const db = await getDb();
+    const rows: unknown[] = await db.select(
+      'SELECT * FROM invoices WHERE customer_id=$1 ORDER BY date DESC',
+      [customerId]
+    );
+    return rows.map(mapInvoiceRow);
+  },
+
+  async generateNextNumber(): Promise<string> {
+    const db = await getDb();
+    const row = await db.select<{ n: number }[]>(
+      `SELECT COALESCE(MAX(CAST(REPLACE(customer_number, 'KD-', '') AS INTEGER)), 0) + 1 as n FROM customers`
+    );
+    return `KD-${String(row[0]?.n ?? 1).padStart(4, '0')}`;
+  },
+};
+
+// --- Bank Transactions ---
+
+export interface BankTransactionRow {
+  id: string;
+  transaction_id: string;
+  booking_date: string;
+  value_date: string;
+  amount: number;
+  currency: string;
+  creditor_name: string | null;
+  debtor_name: string | null;
+  remittance_info: string;
+  source_file: string | null;
+  matched_invoice_id: string | null;
+  import_batch: string;
+  created_at: string;
+}
+
+export async function getAllBankTransactions(): Promise<BankTransactionRow[]> {
+  const db = await getDb();
+  return db.select('SELECT * FROM bank_transactions ORDER BY booking_date DESC, created_at DESC');
+}
+
+export async function saveBankTransactions(
+  transactions: Omit<BankTransactionRow, 'id' | 'created_at'>[],
+  batchId: string
+): Promise<number> {
+  const db = await getDb();
+  let saved = 0;
+  for (const tx of transactions) {
+    try {
+      await db.execute(
+        `INSERT OR IGNORE INTO bank_transactions 
+         (transaction_id, booking_date, value_date, amount, currency, creditor_name, debtor_name, remittance_info, source_file, matched_invoice_id, import_batch)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [tx.transaction_id, tx.booking_date, tx.value_date, tx.amount, tx.currency, tx.creditor_name, tx.debtor_name, tx.remittance_info, tx.source_file, tx.matched_invoice_id, batchId]
+      );
+      saved++;
+    } catch {
+      // duplicate – skip
+    }
+  }
+  return saved;
+}
+
+export async function deleteBankTransaction(id: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM bank_transactions WHERE id = $1', [id]);
+}
+
+export async function deleteAllBankTransactions(): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM bank_transactions');
+}
+
+export async function updateBankTransactionMatch(id: string, matchedInvoiceId: string | null): Promise<void> {
+  const db = await getDb();
+  await db.execute('UPDATE bank_transactions SET matched_invoice_id = $1 WHERE id = $2', [matchedInvoiceId, id]);
+}

@@ -3,6 +3,13 @@ use std::io::Write;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use tauri::{Manager, Emitter};
 
+mod imap_pool;
+mod xrechnung;
+mod zugferd;
+mod xrechnung_parser;
+mod bank_import;
+mod audit;
+
 // ── Backup/Restore ────────────────────────────────────────────────────────────
 
 /// State to hold a backup path passed via CLI argument (double-click on .rmbackup)
@@ -808,6 +815,159 @@ fn cleanup_old_invoice_files(app: tauri::AppHandle, days: u64) -> Result<u32, St
 
 // ── App entry point ──────────────────────────────────────────────────────────
 
+// ── Keyring commands ─────────────────────────────────────────────────────────
+// The tauri-plugin-keyring provides its own JS commands (set_secret, get_secret, delete_secret).
+// We implement custom wrappers to keep a consistent interface and add error handling.
+
+use tauri_plugin_keyring::KeyringExt;
+
+#[tauri::command]
+async fn keyring_set(app: tauri::AppHandle, service: String, key: String, value: String) -> Result<(), String> {
+    app.keyring()
+        .set_password(&service, &key, &value)
+        .map_err(|e| format!("Keyring-Fehler beim Speichern: {e}"))
+}
+
+#[tauri::command]
+async fn keyring_get(app: tauri::AppHandle, service: String, key: String) -> Result<Option<String>, String> {
+    match app.keyring().get_password(&service, &key) {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("not found") || msg.contains("NoEntry") || msg.contains("No matching") || msg.contains("not set") {
+                Ok(None)
+            } else {
+                Err(format!("Keyring-Fehler beim Lesen: {e}"))
+            }
+        }
+    }
+}
+
+#[tauri::command]
+async fn keyring_delete(app: tauri::AppHandle, service: String, key: String) -> Result<(), String> {
+    app.keyring()
+        .delete_password(&service, &key)
+        .map_err(|e| format!("Keyring-Fehler beim Löschen: {e}"))
+}
+
+// ── XRechnung / ZUGFeRD commands ─────────────────────────────────────────────
+
+#[tauri::command]
+async fn export_xrechnung(data_json: String, output_path: String) -> Result<(), String> {
+    let data: xrechnung::XRechnungData = serde_json::from_str(&data_json)
+        .map_err(|e| format!("JSON-Fehler: {e}"))?;
+    let xml = xrechnung::generate_xrechnung_xml(&data)?;
+    std::fs::write(&output_path, xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn export_zugferd(data_json: String, pdf_path: String, output_path: String) -> Result<(), String> {
+    let data: xrechnung::XRechnungData = serde_json::from_str(&data_json)
+        .map_err(|e| format!("JSON-Fehler: {e}"))?;
+    let xml = xrechnung::generate_xrechnung_xml(&data)?;
+    zugferd::embed_xml_in_pdf(&pdf_path, &xml, &output_path)
+}
+
+#[tauri::command]
+async fn import_erechnung(file_path: String) -> Result<serde_json::Value, String> {
+    let xml = if file_path.to_lowercase().ends_with(".pdf") {
+        xrechnung_parser::extract_xml_from_zugferd_pdf(&file_path)?
+    } else {
+        std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?
+    };
+
+    let parsed = xrechnung_parser::parse_xrechnung(&xml)?;
+    Ok(serde_json::json!({
+        "invoiceNumber": parsed.invoice_number,
+        "invoiceDate": parsed.invoice_date,
+        "sellerName": parsed.seller_name,
+        "buyerName": parsed.buyer_name,
+        "netTotal": parsed.net_total,
+        "taxTotal": parsed.tax_total,
+        "grossTotal": parsed.gross_total,
+        "paymentIban": parsed.payment_iban,
+        "lineItems": parsed.line_items.iter().map(|i| serde_json::json!({
+            "name": i.name,
+            "quantity": i.quantity,
+            "unitPrice": i.unit_price,
+            "lineTotal": i.line_total,
+        })).collect::<Vec<_>>(),
+    }))
+}
+
+// ── Bank import commands ─────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn import_bank_statement(file_path: String) -> Result<serde_json::Value, String> {
+    let lower = file_path.to_lowercase();
+    if lower.ends_with(".zip") {
+        let transactions = bank_import::parse_zip_bank(&file_path)?;
+        return serde_json::to_value(&transactions).map_err(|e| e.to_string());
+    }
+    let content = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+    let filename = std::path::Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string());
+    let transactions = if lower.ends_with(".xml") {
+        bank_import::parse_camt053(&content)?
+    } else if lower.ends_with(".csv") {
+        bank_import::parse_csv_bank(&content, filename.as_deref())?
+    } else {
+        bank_import::parse_mt940(&content)?
+    };
+    serde_json::to_value(&transactions).map_err(|e| e.to_string())
+}
+
+/// Import multiple bank files at once (batch import)
+#[tauri::command]
+async fn import_bank_statements_batch(file_paths: Vec<String>) -> Result<serde_json::Value, String> {
+    let mut all_transactions = Vec::new();
+    let mut errors = Vec::new();
+
+    for file_path in &file_paths {
+        let lower = file_path.to_lowercase();
+        let result: Result<Vec<bank_import::BankTransaction>, String> = if lower.ends_with(".zip") {
+            bank_import::parse_zip_bank(file_path)
+        } else {
+            let content = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
+            let filename = std::path::Path::new(file_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string());
+            if lower.ends_with(".xml") {
+                bank_import::parse_camt053(&content)
+            } else if lower.ends_with(".csv") {
+                bank_import::parse_csv_bank(&content, filename.as_deref())
+            } else {
+                bank_import::parse_mt940(&content)
+            }
+        };
+        match result {
+            Ok(txs) => all_transactions.extend(txs),
+            Err(e) => errors.push(format!("{}: {}", std::path::Path::new(file_path).file_name().unwrap_or_default().to_string_lossy(), e)),
+        }
+    }
+
+    if all_transactions.is_empty() && !errors.is_empty() {
+        return Err(errors.join("\n"));
+    }
+
+    let result = serde_json::json!({
+        "transactions": all_transactions,
+        "errors": errors,
+    });
+    Ok(result)
+}
+
+// ── Audit trail commands ─────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn verify_audit_integrity(app: tauri::AppHandle) -> Result<bool, String> {
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let db_path = app_data.join("rechnungen.db");
+    let conn = rusqlite::Connection::open(&db_path).map_err(|e| e.to_string())?;
+    audit::verify_audit_chain(&conn)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Check for a .rmbackup file passed as CLI argument (double-click)
@@ -817,6 +977,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(PendingBackupPath(std::sync::Mutex::new(pending_path)))
+        .manage(imap_pool::ImapPool::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -824,6 +985,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_oauth::init())
+        .plugin(tauri_plugin_keyring::init())
         .invoke_handler(tauri::generate_handler![
             extract_pdf_text,
             save_pdf_attachment,
@@ -839,6 +1001,15 @@ pub fn run() {
             create_backup,
             restore_backup,
             get_pending_backup_path,
+            keyring_set,
+            keyring_get,
+            keyring_delete,
+            export_xrechnung,
+            export_zugferd,
+            import_erechnung,
+            import_bank_statement,
+            import_bank_statements_batch,
+            verify_audit_integrity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -37,4 +37,10 @@ lettre = { version = "0.11", default-features = false, features = ["smtp-transpo
 tokio = { version = "1", features = ["rt"] }
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
+tauri-plugin-keyring = "0.1"
+sha2 = "0.10"
+quick-xml = { version = "0.36", features = ["serialize"] }
+lopdf = "0.32"
+roxmltree = "0.20"
+csv = "1.4.0"
 

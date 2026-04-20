@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getSetting, setSetting, deleteAllStornoInvoices, getAllInvoices, getFullAuditLog } from '@/lib/db';
+import { getGeminiApiKey, saveGeminiApiKey } from '@/lib/gemini';
 import type { AuditLogEntry } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,13 +18,14 @@ import {
   Code2, Navigation, Trash2, Download, Upload, DatabaseBackup, Receipt, ScrollText, FileDown,
   Palette, LayoutDashboard, FileText, FilePlus2, PenSquare, ListTodo, Mail, Settings as SettingsIcon,
   HelpCircle, CalendarDays, Info, Bug, Terminal, Database, Zap, AlertTriangle, RotateCcw,
-  ClipboardList, Activity, Server, HardDrive, Cpu, MemoryStick,
+  ClipboardList, Activity, Server, HardDrive, Cpu, MemoryStick, Car, Users, Landmark,
 } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { checkForUpdates } from '@/lib/updater';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
 import { exportBackup, importBackup } from '@/lib/backup';
 import { BackupProgressOverlay } from '@/components/BackupProgressOverlay';
+import { VerfahrensdokuButton } from '@/components/settings/VerfahrensdokuButton';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS_CONFIG = [
@@ -34,6 +36,9 @@ const NAV_ITEMS_CONFIG = [
   { to: '/lists', label: 'Listen', icon: ListTodo },
   { to: '/gmail', label: 'Mail', icon: Mail },
   { to: '/calendar', label: 'Kalender', icon: CalendarDays },
+  { to: '/customers', label: 'Kunden', icon: Users },
+  { to: '/fahrtenbuch', label: 'Fahrtenbuch', icon: Car },
+  { to: '/bank-import', label: 'Bankimport', icon: Landmark },
   { to: '/settings', label: 'Einstellungen', icon: SettingsIcon },
   { to: '/help', label: 'Hilfe', icon: HelpCircle },
 ];
@@ -151,7 +156,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
-    getSetting('gemini_api_key').then((v) => { if (v) setApiKey(v); }).catch(console.error);
+    getGeminiApiKey().then((v) => { if (v) setApiKey(v); }).catch(console.error);
     getSetting('profile_ai_instructions').then((v) => { if (v) setAiInstructions(v); }).catch(console.error);
     Promise.all(
       PROFILE_FIELDS.map(async (f) => {
@@ -170,7 +175,7 @@ export default function SettingsPage() {
   };
 
   const saveApiKey = async () => {
-    try { await setSetting('gemini_api_key', apiKey); toast.success('API-Key gespeichert!'); }
+    try { await saveGeminiApiKey(apiKey); toast.success('API-Key gespeichert!'); }
     catch (e) { toast.error('Fehler: ' + String(e)); }
   };
 
@@ -480,7 +485,7 @@ export default function SettingsPage() {
             <Card className="rounded-xl shadow-sm">
               <CardHeader>
                 <CardTitle className="text-base">Gemini API-Key</CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">Wird lokal in der SQLite-Datenbank gespeichert, nicht an Dritte gesendet.</p>
+                <p className="text-xs text-muted-foreground mt-1">Wird sicher im OS-Schlüsselbund gespeichert (Windows Credential Manager / macOS Keychain).</p>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1.5">
@@ -704,7 +709,31 @@ export default function SettingsPage() {
                   }}>
                     <FileDown className="mr-2 h-4 w-4" />Als CSV exportieren
                   </Button>
+                  <Button variant="outline" onClick={async () => {
+                    try {
+                      const ok = await invoke<boolean>('verify_audit_integrity');
+                      if (ok) toast.success('✅ Audit-Trail-Integrität bestätigt — keine Manipulationen erkannt');
+                      else toast.error('❌ Audit-Trail beschädigt — Einträge wurden möglicherweise manipuliert!');
+                    } catch (e) { toast.error('Prüfung fehlgeschlagen: ' + String(e)); }
+                  }}>
+                    🔒 Integrität prüfen
+                  </Button>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-xl shadow-sm">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <FileDown className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base">Verfahrensdokumentation & Compliance</CardTitle>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Generiere auf Knopfdruck eine GoBD-konforme Verfahrensdokumentation als PDF.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <VerfahrensdokuButton />
               </CardContent>
             </Card>
           </>

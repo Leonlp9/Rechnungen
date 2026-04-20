@@ -30,6 +30,10 @@
     "oauth:default",
     "oauth:allow-start",
     "oauth:allow-cancel",
+    "keyring:default",
+    "keyring:allow-set-secret",
+    "keyring:allow-get-secret",
+    "keyring:allow-delete-secret",
     {
       "identifier": "fs:scope",
       "allow": [

@@ -14,6 +14,9 @@ import {
   ListTodo,
   Mail,
   CalendarDays,
+  Car,
+  Users,
+  Landmark,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -59,6 +62,9 @@ const NAV_ITEMS = [
   { to: '/lists', label: 'Listen', icon: ListTodo, tutorialId: 'nav-lists' },
   { to: '/gmail', label: 'Mail', icon: Mail, tutorialId: 'nav-gmail' },
   { to: '/calendar', label: 'Kalender', icon: CalendarDays, tutorialId: 'nav-calendar' },
+  { to: '/customers', label: 'Kunden', icon: Users, tutorialId: 'nav-customers' },
+  { to: '/fahrtenbuch', label: 'Fahrtenbuch', icon: Car, tutorialId: 'nav-fahrtenbuch' },
+  { to: '/bank-import', label: 'Bankimport', icon: Landmark, tutorialId: 'nav-bank-import' },
   { to: '/settings', label: 'Einstellungen', icon: Settings, tutorialId: 'nav-settings' },
   { to: '/help', label: 'Hilfe', icon: HelpCircle, tutorialId: 'nav-help' },
 ];

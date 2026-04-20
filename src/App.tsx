@@ -12,6 +12,9 @@ import HelpPage from "@/pages/Help";
 import ListsPage from "@/pages/Lists";
 import GmailPage from "@/pages/Gmail";
 import CalendarPage from "@/pages/Calendar";
+import FahrtenbuchPage from "@/pages/Fahrtenbuch";
+import CustomersPage from "@/pages/Customers";
+import BankImportPage from "@/pages/BankImport";
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/updater";
@@ -21,6 +24,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { importBackup } from "@/lib/backup";
 import { toast } from "sonner";
+import { migrateSecretsToKeychain } from "@/lib/keyring-migration";
+import { GeminiConsentProvider } from "@/components/GeminiConsentProvider";
 import "./App.css";
 
 const router = createBrowserRouter([
@@ -35,6 +40,9 @@ const router = createBrowserRouter([
       { path: "/lists", element: <ListsPage /> },
       { path: "/gmail", element: <GmailPage /> },
       { path: "/calendar", element: <CalendarPage /> },
+      { path: "/fahrtenbuch", element: <FahrtenbuchPage /> },
+      { path: "/customers", element: <CustomersPage /> },
+      { path: "/bank-import", element: <BankImportPage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/help", element: <HelpPage /> },
     ],
@@ -53,6 +61,9 @@ function App() {
 
   // Upgrade outdated builtin templates (e.g. missing items element) on every mount
   useEffect(() => { autoUpdateBuiltins(); }, []);
+
+  // Migrate secrets from DB to OS Keychain (one-time)
+  useEffect(() => { migrateSecretsToKeychain().catch(console.error); }, []);
 
   // Check if app was opened with a .rmbackup file (double-click)
   useEffect(() => {
@@ -85,6 +96,7 @@ function App() {
     <AppErrorBoundary>
       <>
         <RouterProvider router={router} />
+      <GeminiConsentProvider />
       <Toaster richColors position="bottom-right" />
       {updateState.open && (
         <UpdateDialog
