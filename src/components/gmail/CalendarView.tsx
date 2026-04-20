@@ -408,12 +408,6 @@ export function CalendarView() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  const visibleInvoiceEntries: DayEntry[] = invoices
-    .filter((inv) => {
-      const d = parseLocalDate(inv.date);
-      return d.getFullYear() === year && d.getMonth() === month && invFilter[inv.type as keyof InvoiceFilter];
-    })
-    .map((inv) => ({ kind: 'invoice' as const, invoice: inv, date: parseLocalDate(inv.date) }));
 
   // For year view: all invoices of the year (no month filter)
   const yearInvoiceEntries: DayEntry[] = invoices
@@ -423,8 +417,13 @@ export function CalendarView() {
     })
     .map((inv) => ({ kind: 'invoice' as const, invoice: inv, date: parseLocalDate(inv.date) }));
 
+  // Use all invoices (not just current month) so adjacent-month days in the month grid also show entries
+  const allInvoiceEntries: DayEntry[] = invoices
+    .filter((inv) => invFilter[inv.type as keyof InvoiceFilter])
+    .map((inv) => ({ kind: 'invoice' as const, invoice: inv, date: parseLocalDate(inv.date) }));
+
   const allEntries: DayEntry[] = [
-    ...visibleInvoiceEntries,
+    ...allInvoiceEntries,
     ...gcalEvents.map((e): DayEntry => ({ kind: 'gcal', event: e })),
   ].sort((a, b) => entryDate(a).getTime() - entryDate(b).getTime());
 
