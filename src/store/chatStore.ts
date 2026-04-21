@@ -124,7 +124,7 @@ export const useChatStore = create<ChatState>()(
       setPosition: (pos) => set({ position: pos }),
     }),
     {
-      name: 'rechnungs-manager-chat',
+      name: 'Klevr-chat',
       partialize: (s) => ({
         sessions: s.sessions,
         activeChatId: s.activeChatId,

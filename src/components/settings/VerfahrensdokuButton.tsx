@@ -42,7 +42,7 @@ export function VerfahrensdokuButton() {
 
       h1('2. Beschreibung des DV-Systems');
       h2('2.1 Softwarebezeichnung');
-      line('Rechnungs-Manager — Desktop-Anwendung für Freiberufler und Kleinunternehmer');
+      line('Klevr — Desktop-Anwendung für Freiberufler und Kleinunternehmer');
       line('Plattform: Windows, macOS, Linux (Tauri v2)', 5);
       y += 3;
 

@@ -45,7 +45,7 @@ const ARTICLES: HelpArticle[] = [
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground">
-          Willkommen beim Rechnungs-Manager! Diese App hilft dir, alle deine Rechnungen
+          Willkommen beim Klevr! Diese App hilft dir, alle deine Rechnungen
           zu verwalten, zu kategorisieren und auszuwerten.
         </p>
         <Section title="Was kann diese App?">
@@ -553,7 +553,7 @@ const ARTICLES: HelpArticle[] = [
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground">
-          Der Rechnungs-Manager erkennt automatisch wiederkehrende Zahlungsmuster – egal ob offizielle
+          Der Klevr erkennt automatisch wiederkehrende Zahlungsmuster – egal ob offizielle
           Abonnements oder einfach monatlich gleichartige Einkäufe. Daraus wird eine Prognose für den
           restlichen Monat berechnet.
         </p>
@@ -736,7 +736,7 @@ const ARTICLES: HelpArticle[] = [
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground">
-          Der Rechnungs-Manager protokolliert automatisch jede Anlage, Änderung und Löschung von Rechnungen –
+          Der Klevr protokolliert automatisch jede Anlage, Änderung und Löschung von Rechnungen –
           ein zentrales Kriterium der GoBD-Konformität.
         </p>
         <Section title="Was wird protokolliert?">
@@ -872,7 +872,7 @@ const ARTICLES: HelpArticle[] = [
         <Section title="Was muss dokumentiert werden?">
           <ul className="space-y-1.5 text-sm">
             {[
-              'Welche Software du für Buchführung nutzt (Rechnungs-Manager)',
+              'Welche Software du für Buchführung nutzt (Klevr)',
               'Wie Belege erfasst werden (PDF-Upload, KI-Erkennung, manuelle Eingabe)',
               'Wie Belege archiviert werden (lokal als PDF/A in app_data_dir)',
               'Wer Zugriff auf die Daten hat',
@@ -886,7 +886,7 @@ const ARTICLES: HelpArticle[] = [
             ))}
           </ul>
         </Section>
-        <Section title="Rechnungs-Manager Compliance-Features">
+        <Section title="Klevr Compliance-Features">
           <div className="space-y-2 text-sm">
             {[
               ['Audit-Trail', 'Automatisches Änderungsprotokoll für jede Rechnung'],

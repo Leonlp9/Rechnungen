@@ -27,9 +27,9 @@ export async function exportBackup(): Promise<{ success: boolean; path?: string;
   try {
     const destPath = await save({
       title: 'Backup speichern',
-      defaultPath: `rechnungs-manager-backup-${new Date().toISOString().slice(0, 10)}.rmbackup`,
+      defaultPath: `Klevr-backup-${new Date().toISOString().slice(0, 10)}.rmbackup`,
       filters: [
-        { name: 'Rechnungs-Manager Backup', extensions: ['rmbackup'] },
+        { name: 'Klevr Backup', extensions: ['rmbackup'] },
       ],
     });
 
@@ -57,7 +57,7 @@ export async function importBackup(
         title: 'Backup laden',
         multiple: false,
         filters: [
-          { name: 'Rechnungs-Manager Backup', extensions: ['rmbackup'] },
+          { name: 'Klevr Backup', extensions: ['rmbackup'] },
         ],
       });
       if (!selected) return { success: false };

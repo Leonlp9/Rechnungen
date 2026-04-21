@@ -12,6 +12,7 @@ import { getAllDrafts } from '@/lib/db';
 import { getAbsolutePdfPath } from '@/lib/pdf';
 import { WelcomeScreen } from '@/components/tutorial/WelcomeScreen';
 import { TutorialOverlay } from '@/components/tutorial/TutorialOverlay';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail', '/calendar', '/settings'];
 
@@ -24,6 +25,8 @@ export function AppLayout() {
   const searchOpen = useAppStore((s) => s.searchOpen);
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setDrafts = useAppStore((s) => s.setDrafts);
+
+  useKeyboardShortcuts();
 
   // Entwürfe aus DB laden
   useEffect(() => {
@@ -39,16 +42,10 @@ export function AppLayout() {
     }).catch(() => {});
   }, []);
 
-  // Ctrl+K / Strg+K öffnet die Suche global
+  // Escape schließt die Suche
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-      if (e.key === 'Escape') {
-        setSearchOpen(false);
-      }
+      if (e.key === 'Escape') setSearchOpen(false);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);

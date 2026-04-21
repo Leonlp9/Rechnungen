@@ -15,7 +15,8 @@ import {
 import { toast } from 'sonner';
 import { fmtCurrency, saveCsvFile } from '@/lib/utils';
 import { useAppStore } from '@/store';
-import { Plus, Car, Trash2, Download } from 'lucide-react';
+import { Plus, Car, Trash2, Download, Settings2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 async function exportFahrtenbuchCsv(fahrten: Fahrt[]) {
   const header = ['Datum', 'Abfahrt', 'Ziel', 'km', 'Zweck', 'Art', 'KFZ-Kennzeichen'];
@@ -37,18 +38,52 @@ export default function FahrtenbuchPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const privacyMode = useAppStore((s) => s.privacyMode);
+  const kmPauschale = useAppStore((s) => s.kmPauschale);
+  const setKmPauschale = useAppStore((s) => s.setKmPauschale);
+  const [kmInput, setKmInput] = useState(String(kmPauschale));
 
   const reload = () => fahrtenbuch.getAll().then(setFahrten).finally(() => setLoading(false));
   useEffect(() => { reload(); }, []);
 
   const dienstKm = useMemo(() => fahrten.filter(f => f.art === 'dienst').reduce((s, f) => s + f.km, 0), [fahrten]);
-  const absetzbar = dienstKm * 0.30;
+  const absetzbar = dienstKm * kmPauschale;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Car className="h-6 w-6" /> Fahrtenbuch</h1>
         <div className="flex gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon" title="km-Pauschale einstellen">
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 space-y-3">
+              <p className="text-sm font-medium">km-Pauschale</p>
+              <p className="text-xs text-muted-foreground">Steuerlich anerkannter Satz pro km (ab 2022: 0,30 € für die ersten 20 km, 0,38 € ab km 21).</p>
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={kmInput}
+                  onChange={(e) => setKmInput(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">€/km</span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => { setKmInput('0.30'); setKmPauschale(0.30); }}>0,30 €</Button>
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => { setKmInput('0.38'); setKmPauschale(0.38); }}>0,38 €</Button>
+              </div>
+              <Button size="sm" className="w-full" onClick={() => {
+                const v = parseFloat(kmInput.replace(',', '.'));
+                if (!isNaN(v) && v > 0) { setKmPauschale(v); toast.success(`km-Pauschale auf ${v.toFixed(2).replace('.', ',')} €/km gesetzt`); }
+                else toast.error('Ungültiger Wert');
+              }}>Übernehmen</Button>
+            </PopoverContent>
+          </Popover>
           {fahrten.length > 0 && (
             <Button variant="outline" onClick={() => exportFahrtenbuchCsv(fahrten)}>
               <Download className="mr-2 h-4 w-4" /> CSV-Export
@@ -60,7 +95,7 @@ export default function FahrtenbuchPage() {
 
       <div className="grid grid-cols-3 gap-4">
         <Card><CardContent className="pt-4"><p className="text-sm text-muted-foreground">Dienstfahrten</p><p className="text-2xl font-bold">{dienstKm.toFixed(0)} km</p></CardContent></Card>
-        <Card><CardContent className="pt-4"><p className="text-sm text-muted-foreground">Absetzbar (30 Ct/km)</p><p className="text-2xl font-bold">{fmtCurrency(absetzbar, privacyMode)}</p></CardContent></Card>
+        <Card><CardContent className="pt-4"><p className="text-sm text-muted-foreground">Absetzbar ({kmPauschale.toFixed(2).replace('.', ',')} €/km)</p><p className="text-2xl font-bold">{fmtCurrency(absetzbar, privacyMode)}</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-sm text-muted-foreground">Einträge</p><p className="text-2xl font-bold">{fahrten.length}</p></CardContent></Card>
       </div>
 

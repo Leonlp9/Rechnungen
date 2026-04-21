@@ -2,7 +2,7 @@
 // Update this when adding new help articles so the AI always has the latest info.
 
 export const HELP_CONTENT_TEXT = `
-## Rechnungs-Manager – Hilfe & Dokumentation
+## Klevr – Hilfe & Dokumentation
 
 ### Erste Schritte
 - Die App hilft beim Verwalten, Kategorisieren und Auswerten von Rechnungen.

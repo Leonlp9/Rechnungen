@@ -29,7 +29,7 @@ export const useTutorialStore = create<TutorialState>()(
       resetTutorial: () => set({ hasSeenTutorial: false, isActive: false, currentStep: 0 }),
     }),
     {
-      name: 'rechnungs-manager-tutorial',
+      name: 'Klevr-tutorial',
       partialize: (state) => ({ hasSeenTutorial: state.hasSeenTutorial }),
     }
   )

@@ -15,7 +15,7 @@ invoke('cleanup_old_invoice_files', { days: 1 }).catch(() => {});
 
 // Apply persisted dark mode BEFORE first render to avoid flash
 try {
-  const stored = localStorage.getItem('rechnungs-manager-settings');
+  const stored = localStorage.getItem('Klevr-settings');
   if (stored) {
     const parsed = JSON.parse(stored) as { state?: { darkMode?: boolean } };
     if (parsed?.state?.darkMode) {

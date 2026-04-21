@@ -63,6 +63,9 @@ interface AppState {
   /** Konfigurierbarer Grundfreibetrag für Steuerrücklage-Berechnung */
   grundfreibetrag: number;
   setGrundfreibetrag: (v: number) => void;
+  /** Km-Pauschale für Fahrtenbuch (Standard: 0,30 €/km) */
+  kmPauschale: number;
+  setKmPauschale: (v: number) => void;
   /** KI-Chat Float ein-/ausblenden */
   showAiChat: boolean;
   setShowAiChat: (v: boolean) => void;
@@ -114,12 +117,14 @@ export const useAppStore = create<AppState>()(
       setActiveAiFix: (activeAiFix) => set({ activeAiFix }),
       grundfreibetrag: 12_348,
       setGrundfreibetrag: (grundfreibetrag) => set({ grundfreibetrag }),
+      kmPauschale: 0.30,
+      setKmPauschale: (kmPauschale) => set({ kmPauschale }),
       showAiChat: true,
       setShowAiChat: (showAiChat) => set({ showAiChat }),
     }),
     {
-      name: 'rechnungs-manager-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, showAiChat: state.showAiChat }),
+      name: 'Klevr-settings',
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat }),
       merge: (persisted, current) => ({ ...current, ...(persisted as object), drafts: [] }),
     }
   )

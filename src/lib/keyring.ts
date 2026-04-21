@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-const SERVICE = 'rechnungsmanager';
+const SERVICE = 'klevr';
 
 export async function keyringSave(key: string, value: string): Promise<void> {
   await invoke<void>('keyring_set', { service: SERVICE, key, value });

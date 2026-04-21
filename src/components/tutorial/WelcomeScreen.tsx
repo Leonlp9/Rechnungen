@@ -31,7 +31,7 @@ export function WelcomeScreen() {
         {/* Heading */}
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight">
-            Willkommen beim Rechnungs-Manager! 🎉
+            Willkommen beim Klevr! 🎉
           </h1>
           <p className="text-muted-foreground text-sm leading-relaxed">
             Dein persönliches Tool zum Erstellen, Verwalten und Versenden von Rechnungen.

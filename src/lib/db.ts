@@ -231,22 +231,62 @@ export async function deleteAllDraftsDb(): Promise<void> {
 
 // --- Invoices ---
 
+/** Rohe DB-Zeile aus der invoices-Tabelle */
+interface InvoiceRow {
+  id: string;
+  date: string;
+  year: number;
+  month: number;
+  category: string;
+  description: string;
+  partner: string;
+  netto: number;
+  ust: number;
+  brutto: number;
+  type: string;
+  currency: string;
+  pdf_path: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+  is_locked: number | boolean;
+  pdf_sha256: string;
+  delivery_date: string;
+  storno_of: string;
+  customer_id?: string;
+}
+
 export async function getAllInvoices(): Promise<import('@/types').Invoice[]> {
   const db = await getDb();
-  const rows: any[] = await db.select('SELECT * FROM invoices ORDER BY date DESC');
+  const rows: InvoiceRow[] = await db.select('SELECT * FROM invoices ORDER BY date DESC');
   return rows.map(mapInvoiceRow);
 }
 
 export async function getInvoiceById(id: string): Promise<import('@/types').Invoice | undefined> {
   const db = await getDb();
-  const rows: any[] = await db.select('SELECT * FROM invoices WHERE id = $1', [id]);
+  const rows: InvoiceRow[] = await db.select('SELECT * FROM invoices WHERE id = $1', [id]);
   return rows[0] ? mapInvoiceRow(rows[0]) : undefined;
 }
 
 /** Mappt DB-Zeile auf Invoice-Interface (is_locked: 0/1 → boolean) */
-function mapInvoiceRow(row: any): import('@/types').Invoice {
+function mapInvoiceRow(row: InvoiceRow): import('@/types').Invoice {
   return {
-    ...row,
+    id: row.id,
+    date: row.date,
+    year: row.year,
+    month: row.month,
+    category: row.category as import('@/types').Category,
+    description: row.description,
+    partner: row.partner,
+    netto: row.netto,
+    ust: row.ust,
+    brutto: row.brutto,
+    type: row.type as import('@/types').InvoiceType,
+    currency: row.currency,
+    pdf_path: row.pdf_path,
+    note: row.note,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
     is_locked: row.is_locked === 1 || row.is_locked === true,
     pdf_sha256: row.pdf_sha256 ?? '',
     delivery_date: row.delivery_date ?? '',
@@ -580,7 +620,7 @@ export const fahrtenbuch = {
     await db.execute('DELETE FROM fahrtenbuch WHERE id=$1', [id]);
   },
 
-  async getJahresauswertung(year: number) {
+  async getJahresauswertung(year: number, kmPauschale = 0.30) {
     const db = await getDb();
     const fahrten = await db.select<Fahrt[]>(
       `SELECT * FROM fahrtenbuch WHERE strftime('%Y', datum) = $1`,
@@ -590,8 +630,8 @@ export const fahrtenbuch = {
     const privat = fahrten.filter(f => f.art === 'privat');
     const kmDienst = dienst.reduce((s, f) => s + f.km, 0);
     const kmPrivat = privat.reduce((s, f) => s + f.km, 0);
-    // 30 Cent/km (2022+), 38 Cent ab km 21+ (vereinfacht: 30ct)
-    const absetzbar = kmDienst * 0.30;
+    // Konfigurierbare km-Pauschale (Standard: 0,30 €/km; ab 2022: 0,38 €/km ab km 21)
+    const absetzbar = kmDienst * kmPauschale;
     return { kmDienst, kmPrivat, kmGesamt: kmDienst + kmPrivat, absetzbar, fahrten };
   },
 };
@@ -658,10 +698,11 @@ export const customers = {
 
   async getInvoices(customerId: string): Promise<import('@/types').Invoice[]> {
     const db = await getDb();
-    const rows: unknown[] = await db.select(
+    const raw = await db.select<InvoiceRow[]>(
       'SELECT * FROM invoices WHERE customer_id=$1 ORDER BY date DESC',
       [customerId]
     );
+    const rows = raw as InvoiceRow[];
     return rows.map(mapInvoiceRow);
   },
 

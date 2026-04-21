@@ -110,7 +110,7 @@ export const useListsStore = create<ListsState>()(
           lists: s.lists.map((l) => (l.id === id ? { ...l, name } : l)),
         })),
     }),
-    { name: 'rechnungs-manager-lists' }
+    { name: 'Klevr-lists' }
   )
 );
 

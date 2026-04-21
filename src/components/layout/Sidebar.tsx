@@ -5,7 +5,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Receipt,
   FilePlus2,
   PenSquare,
   ArrowLeft,
@@ -17,6 +16,7 @@ import {
   Car,
   Users,
   Landmark,
+  Receipt,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -65,6 +65,7 @@ const NAV_ITEMS = [
   { to: '/customers', label: 'Kunden', icon: Users, tutorialId: 'nav-customers' },
   { to: '/fahrtenbuch', label: 'Fahrtenbuch', icon: Car, tutorialId: 'nav-fahrtenbuch' },
   { to: '/bank-import', label: 'Bankimport', icon: Landmark, tutorialId: 'nav-bank-import' },
+  { to: '/steuerbericht', label: 'Steuerbericht', icon: Receipt, tutorialId: 'nav-steuerbericht' },
   { to: '/settings', label: 'Einstellungen', icon: Settings, tutorialId: 'nav-settings' },
   { to: '/help', label: 'Hilfe', icon: HelpCircle, tutorialId: 'nav-help' },
 ];
@@ -90,10 +91,10 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-        <Receipt className="h-6 w-6 shrink-0 text-primary" />
+        <img src="/klevr.svg" alt="Klevr" className="h-6 w-6 shrink-0" />
         {!collapsed && (
           <>
-            <span className="text-lg font-semibold tracking-tight flex-1">Rechnungen</span>
+            <span className="text-lg font-semibold tracking-tight flex-1">Klevr</span>
             <div className="flex items-center gap-0.5">
               <button
                 onClick={() => navigate(-1)}

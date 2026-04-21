@@ -15,6 +15,7 @@ import CalendarPage from "@/pages/Calendar";
 import FahrtenbuchPage from "@/pages/Fahrtenbuch";
 import CustomersPage from "@/pages/Customers";
 import BankImportPage from "@/pages/BankImport";
+import SteuerbrichtPage from "@/pages/Steuerbericht";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/UpdateDialog";
@@ -27,6 +28,7 @@ import { importBackup } from "@/lib/backup";
 import { toast } from "sonner";
 import { migrateSecretsToKeychain } from "@/lib/keyring-migration";
 import { GeminiConsentProvider } from "@/components/GeminiConsentProvider";
+import { verifyAuditIntegrity } from "@/lib/db";
 import "./App.css";
 
 const router = createBrowserRouter([
@@ -44,6 +46,7 @@ const router = createBrowserRouter([
       { path: "/fahrtenbuch", element: <FahrtenbuchPage /> },
       { path: "/customers", element: <CustomersPage /> },
       { path: "/bank-import", element: <BankImportPage /> },
+      { path: "/steuerbericht", element: <SteuerbrichtPage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/help", element: <HelpPage /> },
     ],
@@ -65,6 +68,15 @@ function App() {
 
   // Migrate secrets from DB to OS Keychain (one-time)
   useEffect(() => { migrateSecretsToKeychain().catch(console.error); }, []);
+
+  // GoBD-Integritätsprüfung beim Start – leise im Hintergrund
+  useEffect(() => {
+    verifyAuditIntegrity().then((result) => {
+      if (!result.ok) {
+        toast.warning(`⚠️ Audit-Log Integritätsproblem: ${result.brokenEntries} von ${result.total} Einträgen beschädigt. Bitte Backup prüfen.`, { duration: 10000 });
+      }
+    }).catch(console.error);
+  }, []);
 
   // Check if app was opened with a .rmbackup file (double-click)
   useEffect(() => {

@@ -21,7 +21,7 @@ export function UeberTab({ version, checkingUpdate, setCheckingUpdate, clearingC
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"><Code2 className="h-5 w-5 text-primary" /></div>
           <div>
-            <p className="text-sm font-semibold">Rechnungs-Manager</p>
+            <p className="text-sm font-semibold">Klevr</p>
             <p className="text-xs text-muted-foreground">Version: <span className="font-mono font-medium text-foreground">{version ? `v${version}` : '...'}</span></p>
             <p className="text-xs text-muted-foreground mt-0.5">Tauri · React · TypeScript · SQLite</p>
           </div>

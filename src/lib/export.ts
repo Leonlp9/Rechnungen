@@ -73,7 +73,7 @@ export async function exportToXlsx(invoices: Invoice[], year: number | string) {
   if (!path) return;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Rechnungs-Manager';
+  wb.creator = 'Klevr';
   wb.created = new Date();
 
   // --- Sheet 1: Alle Belege ---
@@ -167,7 +167,7 @@ export async function exportToXlsx(invoices: Invoice[], year: number | string) {
   ws4.addRow({ note: `Export erstellt am ${format(new Date(), 'dd.MM.yyyy HH:mm', { locale: de })}` });
   ws4.addRow({ note: `Zeitraum: ${year}` });
   ws4.addRow({ note: `Anzahl Belege: ${invoices.length}` });
-  ws4.addRow({ note: 'Erstellt mit Rechnungs-Manager v0.1.0' });
+  ws4.addRow({ note: 'Erstellt mit Klevr v0.1.0' });
 
   const buffer = await wb.xlsx.writeBuffer();
   await writeFile(path, new Uint8Array(buffer as ArrayBuffer));

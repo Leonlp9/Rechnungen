@@ -17,7 +17,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'nav-dashboard',
     route: '/',
     target: '[data-tutorial="nav-dashboard"]',
-    title: '👋 Willkommen im Rechnungs-Manager!',
+    title: '👋 Willkommen im Klevr!',
     description: 'Das ist die Seitenleiste – deine Navigation. Klicke auf "Dashboard", um zu starten.',
     placement: 'right',
     action: 'click',
