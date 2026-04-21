@@ -52,7 +52,8 @@ export type ElementType =
   | 'chart-afa-donut'
   | 'chart-afa-timeline'
   | 'card-vermoegenscheck'
-  | 'card-investitionsspiegel';
+  | 'card-investitionsspiegel'
+  | 'card-system-stats';
 
 export type GridType =
   | 'grid-vertical'

@@ -16,6 +16,7 @@ import FahrtenbuchPage from "@/pages/Fahrtenbuch";
 import CustomersPage from "@/pages/Customers";
 import BankImportPage from "@/pages/BankImport";
 import { Toaster } from "@/components/ui/sonner";
+import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/updater";
 import { useAppStore } from "@/store";
@@ -60,7 +61,7 @@ function App() {
   const autoUpdateBuiltins = useTemplateStore((s) => s.autoUpdateBuiltins);
 
   // Upgrade outdated builtin templates (e.g. missing items element) on every mount
-  useEffect(() => { autoUpdateBuiltins(); }, []);
+  useEffect(() => { autoUpdateBuiltins(); }, [autoUpdateBuiltins]);
 
   // Migrate secrets from DB to OS Keychain (one-time)
   useEffect(() => { migrateSecretsToKeychain().catch(console.error); }, []);
@@ -118,14 +119,12 @@ function App() {
             </p>
             <p className="text-xs text-muted-foreground break-all font-mono bg-muted px-2 py-1 rounded">{pendingBackupPath}</p>
             <div className="flex gap-3 justify-end">
-              <button
-                className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
-                onClick={() => setPendingBackupPath(null)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setPendingBackupPath(null)}>
                 Abbrechen
-              </button>
-              <button
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 transition-opacity"
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={async () => {
                   const path = pendingBackupPath;
                   setPendingBackupPath(null);
@@ -139,7 +138,7 @@ function App() {
                 }}
               >
                 Backup einspielen
-              </button>
+              </Button>
             </div>
           </div>
         </div>

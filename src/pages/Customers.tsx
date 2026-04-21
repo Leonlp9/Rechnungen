@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { customers } from '@/lib/db';
 import type { Customer } from '@/lib/db';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,8 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
 
   const reload = () => customers.getAll().then(setAllCustomers).finally(() => setLoading(false));
   useEffect(() => { reload(); }, []);

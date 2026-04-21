@@ -10,7 +10,7 @@ import {
   Sparkles, Mail, List, RotateCcw, X, Info, CalendarRange,
   Percent, PiggyBank, Table2,
   PanelLeft, LayoutGrid, LayoutDashboard, AlignJustify,
-  User, Search, ShieldCheck, Package, Eye,
+  User, Search, ShieldCheck, Package, Eye, HardDrive,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -146,11 +146,9 @@ interface DashboardEditSidebarProps {
   onReset: () => void;
 }
 
-export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarProps) {
-  const [search, setSearch] = useState('');
-  const [previewType, setPreviewType] = useState<ElementType | null>(null);
+// ─── Statische Element-Liste (außerhalb der Komponente, damit kein Re-Create beim Render) ──
 
-  const allItems: SidebarItemDef[] = [
+const ALL_ITEMS: SidebarItemDef[] = [
     // ── Layout-Container ──
     { section: '🧱 Layout-Container', type: 'grid-horizontal', label: 'Horizontal', icon: <Columns2 className="h-4 w-4 text-blue-500" />, description: 'Elemente nebeneinander', tooltip: 'Ordnet alle enthaltenen Elemente nebeneinander in einer Zeile an. Ideal für KPI-Karten, die auf einen Blick verglichen werden sollen.' },
     { section: '🧱 Layout-Container', type: 'grid-vertical', label: 'Vertikal', icon: <Rows2 className="h-4 w-4 text-purple-500" />, description: 'Elemente untereinander', tooltip: 'Stapelt alle enthaltenen Elemente untereinander. Perfekt als Hauptstruktur oder um mehrere Charts in einer Spalte zu gruppieren.' },
@@ -232,12 +230,19 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
     { section: '🏗️ AfA & Vermögen', type: 'card-afa-uebersicht', label: 'AfA & GWG Übersicht', icon: <Calculator className="h-4 w-4 text-violet-500" />, description: 'Wirtschaftsgüter mit Abschreibung', tooltip: 'Alle Belege mit Kategorie „AfA" oder „GWG" inkl. Abschreibungsmethode und Jahressumme.' },
     { section: '🏗️ AfA & Vermögen', type: 'card-vermoegenscheck', label: 'Vermögens-Check', icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />, description: 'Aktiva vs. Passiva', tooltip: 'Vereinfachte Unternehmer-Bilanz: Liquide Mittel + Sachanlagen minus Rückstellungen.' },
     { section: '🏗️ AfA & Vermögen', type: 'card-investitionsspiegel', label: 'Investitions-Spiegel', icon: <Package className="h-4 w-4 text-violet-500" />, description: 'Anlagevermögen mit Restwerten', tooltip: 'Alle Anlagegüter mit Anschaffungskosten, kumulierter Abschreibung und Restwert.' },
-  ];
+
+    // ── System ──
+    { section: '⚙️ System', type: 'card-system-stats', label: 'System & Speicher', icon: <HardDrive className="h-4 w-4 text-slate-500" />, description: 'Speicherplatz, RAM, CPU-Auslastung', tooltip: 'Zeigt Datenbankgröße, Größe der gespeicherten Rechnungsdateien, genutzten Arbeitsspeicher und CPU-Auslastung.' },
+];
+
+export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarProps) {
+  const [search, setSearch] = useState('');
+  const [previewType, setPreviewType] = useState<ElementType | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return allItems;
-    return allItems.filter(
+    if (!q) return ALL_ITEMS;
+    return ALL_ITEMS.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.description?.toLowerCase().includes(q) ||

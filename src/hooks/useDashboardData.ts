@@ -79,16 +79,19 @@ export function useDashboardData(): DashboardData {
   const setInvoices = useAppStore((s) => s.setInvoices);
   const selectedYear = useAppStore((s) => s.selectedYear);
   const setSelectedYear = useAppStore((s) => s.setSelectedYear);
+  const selectedMonth = useAppStore((s) => s.selectedMonth);
+  const setSelectedMonth = useAppStore((s) => s.setSelectedMonth);
   const privacyMode = useAppStore((s) => s.privacyMode);
-  const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [loading, setLoading] = useState(invoices.length === 0);
 
   useEffect(() => {
+    // Daten nur laden wenn der Store noch leer ist (erster Mount oder nach Reset)
+    if (invoices.length > 0) { setLoading(false); return; }
     getAllInvoices()
       .then(setInvoices)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [setInvoices]);
+  }, [setInvoices, invoices.length]);
 
   const years = useMemo(() => {
     const s = new Set(invoices.map((i) => i.year));
@@ -105,21 +108,21 @@ export function useDashboardData(): DashboardData {
     [invoices, selectedYear],
   );
 
-  const einnahmen = yearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const ausgaben = yearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+  const einnahmen = useMemo(() => yearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0), [yearInvoices]);
+  const ausgaben = useMemo(() => yearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0), [yearInvoices]);
   const saldo = einnahmen - ausgaben;
 
   const nichtBetrieblich: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
-  const betriebsausgaben = yearInvoices
+  const betriebsausgaben = useMemo(() => yearInvoices
     .filter((i) => i.type === 'ausgabe' && !nichtBetrieblich.includes(i.category))
-    .reduce((s, i) => s + i.brutto, 0);
+    .reduce((s, i) => s + i.brutto, 0), [yearInvoices]);
   const betriebsergebnis = einnahmen - betriebsausgaben;
-  const sonderausgabenGesamt = yearInvoices
+  const sonderausgabenGesamt = useMemo(() => yearInvoices
     .filter((i) => i.type === 'ausgabe' && nichtBetrieblich.includes(i.category))
-    .reduce((s, i) => s + i.brutto, 0);
+    .reduce((s, i) => s + i.brutto, 0), [yearInvoices]);
 
-  const prevEinnahmen = prevYearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const prevAusgaben = prevYearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+  const prevEinnahmen = useMemo(() => prevYearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0), [prevYearInvoices]);
+  const prevAusgaben = useMemo(() => prevYearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0), [prevYearInvoices]);
 
   const deltaEin = prevEinnahmen ? ((einnahmen - prevEinnahmen) / prevEinnahmen) * 100 : 0;
   const deltaAus = prevAusgaben ? ((ausgaben - prevAusgaben) / prevAusgaben) * 100 : 0;
@@ -145,11 +148,11 @@ export function useDashboardData(): DashboardData {
     [invoices, prevMonthYear, prevMonthNum],
   );
 
-  const monatEin = monthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const monatAus = monthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+  const monatEin = useMemo(() => monthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0), [monthInvoices]);
+  const monatAus = useMemo(() => monthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0), [monthInvoices]);
   const monatSaldo = monatEin - monatAus;
-  const prevMonatEin = prevMonthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0);
-  const prevMonatAus = prevMonthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0);
+  const prevMonatEin = useMemo(() => prevMonthInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0), [prevMonthInvoices]);
+  const prevMonatAus = useMemo(() => prevMonthInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0), [prevMonthInvoices]);
   const prevMonatSaldo = prevMonatEin - prevMonatAus;
   const deltaMonatEin = prevMonatEin ? ((monatEin - prevMonatEin) / prevMonatEin) * 100 : 0;
   const deltaMonatAus = prevMonatAus ? ((monatAus - prevMonatAus) / prevMonatAus) * 100 : 0;

@@ -22,6 +22,21 @@ impl ImapPool {
         }
     }
 
+    /// Entfernt alle Sessions, die das Timeout überschritten haben.
+    pub fn evict_expired(&self) {
+        let mut sessions = self.sessions.lock().unwrap();
+        let expired: Vec<String> = sessions
+            .iter()
+            .filter(|(_, (_, last_used))| last_used.elapsed() > SESSION_TIMEOUT)
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in expired {
+            if let Some((mut session, _)) = sessions.remove(&key) {
+                let _ = session.logout();
+            }
+        }
+    }
+
     /// Returns an existing session or creates a new one
     pub fn get_or_connect(
         &self,
@@ -31,21 +46,19 @@ impl ImapPool {
         username: &str,
         password: &str,
     ) -> Result<(), String> {
+        // Abgelaufene Sessions vor dem Zugriff bereinigen
+        self.evict_expired();
+
         let mut sessions = self.sessions.lock().unwrap();
 
         if let Some((session, last_used)) = sessions.get_mut(account_id) {
-            if last_used.elapsed() > SESSION_TIMEOUT {
-                let _ = session.logout();
-                sessions.remove(account_id);
-            } else {
-                match session.noop() {
-                    Ok(_) => {
-                        *last_used = std::time::Instant::now();
-                        return Ok(());
-                    }
-                    Err(_) => {
-                        sessions.remove(account_id);
-                    }
+            match session.noop() {
+                Ok(_) => {
+                    *last_used = std::time::Instant::now();
+                    return Ok(());
+                }
+                Err(_) => {
+                    sessions.remove(account_id);
                 }
             }
         }

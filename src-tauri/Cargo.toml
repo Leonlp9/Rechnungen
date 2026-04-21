@@ -43,4 +43,5 @@ quick-xml = { version = "0.36", features = ["serialize"] }
 lopdf = "0.32"
 roxmltree = "0.20"
 csv = "1.4.0"
+sysinfo = { version = "0.32", default-features = false, features = ["system"] }
 

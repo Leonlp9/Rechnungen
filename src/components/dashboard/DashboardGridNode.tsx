@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   SortableContext,
   useSortable,
@@ -217,12 +217,11 @@ export function DashboardGridNode({
             };
 
             return (
-              <>
+              <React.Fragment key={child.id}>
                 {showLineBefore && (
-                  <InsertionLine key={`line-${child.id}`} horizontal={isHorizontal || isSidebar} />
+                  <InsertionLine horizontal={isHorizontal || isSidebar} />
                 )}
                 <SortableItem
-                  key={child.id}
                   node={child}
                   editMode={editMode}
                   isHorizontal={isHorizontal || isSidebar}
@@ -244,7 +243,7 @@ export function DashboardGridNode({
                   onUpdateNodeProps={onUpdateNodeProps}
                   depth={depth + 1}
                 />
-              </>
+              </React.Fragment>
             );
           })}
 

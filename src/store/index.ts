@@ -32,6 +32,8 @@ interface AppState {
   clearDrafts: () => void;
   selectedYear: number;
   setSelectedYear: (year: number) => void;
+  selectedMonth: number;
+  setSelectedMonth: (month: number) => void;
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
   darkMode: boolean;
@@ -78,6 +80,8 @@ export const useAppStore = create<AppState>()(
       clearDrafts: () => set({ drafts: [] }),
       selectedYear: new Date().getFullYear(),
       setSelectedYear: (selectedYear) => set({ selectedYear }),
+      selectedMonth: new Date().getMonth() + 1,
+      setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
       sidebarCollapsed: false,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       darkMode: false,

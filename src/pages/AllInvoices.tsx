@@ -4,6 +4,7 @@ import { useAppStore } from '@/store';
 import { getAllInvoices } from '@/lib/db';
 import { InvoiceTable } from '@/components/invoices/InvoiceTable';
 import { NewInvoiceDialog } from '@/components/invoices/NewInvoiceDialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AllInvoices() {
   const invoices = useAppStore((s) => s.invoices);
@@ -35,7 +36,17 @@ export default function AllInvoices() {
   }, []);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">Lade...</div>;
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -1,33 +1,47 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ElementType } from '@/types/dashboard';
 import { useDashboardContext } from './DashboardContext';
 import { useAppStore } from '@/store';
 import { KPICard } from './KPICard';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Leichte Komponenten direkt importieren
 import { RevenueChart } from './RevenueChart';
-import { CategoryDonut } from './CategoryDonut';
-import { SonderausgabenCard } from './SonderausgabenCard';
-import { ForecastList } from './ForecastList';
-import { Forecast28DaysList } from './Forecast28DaysList';
-import { Last28DaysChart } from './Last28DaysChart';
-import { MonthChart } from './MonthChart';
-import { RecentEmailsCard } from './RecentEmailsCard';
 import { CashflowChart } from './CashflowChart';
-import { TopAusgabenCard } from './TopAusgabenCard';
-import { TopEinnahmenCard } from './TopEinnahmenCard';
-import { TopPartnerCard } from './TopPartnerCard';
-import { JahresvergleichCard } from './JahresvergleichCard';
-import { MonatsuebersichtCard } from './MonatsuebersichtCard';
-import { KleinunternehmerCard } from './KleinunternehmerCard';
-import { GesamtRevenueChart } from './GesamtRevenueChart';
-import { GesamtCashflowChart } from './GesamtCashflowChart';
-import { AboList } from './AboList';
-import { PartnerCard } from './PartnerCard';
-import { JahresprognoseChart } from './JahresprognoseChart';
-import { AfaUebersichtCard } from './AfaUebersichtCard';
-import { AfaBarChart, AfaDonutChart, AfaTimelineChart } from './AfaChart';
-import { VermoegenCheckCard, InvestitionsSpiegelCard } from './VermoegenCards';
+import { MonthChart } from './MonthChart';
 import { BetriebsergebnisDialog } from './BetriebsergebnisDialog';
+
+// Schwere Komponenten lazy laden
+const CategoryDonut = lazy(() => import('./CategoryDonut').then((m) => ({ default: m.CategoryDonut })));
+const SonderausgabenCard = lazy(() => import('./SonderausgabenCard').then((m) => ({ default: m.SonderausgabenCard })));
+const ForecastList = lazy(() => import('./ForecastList').then((m) => ({ default: m.ForecastList })));
+const Forecast28DaysList = lazy(() => import('./Forecast28DaysList').then((m) => ({ default: m.Forecast28DaysList })));
+const Last28DaysChart = lazy(() => import('./Last28DaysChart').then((m) => ({ default: m.Last28DaysChart })));
+const RecentEmailsCard = lazy(() => import('./RecentEmailsCard').then((m) => ({ default: m.RecentEmailsCard })));
+const TopAusgabenCard = lazy(() => import('./TopAusgabenCard').then((m) => ({ default: m.TopAusgabenCard })));
+const TopEinnahmenCard = lazy(() => import('./TopEinnahmenCard').then((m) => ({ default: m.TopEinnahmenCard })));
+const TopPartnerCard = lazy(() => import('./TopPartnerCard').then((m) => ({ default: m.TopPartnerCard })));
+const JahresvergleichCard = lazy(() => import('./JahresvergleichCard').then((m) => ({ default: m.JahresvergleichCard })));
+const MonatsuebersichtCard = lazy(() => import('./MonatsuebersichtCard').then((m) => ({ default: m.MonatsuebersichtCard })));
+const KleinunternehmerCard = lazy(() => import('./KleinunternehmerCard').then((m) => ({ default: m.KleinunternehmerCard })));
+const GesamtRevenueChart = lazy(() => import('./GesamtRevenueChart').then((m) => ({ default: m.GesamtRevenueChart })));
+const GesamtCashflowChart = lazy(() => import('./GesamtCashflowChart').then((m) => ({ default: m.GesamtCashflowChart })));
+const AboList = lazy(() => import('./AboList').then((m) => ({ default: m.AboList })));
+const PartnerCard = lazy(() => import('./PartnerCard').then((m) => ({ default: m.PartnerCard })));
+const JahresprognoseChart = lazy(() => import('./JahresprognoseChart').then((m) => ({ default: m.JahresprognoseChart })));
+const AfaUebersichtCard = lazy(() => import('./AfaUebersichtCard').then((m) => ({ default: m.AfaUebersichtCard })));
+const AfaBarChart = lazy(() => import('./AfaChart').then((m) => ({ default: m.AfaBarChart })));
+const AfaDonutChart = lazy(() => import('./AfaChart').then((m) => ({ default: m.AfaDonutChart })));
+const AfaTimelineChart = lazy(() => import('./AfaChart').then((m) => ({ default: m.AfaTimelineChart })));
+const VermoegenCheckCard = lazy(() => import('./VermoegenCards').then((m) => ({ default: m.VermoegenCheckCard })));
+const InvestitionsSpiegelCard = lazy(() => import('./VermoegenCards').then((m) => ({ default: m.InvestitionsSpiegelCard })));
+const SystemStatsCard = lazy(() => import('./SystemStatsCard').then((m) => ({ default: m.SystemStatsCard })));
+
+function WidgetSkeleton() {
+  return <Skeleton className="h-full w-full rounded-xl min-h-[120px]" />;
+}
+
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
   Star, BarChart3,
@@ -38,7 +52,6 @@ import { de } from 'date-fns/locale';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
 import { CATEGORY_LABELS, TYPE_LABELS } from '@/types';
 import type { Invoice } from '@/types';
 import { InvoiceContextMenu } from '@/components/invoices/InvoiceContextMenu';
@@ -50,6 +63,14 @@ interface DashboardElementNodeProps {
 }
 
 export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: DashboardElementNodeProps) {
+  return (
+    <Suspense fallback={<WidgetSkeleton />}>
+      <DashboardElementInner type={type} settingsOpen={settingsOpen} onSettingsClose={onSettingsClose} />
+    </Suspense>
+  );
+}
+
+function DashboardElementInner({ type, settingsOpen, onSettingsClose }: DashboardElementNodeProps) {
   const ctx = useDashboardContext();
   const navigate = useNavigate();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
@@ -72,21 +93,22 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
     gesamtMarge, gesamtByYear,
   } = ctx;
 
-
   switch (type) {
     case 'kpi-einnahmen-ytd':
       return (
         <KPICard loading={loading} title="Einnahmen YTD"
           value={fmtCurrency(einnahmen, privacyMode)}
           delta={privacyMode ? undefined : deltaEin}
-          icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
+          icon={<TrendingUp className="h-4 w-4 text-green-600" />}
+          onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=einnahme`)} />
       );
     case 'kpi-ausgaben-ytd':
       return (
         <KPICard loading={loading} title="Ausgaben YTD"
           value={fmtCurrency(ausgaben, privacyMode)}
           delta={privacyMode ? undefined : deltaAus}
-          icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
+          icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+          onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=ausgabe`)} />
       );
     case 'kpi-saldo-ytd':
       return (
@@ -94,7 +116,8 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
           value={fmtCurrency(saldo, privacyMode)}
           delta={privacyMode ? undefined : deltaSaldo}
           icon={<Euro className="h-4 w-4 text-primary" />}
-          tooltip="Tatsächlich verfügbares Geld: Einnahmen minus alle Ausgaben" />
+          tooltip="Tatsächlich verfügbares Geld: Einnahmen minus alle Ausgaben"
+          onClick={() => navigate(`/invoices?fyear=${selectedYear}`)} />
       );
     case 'kpi-betriebsergebnis':
       return (
@@ -129,14 +152,16 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
         <KPICard loading={loading} title="Einnahmen (Monat)"
           value={fmtCurrency(monatEin, privacyMode)}
           delta={privacyMode ? undefined : deltaMonatEin}
-          icon={<TrendingUp className="h-4 w-4 text-green-600" />} />
+          icon={<TrendingUp className="h-4 w-4 text-green-600" />}
+          onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}&type=einnahme`)} />
       );
     case 'kpi-ausgaben-monat':
       return (
         <KPICard loading={loading} title="Ausgaben (Monat)"
           value={fmtCurrency(monatAus, privacyMode)}
           delta={privacyMode ? undefined : deltaMonatAus}
-          icon={<TrendingDown className="h-4 w-4 text-red-600" />} />
+          icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+          onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}&type=ausgabe`)} />
       );
     case 'kpi-saldo-monat':
       return (
@@ -144,7 +169,8 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
           value={fmtCurrency(monatSaldo, privacyMode)}
           delta={privacyMode ? undefined : deltaMonatSaldo}
           icon={<Euro className="h-4 w-4 text-primary" />}
-          tooltip="Einnahmen minus Ausgaben im aktuellen Monat" />
+          tooltip="Einnahmen minus Ausgaben im aktuellen Monat"
+          onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}`)} />
       );
     case 'kpi-saldo-prognose':
       return (
@@ -437,6 +463,8 @@ export function DashboardElementNode({ type, settingsOpen, onSettingsClose }: Da
       return <VermoegenCheckCard />;
     case 'card-investitionsspiegel':
       return <InvestitionsSpiegelCard />;
+    case 'card-system-stats':
+      return <SystemStatsCard loading={loading} />;
 
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
@@ -496,5 +524,6 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'chart-afa-timeline': 'AfA-Zeitverlauf',
   'card-vermoegenscheck': 'Vermögens-Check',
   'card-investitionsspiegel': 'Investitions-Spiegel',
+  'card-system-stats': 'System & Speicher',
 };
 

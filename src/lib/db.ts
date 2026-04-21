@@ -1,12 +1,22 @@
 import Database from '@tauri-apps/plugin-sql';
 
 let db: Database | null = null;
+// Promise-basiertes Mutex – verhindert Race Conditions bei parallelen Aufrufen
+let dbInitPromise: Promise<Database> | null = null;
 
 export async function getDb(): Promise<Database> {
   if (db) return db;
-  db = await Database.load('sqlite:rechnungen.db');
-  await migrate(db);
-  return db;
+  if (!dbInitPromise) {
+    dbInitPromise = Database.load('sqlite:rechnungen.db').then(async (instance) => {
+      await migrate(instance);
+      db = instance;
+      return db!;
+    }).catch((err) => {
+      dbInitPromise = null; // Fehler zurücksetzen, damit erneut versucht werden kann
+      throw err;
+    });
+  }
+  return dbInitPromise;
 }
 
 // ─── Schema-Migrationssystem ──────────────────────────────────────────────────
@@ -367,6 +377,13 @@ export interface AuditLogEntry {
   user_note: string;
 }
 
+/** SHA-256 eines Strings – nutzt die Web Crypto API (immer verfügbar in Tauri WebView). */
+async function sha256(input: string): Promise<string> {
+  const encoded = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest('SHA-256', encoded);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function addAuditLog(
   invoiceId: string,
   action: string,
@@ -375,11 +392,22 @@ export async function addAuditLog(
   newValue?: string | null,
   userNote?: string,
 ): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    `INSERT INTO audit_log (invoice_id, action, field_name, old_value, new_value, user_note)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [invoiceId, action, fieldName ?? null, oldValue ?? null, newValue ?? null, userNote ?? ''],
+  const database = await getDb();
+
+  // Letzten Eintrag für Hash-Verkettung holen
+  const last = await database.select<{ entry_hash: string }[]>(
+    'SELECT entry_hash FROM audit_log ORDER BY id DESC LIMIT 1'
+  );
+  const prevHash = last[0]?.entry_hash ?? '';
+
+  const timestamp = new Date().toISOString();
+  const hashInput = [invoiceId, action, fieldName ?? '', oldValue ?? '', newValue ?? '', timestamp, prevHash].join('|');
+  const entryHash = await sha256(hashInput);
+
+  await database.execute(
+    `INSERT INTO audit_log (invoice_id, action, field_name, old_value, new_value, user_note, prev_hash, entry_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [invoiceId, action, fieldName ?? null, oldValue ?? null, newValue ?? null, userNote ?? '', prevHash, entryHash],
   );
 }
 
@@ -391,6 +419,29 @@ export async function getAuditLog(invoiceId: string): Promise<AuditLogEntry[]> {
 export async function getFullAuditLog(limit = 200): Promise<AuditLogEntry[]> {
   const db = await getDb();
   return db.select('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT $1', [limit]);
+}
+
+/**
+ * GoBD-Integritätsprüfung: Verifiziert die Hash-Verkettung des Audit-Logs.
+ * Gibt die Anzahl der beschädigten Einträge zurück (0 = integer).
+ */
+export async function verifyAuditIntegrity(): Promise<{ ok: boolean; brokenEntries: number; total: number }> {
+  const db = await getDb();
+  const entries: AuditLogEntry[] = await db.select(
+    'SELECT * FROM audit_log ORDER BY id ASC'
+  );
+  let broken = 0;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const prevHash = i === 0 ? '' : (entries[i - 1] as AuditLogEntry & { entry_hash?: string }).entry_hash ?? '';
+    const hashInput = [e.invoice_id, e.action, e.field_name ?? '', e.old_value ?? '', e.new_value ?? '', e.timestamp, prevHash].join('|');
+    const expectedHash = await sha256(hashInput);
+    const storedHash = (e as AuditLogEntry & { entry_hash?: string }).entry_hash ?? '';
+    if (storedHash && storedHash !== expectedHash) {
+      broken++;
+    }
+  }
+  return { ok: broken === 0, brokenEntries: broken, total: entries.length };
 }
 
 /**

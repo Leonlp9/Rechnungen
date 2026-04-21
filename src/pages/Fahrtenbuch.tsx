@@ -13,9 +13,24 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { fmtCurrency } from '@/lib/utils';
+import { fmtCurrency, saveCsvFile } from '@/lib/utils';
 import { useAppStore } from '@/store';
-import { Plus, Car, Trash2 } from 'lucide-react';
+import { Plus, Car, Trash2, Download } from 'lucide-react';
+
+async function exportFahrtenbuchCsv(fahrten: Fahrt[]) {
+  const header = ['Datum', 'Abfahrt', 'Ziel', 'km', 'Zweck', 'Art', 'KFZ-Kennzeichen'];
+  const rows = fahrten.map((f) => [
+    new Date(f.datum).toLocaleDateString('de-DE'),
+    `"${f.abfahrt.replace(/"/g, '""')}"`,
+    `"${f.ziel.replace(/"/g, '""')}"`,
+    f.km.toFixed(2).replace('.', ','),
+    `"${f.zweck.replace(/"/g, '""')}"`,
+    f.art === 'dienst' ? 'Dienst' : 'Privat',
+    `"${(f.kfz_kennz ?? '').replace(/"/g, '""')}"`,
+  ]);
+  const csv = '\uFEFF' + [header.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+  await saveCsvFile(`Fahrtenbuch_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+}
 
 export default function FahrtenbuchPage() {
   const [fahrten, setFahrten] = useState<Fahrt[]>([]);
@@ -33,7 +48,14 @@ export default function FahrtenbuchPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Car className="h-6 w-6" /> Fahrtenbuch</h1>
-        <Button onClick={() => setShowAdd(true)}><Plus className="mr-2 h-4 w-4" /> Fahrt eintragen</Button>
+        <div className="flex gap-2">
+          {fahrten.length > 0 && (
+            <Button variant="outline" onClick={() => exportFahrtenbuchCsv(fahrten)}>
+              <Download className="mr-2 h-4 w-4" /> CSV-Export
+            </Button>
+          )}
+          <Button onClick={() => setShowAdd(true)}><Plus className="mr-2 h-4 w-4" /> Fahrt eintragen</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
