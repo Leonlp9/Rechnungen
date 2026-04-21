@@ -24,7 +24,7 @@ function isInputFocused(): boolean {
   return tag === 'input' || tag === 'textarea' || tag === 'select' || (el as HTMLElement).isContentEditable;
 }
 
-export function useKeyboardShortcuts() {
+export function useKeyboardShortcuts(onShortcutsOpen?: () => void) {
   const navigate = useNavigate();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
 
@@ -68,19 +68,14 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // ? → Shortcut-Übersicht (Toast)
+      // ? → Shortcut-Modal anzeigen
       if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
-        import('sonner').then(({ toast }) => {
-          toast.info(
-            'Keyboard-Shortcuts: g d = Dashboard · g r = Rechnungen · g n = Neue Rechnung · g s = Einstellungen · g k = Kunden · g f = Fahrtenbuch · g t = Steuerbericht · g m = Mail · Ctrl+K = Suche',
-            { duration: 6000 }
-          );
-        });
+        onShortcutsOpen?.();
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, setSearchOpen]);
+  }, [navigate, setSearchOpen, onShortcutsOpen]);
 }
 

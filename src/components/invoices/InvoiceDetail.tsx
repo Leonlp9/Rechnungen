@@ -444,7 +444,17 @@ export default function InvoiceDetail() {
             <p className="text-xs text-amber-600 mt-1">🔒 Dieser Beleg ist festgeschrieben. Änderungen sind nur über eine Stornobuchung möglich.</p>
           )}
           {invoice?.storno_of && (
-            <p className="text-xs text-orange-600 mt-1">↩ Dies ist eine Stornobuchung zu Beleg: {invoice.storno_of}</p>
+            <p className="text-xs text-orange-600 mt-1">
+              ↩ Stornobuchung zu{' '}
+              <button
+                type="button"
+                className="underline hover:text-orange-800 dark:hover:text-orange-400 font-medium transition-colors"
+                onClick={() => navigate(`/invoices/${invoice.storno_of}`)}
+                title="Originalbeleg öffnen"
+              >
+                Beleg #{invoice.storno_of.slice(0, 8)}…
+              </button>
+            </p>
           )}
         </form>
       </div>

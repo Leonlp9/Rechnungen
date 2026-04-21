@@ -389,6 +389,8 @@ export default function Dashboard() {
         onConfirm={() => { resetLayout(); setConfirmReset(false); }}
         onCancel={() => setConfirmReset(false)}
       />
+
+
     </DashboardContext.Provider>
   );
 }

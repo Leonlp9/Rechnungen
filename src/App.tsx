@@ -109,52 +109,52 @@ function App() {
     <AppErrorBoundary>
       <>
         <RouterProvider router={router} />
-      <GeminiConsentProvider />
-      <Toaster richColors position="bottom-right" />
-      {updateState.open && (
-        <UpdateDialog
-          version={updateState.version}
-          releaseNotes={updateState.releaseNotes}
-          phase={updateState.phase}
-          progress={updateState.progress}
-          onConfirm={() => startDownload()}
-          onCancel={() => setUpdateState((s) => ({ ...s, open: false }))}
-        />
-      )}
-      {pendingBackupPath && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-background border border-border rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-4 mx-4">
-            <h2 className="text-lg font-bold">Backup wiederherstellen?</h2>
-            <p className="text-sm text-muted-foreground">
-              Du hast eine <span className="font-mono font-medium">.rmbackup</span>-Datei geöffnet. Soll das Backup eingespielt werden?<br />
-              <span className="text-destructive font-medium">Alle aktuellen Daten werden überschrieben.</span>
-            </p>
-            <p className="text-xs text-muted-foreground break-all font-mono bg-muted px-2 py-1 rounded">{pendingBackupPath}</p>
-            <div className="flex gap-3 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setPendingBackupPath(null)}>
-                Abbrechen
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={async () => {
-                  const path = pendingBackupPath;
-                  setPendingBackupPath(null);
-                  const result = await importBackup(path);
-                  if (result.success) {
-                    toast.success('Backup erfolgreich eingespielt! Die App wird neu geladen…');
-                    setTimeout(() => window.location.reload(), 1500);
-                  } else if (result.error) {
-                    toast.error('Import fehlgeschlagen: ' + result.error);
-                  }
-                }}
-              >
-                Backup einspielen
-              </Button>
+        <GeminiConsentProvider />
+        <Toaster richColors position="bottom-right" />
+        {updateState.open && (
+          <UpdateDialog
+            version={updateState.version}
+            releaseNotes={updateState.releaseNotes}
+            phase={updateState.phase}
+            progress={updateState.progress}
+            onConfirm={() => startDownload()}
+            onCancel={() => setUpdateState((s) => ({ ...s, open: false }))}
+          />
+        )}
+        {pendingBackupPath && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-background border border-border rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-4 mx-4">
+              <h2 className="text-lg font-bold">Backup wiederherstellen?</h2>
+              <p className="text-sm text-muted-foreground">
+                Du hast eine <span className="font-mono font-medium">.rmbackup</span>-Datei geöffnet. Soll das Backup eingespielt werden?<br />
+                <span className="text-destructive font-medium">Alle aktuellen Daten werden überschrieben.</span>
+              </p>
+              <p className="text-xs text-muted-foreground break-all font-mono bg-muted px-2 py-1 rounded">{pendingBackupPath}</p>
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" size="sm" onClick={() => setPendingBackupPath(null)}>
+                  Abbrechen
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    const path = pendingBackupPath;
+                    setPendingBackupPath(null);
+                    const result = await importBackup(path);
+                    if (result.success) {
+                      toast.success('Backup erfolgreich eingespielt! Die App wird neu geladen…');
+                      setTimeout(() => window.location.reload(), 1500);
+                    } else if (result.error) {
+                      toast.error('Import fehlgeschlagen: ' + result.error);
+                    }
+                  }}
+                >
+                  Backup einspielen
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </>
     </AppErrorBoundary>
   );

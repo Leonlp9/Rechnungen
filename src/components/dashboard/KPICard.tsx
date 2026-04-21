@@ -1,11 +1,17 @@
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
+import { useAppStore } from '@/store';
 
 interface KPICardProps {
   title: string;
   value: string;
+  /** Optional raw numeric value – enables count-up animation when animations are on */
+  rawValue?: number;
+  /** Formatter used for animated display (falls back to `value` when not animating) */
+  formatValue?: (v: number) => string;
   delta?: number;
   icon?: React.ReactNode;
   tooltip?: string;
@@ -13,7 +19,47 @@ interface KPICardProps {
   onClick?: () => void;
 }
 
-export function KPICard({ title, value, delta, icon, tooltip, loading, onClick }: KPICardProps) {
+function useCountUp(target: number, enabled: boolean, duration = 600) {
+  const [display, setDisplay] = useState(target);
+  const prevTarget = useRef(target);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!enabled) { setDisplay(target); prevTarget.current = target; return; }
+    if (prevTarget.current === target) return;
+
+    const start = prevTarget.current;
+    const end = target;
+    prevTarget.current = target;
+    const startTime = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(start + (end - start) * eased);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        setDisplay(end);
+      }
+    };
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [target, enabled, duration]);
+
+  return display;
+}
+
+export function KPICard({ title, value, rawValue, formatValue, delta, icon, tooltip, loading, onClick }: KPICardProps) {
+  const animations = useAppStore((s) => s.animations);
+  const animEnabled = animations && rawValue !== undefined && formatValue !== undefined;
+  const animated = useCountUp(rawValue ?? 0, animEnabled);
+  const displayValue = animEnabled ? formatValue!(animated) : value;
+
   if (loading) {
     return (
       <Card className="rounded-xl shadow-sm h-full flex flex-col">
@@ -45,7 +91,7 @@ export function KPICard({ title, value, delta, icon, tooltip, loading, onClick }
         {icon}
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-2xl font-bold tabular-nums">{displayValue}</div>
         {delta !== undefined && (
           <div className={cn('mt-1 flex items-center gap-1 text-xs',
             delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-muted-foreground'

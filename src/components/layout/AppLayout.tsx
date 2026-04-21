@@ -13,6 +13,7 @@ import { getAbsolutePdfPath } from '@/lib/pdf';
 import { WelcomeScreen } from '@/components/tutorial/WelcomeScreen';
 import { TutorialOverlay } from '@/components/tutorial/TutorialOverlay';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { ShortcutsModal } from '@/components/ShortcutsModal';
 
 const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail', '/calendar', '/settings'];
 
@@ -20,13 +21,14 @@ export function AppLayout() {
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [draftsOpen, setDraftsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { pathname } = useLocation();
   const fullHeight = FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r));
   const searchOpen = useAppStore((s) => s.searchOpen);
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setDrafts = useAppStore((s) => s.setDrafts);
 
-  useKeyboardShortcuts();
+  useKeyboardShortcuts(() => setShortcutsOpen(true));
 
   // Entwürfe aus DB laden
   useEffect(() => {
@@ -68,6 +70,7 @@ export function AppLayout() {
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
       <DraftsPanel open={draftsOpen} onClose={() => setDraftsOpen(false)} />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <AIChatFloat />
       <WelcomeScreen />
       <TutorialOverlay />

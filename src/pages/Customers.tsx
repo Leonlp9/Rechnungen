@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { customers } from '@/lib/db';
 import type { Customer } from '@/lib/db';
@@ -12,7 +12,9 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Users, Pencil, Trash2, Mail, Phone, MapPin, Building2 } from 'lucide-react';
+import { Plus, Users, Pencil, Trash2, Mail, Phone, MapPin, Building2, TrendingUp } from 'lucide-react';
+import { useAppStore } from '@/store';
+import { fmtCurrency } from '@/lib/utils';
 
 export default function CustomersPage() {
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
@@ -21,6 +23,18 @@ export default function CustomersPage() {
   const [editing, setEditing] = useState<Customer | null>(null);
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const invoices = useAppStore((s) => s.invoices);
+
+  // Umsatz pro Kunde aggregieren (Einnahmen, die den Kundennamen als Partner haben)
+  const revenueByName = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const inv of invoices) {
+      if (inv.type !== 'einnahme') continue;
+      const key = inv.partner.trim().toLowerCase();
+      map.set(key, (map.get(key) ?? 0) + inv.brutto);
+    }
+    return map;
+  }, [invoices]);
 
   const reload = () => customers.getAll().then(setAllCustomers).finally(() => setLoading(false));
   useEffect(() => { reload(); }, []);
@@ -79,7 +93,19 @@ export default function CustomersPage() {
                 {c.phone && <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-3.5 w-3.5" /> {c.phone}</div>}
                 {(c.street || c.city) && <div className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-3.5 w-3.5" /> {[c.street, [c.zip, c.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</div>}
                 {c.tax_id && <div className="flex items-center gap-2 text-muted-foreground"><Building2 className="h-3.5 w-3.5" /> {c.tax_id}</div>}
-                <p className="text-xs text-muted-foreground mt-2">Zahlungsziel: {c.payment_days} Tage</p>
+                <p className="text-xs text-muted-foreground">Zahlungsziel: {c.payment_days} Tage</p>
+                {(() => {
+                  const revenue = revenueByName.get(c.name.trim().toLowerCase()) ?? 0;
+                  if (revenue <= 0) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border/50">
+                      <TrendingUp className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                      <span className="text-xs font-semibold text-green-700 dark:text-green-400">
+                        {fmtCurrency(revenue, false)} Umsatz gesamt
+                      </span>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))}

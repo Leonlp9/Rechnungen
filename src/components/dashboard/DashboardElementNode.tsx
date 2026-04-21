@@ -98,6 +98,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KPICard loading={loading} title="Einnahmen YTD"
           value={fmtCurrency(einnahmen, privacyMode)}
+          rawValue={privacyMode ? undefined : einnahmen}
+          formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaEin}
           icon={<TrendingUp className="h-4 w-4 text-green-600" />}
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=einnahme`)} />
@@ -106,6 +108,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KPICard loading={loading} title="Ausgaben YTD"
           value={fmtCurrency(ausgaben, privacyMode)}
+          rawValue={privacyMode ? undefined : ausgaben}
+          formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaAus}
           icon={<TrendingDown className="h-4 w-4 text-red-600" />}
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=ausgabe`)} />
@@ -114,6 +118,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KPICard loading={loading} title="Saldo YTD"
           value={fmtCurrency(saldo, privacyMode)}
+          rawValue={privacyMode ? undefined : saldo}
+          formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaSaldo}
           icon={<Euro className="h-4 w-4 text-primary" />}
           tooltip="Tatsächlich verfügbares Geld: Einnahmen minus alle Ausgaben"
@@ -124,6 +130,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
         <>
           <KPICard loading={loading} title="Cash-Gewinn"
             value={fmtCurrency(betriebsergebnis, privacyMode)}
+            rawValue={privacyMode ? undefined : betriebsergebnis}
+            formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
             icon={<Calculator className="h-4 w-4 text-violet-600" />}
             tooltip="Cashflow-Gewinn: Einnahmen minus alle Betriebsausgaben (voller Kaufpreis). Klicken für Details."
             onClick={() => setBeOpen(true)} />
@@ -135,6 +143,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
         <>
           <KPICard loading={loading} title="Steuerlicher Gewinn (EÜR)"
             value={fmtCurrency(betriebsergebnisNachAfa, privacyMode)}
+            rawValue={privacyMode ? undefined : betriebsergebnisNachAfa}
+            formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
             icon={<Calculator className="h-4 w-4 text-amber-600" />}
             tooltip="Gewinn nach AfA: Nur zeitanteilige Abschreibung statt vollem Kaufpreis. Das ist die Basis für deine Steuerlast. Klicken für Details."
             onClick={() => setBeAfaOpen(true)} />
@@ -151,6 +161,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KPICard loading={loading} title="Einnahmen (Monat)"
           value={fmtCurrency(monatEin, privacyMode)}
+          rawValue={privacyMode ? undefined : monatEin}
+          formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaMonatEin}
           icon={<TrendingUp className="h-4 w-4 text-green-600" />}
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}&type=einnahme`)} />
@@ -159,6 +171,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KPICard loading={loading} title="Ausgaben (Monat)"
           value={fmtCurrency(monatAus, privacyMode)}
+          rawValue={privacyMode ? undefined : monatAus}
+          formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaMonatAus}
           icon={<TrendingDown className="h-4 w-4 text-red-600" />}
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}&type=ausgabe`)} />
@@ -167,6 +181,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KPICard loading={loading} title="Saldo (Monat)"
           value={fmtCurrency(monatSaldo, privacyMode)}
+          rawValue={privacyMode ? undefined : monatSaldo}
+          formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaMonatSaldo}
           icon={<Euro className="h-4 w-4 text-primary" />}
           tooltip="Einnahmen minus Ausgaben im aktuellen Monat"

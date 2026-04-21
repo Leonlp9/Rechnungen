@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware';
 import type { Invoice } from '@/types';
 
 export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk' | 'zinc' | 'stone' | 'windows11' | 'chroma';
+
+/** Themes that are designed primarily for dark mode and should auto-enable it */
+const DARK_FIRST_THEMES: AppTheme[] = ['aurora-borealis', 'crimson-dusk'];
 export type Steuerregelung = 'kleinunternehmer' | 'regelbesteuerung';
 export type Taetigkeitsart = 'freiberufler' | 'gewerbetreibend' | 'content_creator';
 export type Rechtsform = 'freiberufler' | 'gewerbetreibend';
@@ -90,7 +93,11 @@ export const useAppStore = create<AppState>()(
       darkMode: false,
       setDarkMode: (darkMode) => set({ darkMode }),
       theme: 'default' as AppTheme,
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => set((s) => ({
+        theme,
+        // Auto-enable dark mode for themes that are designed for dark backgrounds
+        darkMode: DARK_FIRST_THEMES.includes(theme) ? true : s.darkMode,
+      })),
       animations: true,
       setAnimations: (animations) => set({ animations }),
       privacyMode: false,

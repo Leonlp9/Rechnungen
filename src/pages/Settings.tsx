@@ -43,8 +43,6 @@ const TABS: SettingsTab[] = [
   { id: 'dev', label: 'Dev Debug', icon: Bug, devOnly: true },
 ];
 
-const PROFILE_FIELDS_LOCAL = PROFILE_FIELDS;
-
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('profil');
   const contentRef = useRef<HTMLDivElement>(null);
@@ -119,7 +117,7 @@ export default function SettingsPage() {
     getGeminiApiKey().then((v) => { if (v) setApiKey(v); }).catch(console.error);
     getSetting('profile_ai_instructions').then((v) => { if (v) setAiInstructions(v); }).catch(console.error);
     Promise.all(
-      PROFILE_FIELDS_LOCAL.map(async (f) => {
+      PROFILE_FIELDS.map(async (f) => {
         const v = await getSetting(f.key);
         return [f.key, v ?? ''] as const;
       })
@@ -129,7 +127,7 @@ export default function SettingsPage() {
   const saveProfile = async () => {
     setProfileSaving(true);
     try {
-      await Promise.all(PROFILE_FIELDS_LOCAL.map((f) => setSetting(f.key, profile[f.key] ?? '')));
+      await Promise.all(PROFILE_FIELDS.map((f) => setSetting(f.key, profile[f.key] ?? '')));
       toast.success('Profildaten gespeichert!');
     } catch (e) { toast.error('Fehler: ' + String(e)); } finally { setProfileSaving(false); }
   };
