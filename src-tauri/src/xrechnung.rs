@@ -4,6 +4,7 @@ use std::io::Cursor;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct XRechnungData {
     pub invoice_number: String,
     pub invoice_date: String,

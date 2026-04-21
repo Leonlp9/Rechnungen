@@ -1,5 +1,6 @@
 use roxmltree::Document;
 
+#[allow(dead_code)]
 pub struct ParsedInvoice {
     pub invoice_number: String,
     pub invoice_date: String,

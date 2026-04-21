@@ -6,12 +6,15 @@ use std::net::TcpStream;
 
 type ImapSession = Session<TlsStream<TcpStream>>;
 
+#[allow(dead_code)]
 pub struct ImapPool {
     pub sessions: Mutex<HashMap<String, (ImapSession, std::time::Instant)>>,
 }
 
+#[allow(dead_code)]
 const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
 
+#[allow(dead_code)]
 impl ImapPool {
     pub fn new() -> Self {
         Self {
