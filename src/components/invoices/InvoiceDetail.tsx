@@ -185,6 +185,13 @@ export default function InvoiceDetail() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isEditable =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        (e.target as HTMLElement)?.isContentEditable;
+      if (isEditable) return;
       if (e.key === 'ArrowLeft') goToSibling(-1);
       if (e.key === 'ArrowRight') goToSibling(1);
     };

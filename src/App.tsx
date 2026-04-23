@@ -73,7 +73,15 @@ function App() {
   useEffect(() => {
     verifyAuditIntegrity().then((result) => {
       if (!result.ok) {
-        toast.warning(`⚠️ Audit-Log Integritätsproblem: ${result.brokenEntries} von ${result.total} Einträgen beschädigt. Bitte Backup prüfen.`, { duration: 10000 });
+        const hashMismatches = result.details.filter(d => d.reason === 'hash_mismatch').length;
+        const chainBreaks = result.details.filter(d => d.reason === 'chain_break').length;
+        let detail = '';
+        if (hashMismatches > 0) detail += `${hashMismatches} Hash-Fehler`;
+        if (chainBreaks > 0) detail += `${detail ? ', ' : ''}${chainBreaks} Kettenbrüche`;
+        toast.warning(
+          `⚠️ Audit-Log: ${result.brokenEntries} von ${result.total} Einträgen beschädigt (${detail}). Details in Einstellungen → Daten.`,
+          { duration: 12000 }
+        );
       }
     }).catch(console.error);
   }, []);

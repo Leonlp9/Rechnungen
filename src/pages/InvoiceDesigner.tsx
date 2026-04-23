@@ -14,7 +14,12 @@ import { DEFAULT_RECHNUNG } from '@/lib/defaultTemplates';
 import {
   Plus, Trash2, Copy, Type, Variable, Image, Square, Sliders, FileText, CheckSquare,
   Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2, ArrowLeftRight, Maximize2, Minus,
+  FileStack,
 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
 function newId() { return `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
@@ -70,6 +75,7 @@ export default function InvoiceDesigner() {
   const isResizingProps = useRef(false);
   const propsResizeStartX = useRef(0);
   const propsResizeStartW = useRef(256);
+  const [removePageDialogOpen, setRemovePageDialogOpen] = useState(false);
   const handlePropsResizeStart = (e: React.MouseEvent) => {
     isResizingProps.current = true;
     propsResizeStartX.current = e.clientX;
@@ -184,6 +190,7 @@ export default function InvoiceDesigner() {
       elements: draft.elements,
       variables: draft.variables,
       templateType: draft.templateType,
+      pageCount: draft.pageCount,
     });
     // Zustand updates are synchronous – sync draft with the freshly saved state
     // so isDirty becomes false immediately
@@ -205,6 +212,56 @@ export default function InvoiceDesigner() {
     if (fresh) setDraft(structuredClone(fresh));
     setSelectedElementId(null);
     toast.success('Standard wiederhergestellt');
+  };
+
+  // ── Page management ─────────────────────────────────────────────────────
+  const currentPageCount = draft?.pageCount ?? 1;
+
+  const addPage = () => {
+    recordHistory();
+    setDraft((d) => d ? { ...d, pageCount: (d.pageCount ?? 1) + 1 } : d);
+  };
+
+  const elementsOnLastPage = draft
+    ? draft.elements.filter(el => {
+        if (el.type === 'line') {
+          const ln = el as unknown as LineElement;
+          return Math.min(ln.y1, ln.y2) >= (currentPageCount - 1) * CANVAS_H;
+        }
+        const base = el as unknown as BaseElement;
+        return base.y >= (currentPageCount - 1) * CANVAS_H;
+      })
+    : [];
+
+  const confirmRemovePage = () => {
+    recordHistory();
+    setDraft((d) => {
+      if (!d) return d;
+      const pc = d.pageCount ?? 1;
+      if (pc <= 1) return d;
+      const threshold = (pc - 1) * CANVAS_H;
+      const filtered = d.elements.filter(el => {
+        if (el.type === 'line') {
+          const ln = el as unknown as LineElement;
+          return Math.min(ln.y1, ln.y2) < threshold;
+        }
+        const base = el as unknown as BaseElement;
+        return base.y < threshold;
+      });
+      return { ...d, pageCount: pc - 1, elements: filtered };
+    });
+    setRemovePageDialogOpen(false);
+    setSelectedElementId(null);
+  };
+
+  const handleRemovePage = () => {
+    if (currentPageCount <= 1) return;
+    if (elementsOnLastPage.length > 0) {
+      setRemovePageDialogOpen(true);
+    } else {
+      recordHistory();
+      setDraft((d) => d ? { ...d, pageCount: Math.max(1, (d.pageCount ?? 1) - 1) } : d);
+    }
   };
 
   // ── Delete key + Undo/Redo ──────────────────────────────────────────
@@ -533,6 +590,42 @@ export default function InvoiceDesigner() {
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 pt-0.5">Variablen</span>
               </div>
 
+              {/* ── Gruppe: Seiten ── */}
+              <div className="flex flex-col items-center justify-between px-3 py-1.5 border-r border-border min-w-fit gap-1">
+                <div className="flex items-end gap-1">
+                  {/* Seite hinzufügen */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-10 w-14 flex-col gap-0.5 text-[10px] px-1 hover:bg-primary/10 hover:border-primary/50 hover:text-primary"
+                      onClick={addPage}
+                      title="Neue Seite ans Ende anfügen"
+                    >
+                      <FileStack className="h-4 w-4" />
+                      <span>+ Seite</span>
+                    </Button>
+                  </div>
+                  {/* Letzte Seite entfernen */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-10 w-14 flex-col gap-0.5 text-[10px] px-1 hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive"
+                      onClick={handleRemovePage}
+                      disabled={currentPageCount <= 1}
+                      title="Letzte Seite entfernen"
+                    >
+                      <Minus className="h-4 w-4" />
+                      <span>− Seite</span>
+                    </Button>
+                  </div>
+                  {/* Seitenzahl-Anzeige */}
+                  <div className="flex flex-col items-center justify-center gap-0 h-10 px-1">
+                    <span className="text-base font-bold tabular-nums leading-none">{currentPageCount}</span>
+                    <span className="text-[9px] text-muted-foreground leading-none mt-0.5">{currentPageCount === 1 ? 'Seite' : 'Seiten'}</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 pt-0.5">Seiten</span>
+              </div>
 
 
             </div>
@@ -562,7 +655,7 @@ export default function InvoiceDesigner() {
         {/* Status bar */}
         {draft && (
           <div className="border-t border-border bg-background px-4 py-1 text-xs text-muted-foreground shrink-0 flex gap-4 items-center">
-            <span>A4 – {CANVAS_W}×{CANVAS_H}px</span>
+            <span>A4 – {CANVAS_W}×{CANVAS_H}px{currentPageCount > 1 ? ` · ${currentPageCount} Seiten` : ''}</span>
             {selectedElement && selectedElement.type !== 'line' && <span>Auswahl: {(selectedElement as BaseElement).x},{(selectedElement as BaseElement).y} – {(selectedElement as BaseElement).width}×{(selectedElement as BaseElement).height}px</span>}
             {selectedElement && selectedElement.type === 'line' && <span>Auswahl: Linie ({(selectedElement as LineElement).x1},{(selectedElement as LineElement).y1}) → ({(selectedElement as LineElement).x2},{(selectedElement as LineElement).y2})</span>}
             {isDirty && <span className="text-orange-500 font-medium">● Ungespeicherte Änderungen</span>}
@@ -701,6 +794,28 @@ export default function InvoiceDesigner() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Letzte Seite entfernen – Bestätigung ── */}
+      <AlertDialog open={removePageDialogOpen} onOpenChange={setRemovePageDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Seite {currentPageCount} entfernen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Auf Seite {currentPageCount} befinden sich <span className="font-semibold text-foreground">{elementsOnLastPage.length} Element{elementsOnLastPage.length !== 1 ? 'e' : ''}</span>.
+              Diese werden beim Entfernen der Seite unwiderruflich gelöscht.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmRemovePage}
+            >
+              Seite & Elemente löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,17 +1,29 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Activity, AlertTriangle, ClipboardList, Code2, Database,
   FlaskConical, HardDrive, MemoryStick, RefreshCw, RotateCcw,
-  ScrollText, Server, Terminal, Trash2, Zap, Cpu,
+  ScrollText, Server, Terminal, Trash2, Zap, Cpu, Pencil, Check, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
-import { getAllInvoices, deleteAllStornoInvoices, verifyAuditIntegrity } from '@/lib/db';
+import {
+  getAllInvoices, deleteAllStornoInvoices, verifyAuditIntegrity,
+  getFullAuditLog, updateAuditLogEntry, deleteAuditLogEntry, clearAuditLog,
+} from '@/lib/db';
+import type { AuditLogEntry } from '@/lib/db';
 import { UpdateDialog, type UpdatePhase } from '@/components/UpdateDialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 // PerformanceMark is a global Web API type (lib.dom.d.ts)
 
@@ -59,6 +71,12 @@ export function DevTab({
   const rechtsform = useAppStore((s) => s.rechtsform);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Audit-Log Editor state
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
+  const [auditEditorLoading, setAuditEditorLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editFields, setEditFields] = useState<Partial<AuditLogEntry>>({});
 
   const startPreview = (phase: UpdatePhase) => {
     setPreviewPhase(phase);
@@ -375,6 +393,237 @@ export function DevTab({
             onClick={() => setPendingThrow(new RangeError('Test-Fehler: Maximum call stack size exceeded'))}>
             🔥 RangeError
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Audit-Log Editor */}
+      <Card className="rounded-xl border-yellow-400/30">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <ScrollText className="h-4 w-4 text-yellow-500" />
+            <CardTitle className="text-sm text-yellow-600 dark:text-yellow-400">Audit-Log Editor (Dev-Only)</CardTitle>
+          </div>
+          <p className="text-xs text-yellow-600/60 dark:text-yellow-500/60 mt-1">
+            Einträge direkt bearbeiten oder löschen. Ändert die Hash-Kette – nur für Tests!
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={async () => {
+              setAuditEditorLoading(true);
+              try {
+                const entries = await getFullAuditLog(200);
+                setAuditEntries(entries);
+              } catch (e) { toast.error('Fehler: ' + String(e)); }
+              finally { setAuditEditorLoading(false); }
+            }} disabled={auditEditorLoading}>
+              <ScrollText className="mr-1 h-3 w-3" />{auditEditorLoading ? 'Lädt…' : 'Einträge laden'}
+            </Button>
+            {auditEntries.length > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setAuditEntries([])}>
+                  <X className="mr-1 h-3 w-3" /> Schließen
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="mr-1 h-3 w-3" /> Alle löschen
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Audit-Log komplett löschen?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Alle {auditEntries.length} Einträge werden unwiderruflich gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                        try {
+                          await clearAuditLog();
+                          setAuditEntries([]);
+                          toast.success('Audit-Log geleert');
+                        } catch (e) { toast.error('Fehler: ' + String(e)); }
+                      }}>Alle löschen</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+          </div>
+
+          {auditEntries.length > 0 && (
+            <div className="rounded-lg border overflow-auto max-h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">ID</TableHead>
+                    <TableHead className="w-24">Zeitpunkt</TableHead>
+                    <TableHead className="w-20">Aktion</TableHead>
+                    <TableHead>Beleg-ID</TableHead>
+                    <TableHead>Feld</TableHead>
+                    <TableHead>Alter Wert</TableHead>
+                    <TableHead>Neuer Wert</TableHead>
+                    <TableHead>Notiz</TableHead>
+                    <TableHead className="w-20 text-right">Aktionen</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {auditEntries.map((entry) => {
+                    const isEditing = editingId === entry.id;
+                    return (
+                      <TableRow key={entry.id} className={cn('text-xs', isEditing && 'bg-yellow-500/5')}>
+                        <TableCell className="font-mono text-muted-foreground">{entry.id}</TableCell>
+                        <TableCell className="font-mono text-[10px]">
+                          {isEditing ? (
+                            <Input
+                              className="h-6 text-[10px] font-mono px-1 w-36"
+                              value={editFields.timestamp ?? entry.timestamp}
+                              onChange={(e) => setEditFields((f) => ({ ...f, timestamp: e.target.value }))}
+                            />
+                          ) : (
+                            new Date(entry.timestamp).toLocaleString('de-DE')
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              className="h-6 text-[10px] px-1 w-20"
+                              value={editFields.action ?? entry.action}
+                              onChange={(e) => setEditFields((f) => ({ ...f, action: e.target.value }))}
+                            />
+                          ) : (
+                            <span className={cn(
+                              'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
+                              entry.action === 'created' ? 'bg-green-500/10 text-green-700 dark:text-green-400' :
+                              entry.action === 'deleted' ? 'bg-red-500/10 text-red-700 dark:text-red-400' :
+                              'bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                            )}>
+                              {entry.action}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-[10px]">
+                          {isEditing ? (
+                            <Input
+                              className="h-6 text-[10px] font-mono px-1 w-32"
+                              value={editFields.invoice_id ?? entry.invoice_id}
+                              onChange={(e) => setEditFields((f) => ({ ...f, invoice_id: e.target.value }))}
+                            />
+                          ) : (
+                            <span title={entry.invoice_id}>{entry.invoice_id.slice(0, 12)}…</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              className="h-6 text-[10px] px-1 w-24"
+                              value={editFields.field_name ?? entry.field_name ?? ''}
+                              onChange={(e) => setEditFields((f) => ({ ...f, field_name: e.target.value || null }))}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground">{entry.field_name ?? '–'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              className="h-6 text-[10px] px-1 w-28 text-red-600"
+                              value={editFields.old_value ?? entry.old_value ?? ''}
+                              onChange={(e) => setEditFields((f) => ({ ...f, old_value: e.target.value || null }))}
+                            />
+                          ) : (
+                            <span className="text-red-600/70 max-w-[100px] truncate block" title={entry.old_value ?? ''}>{entry.old_value ?? '–'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              className="h-6 text-[10px] px-1 w-28 text-green-600"
+                              value={editFields.new_value ?? entry.new_value ?? ''}
+                              onChange={(e) => setEditFields((f) => ({ ...f, new_value: e.target.value || null }))}
+                            />
+                          ) : (
+                            <span className="text-green-600/70 max-w-[100px] truncate block" title={entry.new_value ?? ''}>{entry.new_value ?? '–'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              className="h-6 text-[10px] px-1 w-28"
+                              value={editFields.user_note ?? entry.user_note ?? ''}
+                              onChange={(e) => setEditFields((f) => ({ ...f, user_note: e.target.value }))}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground max-w-[100px] truncate block" title={entry.user_note ?? ''}>{entry.user_note || '–'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            {isEditing ? (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" title="Speichern" onClick={async () => {
+                                  try {
+                                    await updateAuditLogEntry(entry.id, editFields);
+                                    setAuditEntries((prev) => prev.map((e) =>
+                                      e.id === entry.id ? { ...e, ...editFields } : e
+                                    ));
+                                    setEditingId(null);
+                                    setEditFields({});
+                                    toast.success(`Eintrag #${entry.id} gespeichert`);
+                                  } catch (e) { toast.error('Fehler: ' + String(e)); }
+                                }}>
+                                  <Check className="h-3 w-3 text-green-500" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" title="Abbrechen" onClick={() => { setEditingId(null); setEditFields({}); }}>
+                                  <X className="h-3 w-3 text-muted-foreground" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" title="Bearbeiten" onClick={() => {
+                                  setEditingId(entry.id);
+                                  setEditFields({});
+                                }}>
+                                  <Pencil className="h-3 w-3 text-yellow-500" />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" title="Löschen">
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Eintrag #{entry.id} löschen?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Dieser Audit-Log-Eintrag wird unwiderruflich gelöscht. Die Hash-Kette wird dadurch unterbrochen.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                                        try {
+                                          await deleteAuditLogEntry(entry.id);
+                                          setAuditEntries((prev) => prev.filter((e) => e.id !== entry.id));
+                                          toast.success(`Eintrag #${entry.id} gelöscht`);
+                                        } catch (e) { toast.error('Fehler: ' + String(e)); }
+                                      }}>Löschen</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -415,6 +415,9 @@ export interface AuditLogEntry {
   new_value: string | null;
   timestamp: string;
   user_note: string;
+  /** Hash-Verkettung (GoBD) – optional für ältere Einträge ohne Hash */
+  prev_hash?: string;
+  entry_hash?: string;
 }
 
 /** SHA-256 eines Strings – nutzt die Web Crypto API (immer verfügbar in Tauri WebView). */
@@ -440,14 +443,17 @@ export async function addAuditLog(
   );
   const prevHash = last[0]?.entry_hash ?? '';
 
+  // WICHTIG: Timestamp hier erzeugen und explizit in INSERT übergeben,
+  // damit der gespeicherte Wert exakt mit dem Hash-Input übereinstimmt.
+  // (SQLite DEFAULT datetime('now') verwendet anderes Format als JS ISO-String.)
   const timestamp = new Date().toISOString();
   const hashInput = [invoiceId, action, fieldName ?? '', oldValue ?? '', newValue ?? '', timestamp, prevHash].join('|');
   const entryHash = await sha256(hashInput);
 
   await database.execute(
-    `INSERT INTO audit_log (invoice_id, action, field_name, old_value, new_value, user_note, prev_hash, entry_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [invoiceId, action, fieldName ?? null, oldValue ?? null, newValue ?? null, userNote ?? '', prevHash, entryHash],
+    `INSERT INTO audit_log (invoice_id, action, field_name, old_value, new_value, user_note, prev_hash, entry_hash, timestamp)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [invoiceId, action, fieldName ?? null, oldValue ?? null, newValue ?? null, userNote ?? '', prevHash, entryHash, timestamp],
   );
 }
 
@@ -461,27 +467,121 @@ export async function getFullAuditLog(limit = 200): Promise<AuditLogEntry[]> {
   return db.select('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT $1', [limit]);
 }
 
+/** DEV-ONLY: Einen einzelnen Audit-Log-Eintrag bearbeiten. */
+export async function updateAuditLogEntry(
+  id: number,
+  fields: Partial<Pick<AuditLogEntry, 'field_name' | 'old_value' | 'new_value' | 'user_note' | 'action' | 'invoice_id' | 'timestamp'>>,
+): Promise<void> {
+  const db = await getDb();
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  let idx = 1;
+  for (const [k, v] of Object.entries(fields)) {
+    sets.push(`${k} = $${idx++}`);
+    vals.push(v ?? null);
+  }
+  if (sets.length === 0) return;
+  vals.push(id);
+  await db.execute(`UPDATE audit_log SET ${sets.join(', ')} WHERE id = $${idx}`, vals);
+}
+
+/** DEV-ONLY: Einen einzelnen Audit-Log-Eintrag löschen. */
+export async function deleteAuditLogEntry(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM audit_log WHERE id = $1', [id]);
+}
+
+/** DEV-ONLY: Alle Audit-Log-Einträge löschen. */
+export async function clearAuditLog(): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM audit_log');
+}
+
+export interface AuditIntegrityBrokenEntry {
+  id: number;
+  invoice_id: string;
+  action: string;
+  field_name: string | null;
+  timestamp: string;
+  /** Why this entry failed – helps diagnose the root cause */
+  reason: 'hash_mismatch' | 'chain_break';
+}
+
 /**
  * GoBD-Integritätsprüfung: Verifiziert die Hash-Verkettung des Audit-Logs.
  * Gibt die Anzahl der beschädigten Einträge zurück (0 = integer).
  */
-export async function verifyAuditIntegrity(): Promise<{ ok: boolean; brokenEntries: number; total: number }> {
+export async function verifyAuditIntegrity(): Promise<{
+  ok: boolean;
+  brokenEntries: number;
+  total: number;
+  details: AuditIntegrityBrokenEntry[];
+}> {
   const db = await getDb();
   const entries: AuditLogEntry[] = await db.select(
     'SELECT * FROM audit_log ORDER BY id ASC'
   );
-  let broken = 0;
+  const details: AuditIntegrityBrokenEntry[] = [];
+  let prevHashInChain = '';
+
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
-    const prevHash = i === 0 ? '' : (entries[i - 1] as AuditLogEntry & { entry_hash?: string }).entry_hash ?? '';
-    const hashInput = [e.invoice_id, e.action, e.field_name ?? '', e.old_value ?? '', e.new_value ?? '', e.timestamp, prevHash].join('|');
-    const expectedHash = await sha256(hashInput);
-    const storedHash = (e as AuditLogEntry & { entry_hash?: string }).entry_hash ?? '';
-    if (storedHash && storedHash !== expectedHash) {
-      broken++;
+    const storedHash = e.entry_hash ?? '';
+
+    if (!storedHash) {
+      // Pre-migration entry without hash – skip from hash verification,
+      // but keep prevHashInChain as empty since these entries have no hash
+      continue;
     }
+
+    // Check chain linkage: stored prev_hash must equal our tracked prevHash
+    const storedPrev = e.prev_hash ?? '';
+    if (storedPrev !== prevHashInChain) {
+      details.push({
+        id: e.id,
+        invoice_id: e.invoice_id,
+        action: e.action,
+        field_name: e.field_name,
+        timestamp: e.timestamp,
+        reason: 'chain_break',
+      });
+      // Continue chain with stored hash to detect further breaks independently
+      prevHashInChain = storedHash;
+      continue;
+    }
+
+    // Recompute hash and compare
+    const hashInput = [
+      e.invoice_id,
+      e.action,
+      e.field_name ?? '',
+      e.old_value ?? '',
+      e.new_value ?? '',
+      e.timestamp,
+      prevHashInChain,
+    ].join('|');
+    const expectedHash = await sha256(hashInput);
+
+    if (storedHash !== expectedHash) {
+      details.push({
+        id: e.id,
+        invoice_id: e.invoice_id,
+        action: e.action,
+        field_name: e.field_name,
+        timestamp: e.timestamp,
+        reason: 'hash_mismatch',
+      });
+    }
+
+    prevHashInChain = storedHash;
   }
-  return { ok: broken === 0, brokenEntries: broken, total: entries.length };
+
+  return {
+    ok: details.length === 0,
+    brokenEntries: details.length,
+    total: entries.length,
+    details,
+  };
 }
 
 /**

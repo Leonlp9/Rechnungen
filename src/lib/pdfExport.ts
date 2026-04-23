@@ -2,6 +2,8 @@ import jsPDF from 'jspdf';
 import type { InvoiceTemplate, TemplateElement, ItemsElement, LineItem } from '@/types/template';
 import { PX_TO_MM, FONT_FAMILIES } from '@/types/template';
 
+const A4_H_MM = 297;
+
 function resolvePdfFont(fontFamily?: string): string {
   if (!fontFamily) return 'helvetica';
   const match = FONT_FAMILIES.find((f) => f.value === fontFamily);
@@ -46,7 +48,6 @@ function renderTextContent(
   const align = el.textAlign as 'left' | 'center' | 'right';
   const textX = align === 'center' ? xMm + wMm / 2 : align === 'right' ? xMm + wMm : xMm;
 
-  // line height in mm: font points * 0.3528 * lineHeight
   const lineH = el.fontSize * 0.3528 * (el.lineHeight || 1.3);
 
   const lines = text.split('\n');
@@ -66,12 +67,22 @@ function fmt(n: number) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
+/** Ensures enough pages exist and switches to the target page (1-indexed). */
+function gotoPage(doc: jsPDF, page: number) {
+  while (doc.getNumberOfPages() < page) doc.addPage();
+  doc.setPage(page);
+}
+
+/**
+ * Renders the items table with automatic page breaks.
+ * Returns the absolute y position (in mm) after the last rendered row.
+ */
 function renderItemsTable(
   doc: jsPDF,
   el: ItemsElement,
   lineItems: LineItem[],
   simpleMode = false,
-) {
+): number {
   const x = el.x * PX_TO_MM;
   const w = el.width * PX_TO_MM;
   const rowH = (el.rowHeight || 24) * PX_TO_MM;
@@ -82,7 +93,8 @@ function renderItemsTable(
   const borderCol = el.borderColor || '#d1d5db';
   const altBg = el.altRowBgColor || '#f8fafc';
 
-  let cy = el.y * PX_TO_MM;
+  // Track absolute y (across page boundaries)
+  let absCy = el.y * PX_TO_MM;
 
   const drawRow = (
     cells: string[],
@@ -93,6 +105,10 @@ function renderItemsTable(
     bold: boolean,
     aligns: Array<'left' | 'right'>,
   ) => {
+    const page = Math.floor(absCy / A4_H_MM) + 1;
+    gotoPage(doc, page);
+    const cy = absCy - (page - 1) * A4_H_MM;
+
     if (bgColor) {
       const [r, g, b] = hexToRgb(bgColor);
       doc.setFillColor(r, g, b);
@@ -118,25 +134,23 @@ function renderItemsTable(
       doc.text(cell, tx, ty, { align, baseline: 'alphabetic', maxWidth: cw - 4 });
       cx += cw;
     });
-    cy += rowHeight;
+    absCy += rowHeight;
   };
 
   if (simpleMode) {
-    // Simple mode: Bezeichnung + Betrag only
     const simpleCols = [w * 0.78, w * 0.22];
     drawRow(['Bezeichnung', 'Betrag'], simpleCols, headerH, headerBg, headerTxt, true, ['left', 'right']);
     lineItems.forEach((item, idx) => {
-      const bg = idx % 2 === 1 ? altBg : '#ffffff';
       drawRow(
         [item.description || '', fmt(item.unitPrice)],
-        simpleCols, rowH, bg, '#111827', false,
+        simpleCols, rowH, idx % 2 === 1 ? altBg : '#ffffff', '#111827', false,
         ['left', 'right'],
       );
     });
-    return;
+    return absCy;
   }
 
-  // Full mode (original)
+  // Full mode
   const cols = el.colWidths || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
   const colW = cols.map((c) => c * w);
   const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
@@ -146,7 +160,6 @@ function renderItemsTable(
 
   lineItems.forEach((item, idx) => {
     const total = item.quantity * item.unitPrice;
-    const bg = idx % 2 === 1 ? altBg : '#ffffff';
     drawRow(
       [
         String(idx + 1),
@@ -156,31 +169,37 @@ function renderItemsTable(
         fmt(item.unitPrice),
         fmt(total),
       ],
-      colW, rowH, bg, '#111827', false,
+      colW, rowH, idx % 2 === 1 ? altBg : '#ffffff', '#111827', false,
       ['left', 'left', 'right', 'right', 'right', 'right'],
     );
   });
+
+  return absCy;
 }
 
-function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, string>, lineItems?: LineItem[], simpleMode = false) {
-  // Line elements have no x/y/width/height – handle them before the common vars
-  if (el.type === 'line') {
-    const ln = el as unknown as import('@/types/template').LineElement;
-    const [r, g, b] = hexToRgb(ln.color || '#111827');
-    doc.setDrawColor(r, g, b);
-    const lw = (ln.thickness || 2) * PX_TO_MM;
-    doc.setLineWidth(lw);
-    if (ln.style === 'dashed') doc.setLineDashPattern([2, 2], 0);
-    else if (ln.style === 'dotted') doc.setLineDashPattern([0.5, 1.5], 0);
-    else doc.setLineDashPattern([], 0);
-    doc.line(ln.x1 * PX_TO_MM, ln.y1 * PX_TO_MM, ln.x2 * PX_TO_MM, ln.y2 * PX_TO_MM);
-    doc.setLineDashPattern([], 0);
-    return;
-  }
+/**
+ * Renders a single non-items, non-line element.
+ * absYOverrideMm: if given, overrides the element's y coordinate (already in mm, absolute across pages).
+ */
+function renderElement(
+  doc: jsPDF,
+  el: TemplateElement,
+  values: Record<string, string>,
+  _lineItems?: LineItem[],
+  _simpleMode = false,
+  absYOverrideMm?: number,
+) {
+  // Line and items are handled in generateTemplatePdf directly
+  if (el.type === 'line' || el.type === 'items') return;
 
   const base = el as import('@/types/template').BaseElement;
+  const absY = absYOverrideMm ?? base.y * PX_TO_MM;
+
+  const page = Math.floor(absY / A4_H_MM) + 1;
+  gotoPage(doc, page);
+  const yMm = absY - (page - 1) * A4_H_MM;
+
   const x = base.x * PX_TO_MM;
-  const y = base.y * PX_TO_MM;
   const w = base.width * PX_TO_MM;
   const h = base.height * PX_TO_MM;
 
@@ -190,38 +209,34 @@ function renderElement(doc: jsPDF, el: TemplateElement, values: Record<string, s
         const [r, g, b] = hexToRgb(el.backgroundColor);
         doc.setFillColor(r, g, b);
         const rx = (el.borderRadius || 0) * PX_TO_MM;
-        doc.roundedRect(x, y, w, h, rx, rx, 'F');
+        doc.roundedRect(x, yMm, w, h, rx, rx, 'F');
       }
       if (el.borderWidth > 0 && !isTransparent(el.borderColor)) {
         const [r, g, b] = hexToRgb(el.borderColor);
         doc.setDrawColor(r, g, b);
         doc.setLineWidth(el.borderWidth * PX_TO_MM);
         const rx = (el.borderRadius || 0) * PX_TO_MM;
-        doc.roundedRect(x, y, w, h, rx, rx, 'S');
+        doc.roundedRect(x, yMm, w, h, rx, rx, 'S');
       }
       break;
     }
     case 'text': {
-      renderTextContent(doc, el.content, el, x, y, w, h);
+      renderTextContent(doc, el.content, el, x, yMm, w, h);
       break;
     }
     case 'variable': {
       const val = values[el.variableKey] ?? '';
       const text = (el.prefix || '') + val + (el.suffix || '');
-      renderTextContent(doc, text, el, x, y, w, h);
+      renderTextContent(doc, text, el, x, yMm, w, h);
       break;
     }
     case 'image': {
       if (el.src) {
         try {
           const ext = el.src.startsWith('data:image/jpeg') || el.src.startsWith('data:image/jpg') ? 'JPEG' : 'PNG';
-          doc.addImage(el.src, ext, x, y, w, h);
+          doc.addImage(el.src, ext, x, yMm, w, h);
         } catch { /* ignore bad images */ }
       }
-      break;
-    }
-    case 'items': {
-      renderItemsTable(doc, el as ItemsElement, lineItems || [], simpleMode);
       break;
     }
   }
@@ -236,10 +251,53 @@ export async function generateTemplatePdf(
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
   const sorted = [...template.elements].sort((a, b) => a.zIndex - b.zIndex);
+
+  // ── Compute overflow from items table ───────────────────────────────────
+  const itemsEl = sorted.find(el => el.type === 'items') as ItemsElement | undefined;
+  let overflowMm = 0;
+  let itemsBaseBtmPx = 0;
+
+  if (itemsEl && lineItems && lineItems.length > 0) {
+    const rowHmm = (itemsEl.rowHeight || 24) * PX_TO_MM;
+    const actualHMm = rowHmm * 1.25 + lineItems.length * rowHmm;
+    const baseHMm = itemsEl.height * PX_TO_MM;
+    overflowMm = Math.max(0, actualHMm - baseHMm);
+    itemsBaseBtmPx = itemsEl.y + itemsEl.height;
+  }
+
+  // ── Render all elements ─────────────────────────────────────────────────
   for (const el of sorted) {
-    renderElement(doc, el, values, lineItems, simpleMode);
+    if (el.type === 'line') {
+      const ln = el as unknown as import('@/types/template').LineElement;
+      const isBelow = itemsEl != null && Math.min(ln.y1, ln.y2) >= itemsBaseBtmPx;
+      const yAdjMm = isBelow ? overflowMm : 0;
+      const absY1 = ln.y1 * PX_TO_MM + yAdjMm;
+      const absY2 = ln.y2 * PX_TO_MM + yAdjMm;
+
+      const page = Math.floor(Math.min(absY1, absY2) / A4_H_MM) + 1;
+      gotoPage(doc, page);
+      const pageOffsetMm = (page - 1) * A4_H_MM;
+
+      const [r, g, b] = hexToRgb(ln.color || '#111827');
+      doc.setDrawColor(r, g, b);
+      const lw = (ln.thickness || 2) * PX_TO_MM;
+      doc.setLineWidth(lw);
+      if (ln.style === 'dashed') doc.setLineDashPattern([2, 2], 0);
+      else if (ln.style === 'dotted') doc.setLineDashPattern([0.5, 1.5], 0);
+      else doc.setLineDashPattern([], 0);
+      doc.line(ln.x1 * PX_TO_MM, absY1 - pageOffsetMm, ln.x2 * PX_TO_MM, absY2 - pageOffsetMm);
+      doc.setLineDashPattern([], 0);
+
+    } else if (el.type === 'items') {
+      renderItemsTable(doc, el as ItemsElement, lineItems || [], simpleMode);
+
+    } else {
+      const base = el as import('@/types/template').BaseElement;
+      const isBelow = itemsEl != null && base.y >= itemsBaseBtmPx;
+      const absYMm = base.y * PX_TO_MM + (isBelow ? overflowMm : 0);
+      renderElement(doc, el, values, lineItems, simpleMode, absYMm);
+    }
   }
 
   return doc.output('arraybuffer');
 }
-

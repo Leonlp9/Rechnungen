@@ -124,6 +124,8 @@ export interface InvoiceTemplate {
   isBuiltin: boolean; // built-in templates cannot be deleted
   variables: TemplateVariable[];
   elements: TemplateElement[];
+  /** Number of A4 pages in the template. Defaults to 1 if absent. */
+  pageCount?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import React from 'react';
 import { Rnd } from 'react-rnd';
-import type { InvoiceTemplate, TemplateElement, BaseElement, LineElement, LineItem } from '@/types/template';
+import type { InvoiceTemplate, TemplateElement, BaseElement, LineElement, LineItem, ItemsElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { ElementRenderer } from './ElementRenderer';
 
@@ -148,13 +148,60 @@ export function DesignerCanvas({
   const lineEls = sorted.filter(el => el.type === 'line') as unknown as LineElement[];
   const nonLineEls = sorted.filter(el => el.type !== 'line');
 
+  // ── Multi-page layout ──────────────────────────────────────────────────
+  // Edit mode: use template.pageCount; readOnly: derive from overflow
+  const editPageCount = readOnly ? 1 : Math.max(1, template.pageCount ?? 1);
+
+  const itemsElForLayout = readOnly
+    ? (nonLineEls.find(el => el.type === 'items') as ItemsElement | undefined)
+    : undefined;
+
+  const overflowPx = ((): number => {
+    if (!itemsElForLayout || !lineItems || lineItems.length === 0) return 0;
+    const rowH = itemsElForLayout.rowHeight || 24;
+    const actualH = rowH * 1.25 + lineItems.length * rowH;
+    return Math.max(0, actualH - itemsElForLayout.height);
+  })();
+
+  const itemsBaseBtmPx = itemsElForLayout
+    ? itemsElForLayout.y + itemsElForLayout.height
+    : 0;
+
+  /** Returns adjusted absolute y for readOnly mode; in edit mode returns y unchanged. */
+  const getAdjY = (y: number): number =>
+    overflowPx > 0 && y >= itemsBaseBtmPx ? y + overflowPx : y;
+
+  // Compute total canvas height
+  const canvasTotalH = ((): number => {
+    if (!readOnly) return editPageCount * CANVAS_H;
+    let max = editPageCount * CANVAS_H;
+    for (const el of nonLineEls) {
+      const base = el as unknown as BaseElement;
+      if (el.type === 'items' && lineItems && lineItems.length > 0) {
+        const it = el as unknown as ItemsElement;
+        const rh = it.rowHeight || 24;
+        const actualH = rh * 1.25 + lineItems.length * rh;
+        max = Math.max(max, base.y + actualH);
+      } else {
+        max = Math.max(max, getAdjY(base.y) + base.height);
+      }
+    }
+    for (const ln of lineEls) {
+      max = Math.max(max, getAdjY(ln.y1), getAdjY(ln.y2));
+    }
+    return max;
+  })();
+
+  const numPages = readOnly ? Math.ceil(canvasTotalH / CANVAS_H) : editPageCount;
+
   return (
-    <div style={{ width: CANVAS_W * scale, height: CANVAS_H * scale, flexShrink: 0 }}>
+    <div style={{ width: CANVAS_W * scale, height: canvasTotalH * scale, flexShrink: 0 }}>
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
         style={{
-          width: CANVAS_W, height: CANVAS_H,
+          width: CANVAS_W,
+          height: canvasTotalH,
           backgroundColor: '#ffffff',
           position: 'relative',
           transformOrigin: 'top left',
@@ -162,6 +209,45 @@ export function DesignerCanvas({
           boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
         }}
       >
+        {/* ── Page-break separators ── */}
+        {numPages > 1 && Array.from({ length: numPages - 1 }, (_, i) => (
+          <div
+            key={`page-break-${i}`}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: (i + 1) * CANVAS_H - 1,
+              width: CANVAS_W,
+              height: 2,
+              background: readOnly
+                ? 'repeating-linear-gradient(90deg,#64748b 0px,#64748b 10px,transparent 10px,transparent 20px)'
+                : 'repeating-linear-gradient(90deg,#3b82f6 0px,#3b82f6 10px,transparent 10px,transparent 20px)',
+              zIndex: 10000,
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
+
+        {/* ── Page number labels ── */}
+        {numPages > 1 && Array.from({ length: numPages }, (_, i) => (
+          <div
+            key={`page-num-${i}`}
+            style={{
+              position: 'absolute',
+              right: 8,
+              top: i * CANVAS_H + 6,
+              fontSize: 10,
+              color: readOnly ? '#94a3b8' : '#3b82f6',
+              zIndex: 10001,
+              pointerEvents: 'none',
+              userSelect: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Seite {i + 1}
+          </div>
+        ))}
+
         {/* ── Snap guide lines ── */}
         {snapLines.map((line, i) =>
           line.type === 'v' ? (
@@ -183,15 +269,18 @@ export function DesignerCanvas({
           )
         )}
 
-        {/* ── Non-line elements via Rnd ── */}
-        {nonLineEls.map((el) =>
-          readOnly ? (
+        {/* ── Non-line elements via Rnd (edit) or plain div (readOnly) ── */}
+        {nonLineEls.map((el) => {
+          const base = el as unknown as BaseElement;
+          return readOnly ? (
             <div key={el.id} style={{
-              position: 'absolute', left: el.x, top: el.y,
-              width: el.width,
-              height: el.type === 'items' ? 'auto' : el.height,
-              minHeight: el.type === 'items' ? el.height : undefined,
-              zIndex: el.zIndex,
+              position: 'absolute',
+              left: base.x,
+              top: getAdjY(base.y),
+              width: base.width,
+              height: el.type === 'items' ? 'auto' : base.height,
+              minHeight: el.type === 'items' ? base.height : undefined,
+              zIndex: base.zIndex,
             }}>
               <ElementRenderer element={el} variableValues={variableValues} lineItems={lineItems} simpleMode={simpleMode} />
             </div>
@@ -199,9 +288,9 @@ export function DesignerCanvas({
             <Rnd
               key={el.id}
               scale={scale}
-              position={{ x: el.x, y: el.y }}
-              size={{ width: el.width, height: el.height }}
-              style={{ zIndex: el.zIndex }}
+              position={{ x: base.x, y: base.y }}
+              size={{ width: base.width, height: base.height }}
+              style={{ zIndex: base.zIndex }}
               bounds="parent"
               resizeHandleComponent={buildResizeHandles(
                 () => setResizeHoveredId(el.id),
@@ -210,7 +299,7 @@ export function DesignerCanvas({
               onMouseDown={(e) => { e.stopPropagation(); onSelect(el.id); }}
               onDrag={(_e, d) => {
                 if (!snapEnabled) { if (snapLines.length) setSnapLines([]); return; }
-                const { lines } = computeSnap(d.x, d.y, el.width, el.height, el.id, template.elements);
+                const { lines } = computeSnap(d.x, d.y, base.width, base.height, el.id, template.elements);
                 setSnapLines(prev => {
                   if (prev.length === lines.length && prev.every((l, i) => l.type === lines[i].type && l.pos === lines[i].pos)) return prev;
                   return lines;
@@ -219,22 +308,22 @@ export function DesignerCanvas({
               onDragStop={(_e, d) => {
                 setSnapLines([]);
                 if (snapEnabled) {
-                  const snapped = computeSnap(d.x, d.y, el.width, el.height, el.id, template.elements);
-                  if (snapped.x !== el.x || snapped.y !== el.y) {
-                    onUpdate({ ...el, x: snapped.x, y: snapped.y });
+                  const snapped = computeSnap(d.x, d.y, base.width, base.height, el.id, template.elements);
+                  if (snapped.x !== base.x || snapped.y !== base.y) {
+                    onUpdate({ ...el, x: snapped.x, y: snapped.y } as TemplateElement);
                   }
                 } else {
                   const nx = Math.round(d.x), ny = Math.round(d.y);
-                  if (nx !== el.x || ny !== el.y) {
-                    onUpdate({ ...el, x: nx, y: ny });
+                  if (nx !== base.x || ny !== base.y) {
+                    onUpdate({ ...el, x: nx, y: ny } as TemplateElement);
                   }
                 }
               }}
               onResizeStop={(_e, _dir, ref, _delta, pos) => {
                 const nx = Math.round(pos.x), ny = Math.round(pos.y);
                 const nw = Math.round(parseInt(ref.style.width)), nh = Math.round(parseInt(ref.style.height));
-                if (nx !== el.x || ny !== el.y || nw !== el.width || nh !== el.height) {
-                  onUpdate({ ...el, x: nx, y: ny, width: nw, height: nh });
+                if (nx !== base.x || ny !== base.y || nw !== base.width || nh !== base.height) {
+                  onUpdate({ ...el, x: nx, y: ny, width: nw, height: nh } as TemplateElement);
                 }
               }}
               enableResizing={!readOnly}
@@ -255,12 +344,12 @@ export function DesignerCanvas({
                 />
               </div>
             </Rnd>
-          )
-        )}
+          );
+        })}
 
         {/* ── Line elements as SVG overlay ── */}
         <svg
-          style={{ position: 'absolute', left: 0, top: 0, width: CANVAS_W, height: CANVAS_H, pointerEvents: 'none', zIndex: 8000 }}
+          style={{ position: 'absolute', left: 0, top: 0, width: CANVAS_W, height: canvasTotalH, pointerEvents: 'none', zIndex: 8000 }}
         >
           {lineEls.map(ln => {
             const isSelected = ln.id === selectedId;
@@ -271,9 +360,12 @@ export function DesignerCanvas({
               ln.style === 'dashed' ? `${thickness * 4},${thickness * 3}` :
               ln.style === 'dotted' ? `${thickness},${thickness * 2}` :
               undefined;
+            // In readOnly mode use adjusted positions, in edit mode use originals
+            const ry1 = readOnly ? getAdjY(ln.y1) : ln.y1;
+            const ry2 = readOnly ? getAdjY(ln.y2) : ln.y2;
             return (
               <g key={ln.id}>
-                {/* Invisible thick hit area for body drag */}
+                {/* Invisible thick hit area for body drag (edit only) */}
                 {!readOnly && (
                   <line
                     x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
@@ -290,7 +382,7 @@ export function DesignerCanvas({
                 )}
                 {/* Visible line */}
                 <line
-                  x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
+                  x1={ln.x1} y1={ry1} x2={ln.x2} y2={ry2}
                   stroke={isSelected ? '#2563eb' : isHov ? '#94a3b8' : color}
                   strokeWidth={isSelected ? Math.max(thickness, 2) : thickness}
                   strokeDasharray={dashArray}
@@ -300,7 +392,7 @@ export function DesignerCanvas({
                 {/* Actual color line on top when selected */}
                 {isSelected && (
                   <line
-                    x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
+                    x1={ln.x1} y1={ry1} x2={ln.x2} y2={ry2}
                     stroke={color} strokeWidth={thickness}
                     strokeDasharray={dashArray} strokeLinecap="round"
                     style={{ pointerEvents: 'none' }}
@@ -309,7 +401,7 @@ export function DesignerCanvas({
                 {/* Selection outline */}
                 {isSelected && (
                   <line
-                    x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2}
+                    x1={ln.x1} y1={ry1} x2={ln.x2} y2={ry2}
                     stroke="#2563eb" strokeWidth={thickness + 4}
                     strokeOpacity={0.3} strokeLinecap="round"
                     style={{ pointerEvents: 'none' }}
