@@ -1,5 +1,4 @@
 name: Build & Release
-
 on:
   push:
     tags:
@@ -21,9 +20,7 @@ jobs:
           - platform: windows-latest
             args: ''
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin --bundles app'
-          - platform: macos-13
-            args: '--target x86_64-apple-darwin --bundles app'
+            args: '--target aarch64-apple-darwin --target x86_64-apple-darwin --bundles app'
           - platform: ubuntu-22.04
             args: ''
 
@@ -38,8 +35,6 @@ jobs:
         run: |
           echo "VITE_GMAIL_CLIENT_ID=${{ secrets.VITE_GMAIL_CLIENT_ID }}" >> .env
           echo "VITE_GMAIL_CLIENT_SECRET=${{ secrets.VITE_GMAIL_CLIENT_SECRET }}" >> .env
-
-
 
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
@@ -62,7 +57,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
