@@ -51,7 +51,7 @@ jobs:
             libayatana-appindicator3-dev libayatana-indicator3-dev
 
       - name: Install create-dmg (macOS)
-        if: startsWith(matrix.platform, 'macos')
+        if: matrix.platform == 'macos-latest'
         run: brew install create-dmg
 
       - name: Setup Node
@@ -95,11 +95,9 @@ jobs:
           path: |
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.exe
-            src-tauri/target/release/bundle/**/*.dmg
             src-tauri/target/release/bundle/**/*.app
             src-tauri/target/release/bundle/**/*.deb
             src-tauri/target/release/bundle/**/*.rpm
             src-tauri/target/release/bundle/**/*.AppImage
-            src-tauri/target/*/release/bundle/**/*.dmg
             src-tauri/target/*/release/bundle/**/*.app
           if-no-files-found: warn
