@@ -21,10 +21,10 @@ jobs:
             args: ''
             rust-targets: ''
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin --bundles app'
+            args: '--target aarch64-apple-darwin'
             rust-targets: 'aarch64-apple-darwin'
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin --bundles app'
+            args: '--target x86_64-apple-darwin'
             rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
           - platform: ubuntu-22.04
             args: ''
@@ -95,9 +95,11 @@ jobs:
           path: |
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.dmg
             src-tauri/target/release/bundle/**/*.app
             src-tauri/target/release/bundle/**/*.deb
             src-tauri/target/release/bundle/**/*.rpm
             src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/*/release/bundle/**/*.dmg
             src-tauri/target/*/release/bundle/**/*.app
           if-no-files-found: warn
