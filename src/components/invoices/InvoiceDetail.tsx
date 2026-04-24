@@ -38,6 +38,7 @@ import { useAppStore } from '@/store';
 import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getCategoriesForBranche, getDefaultCategoryForType, isCategoryValidForType } from '@/types';
 import type { Invoice } from '@/types';
 import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator } from 'lucide-react';
+import { ProjectSelector } from '@/components/projects/ProjectSelector';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '@/lib/utils';
@@ -75,6 +76,7 @@ export default function InvoiceDetail() {
   const [stornoDialogOpen, setStornoDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiFixLoading, setAiFixLoading] = useState(false);
+  const [projectId, setProjectId] = useState('');
 
   const form = useForm<FormData>({ resolver: zodResolver(schema) });
 
@@ -90,6 +92,7 @@ export default function InvoiceDetail() {
         return;
       }
       setInvoice(inv);
+      setProjectId(inv.project_id ?? '');
       form.reset({
         date: inv.date,
         description: inv.description,
@@ -220,6 +223,7 @@ export default function InvoiceDetail() {
         year: dateObj.getFullYear(),
         month: dateObj.getMonth() + 1,
         updated_at: new Date().toISOString(),
+        project_id: projectId,
       };
       await updateInvoice(updated);
       setInvoice(updated);
@@ -412,6 +416,14 @@ export default function InvoiceDetail() {
           <div className="space-y-1.5">
             <Label>Notiz</Label>
             <Input {...form.register('note')} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Projekt</Label>
+            <ProjectSelector
+              value={projectId}
+              onChange={setProjectId}
+            />
           </div>
 
           <div className="flex flex-col gap-2 pt-2">

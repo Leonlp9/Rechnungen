@@ -258,6 +258,23 @@ export interface Invoice {
   storno_of: string;
   /** Extrahierter Volltext des PDFs für die Volltextsuche */
   pdf_text?: string;
+  /** Verknüpftes Projekt (optional) */
+  project_id?: string;
+}
+
+export interface ProjectLink {
+  url: string;
+  label: string;
+}
+
+export interface Project {
+  id: string;
+  title: string;
+  description: string;
+  links: ProjectLink[];
+  youtube_url: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Setting {

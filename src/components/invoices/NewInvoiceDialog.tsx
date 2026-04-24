@@ -32,6 +32,7 @@ import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
 import type { InvoiceDraft } from '@/store';
 import { Upload, Sparkles, Loader2, FileText, AlertTriangle, ExternalLink, Files, BookmarkPlus } from 'lucide-react';
+import { ProjectSelector } from '@/components/projects/ProjectSelector';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -48,6 +49,7 @@ const schema = z.object({
   category: z.enum(CATEGORIES),
   currency: z.string().min(1),
   note: z.string(),
+  project_id: z.string(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -122,6 +124,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       category: 'sonstiges',
       currency: 'EUR',
       note: '',
+      project_id: '',
     },
   });
 
@@ -286,6 +289,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
         pdf_sha256: '',
         delivery_date: '',
         storno_of: '',
+        project_id: data.project_id ?? '',
       };
 
       await insertInvoice(invoice);
@@ -459,6 +463,14 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                 <div className="col-span-2 space-y-1.5">
                   <Label>Notiz</Label>
                   <Input {...form.register('note')} />
+                </div>
+
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Projekt</Label>
+                  <ProjectSelector
+                    value={form.watch('project_id')}
+                    onChange={(v) => form.setValue('project_id', v)}
+                  />
                 </div>
 
                 <div className="col-span-2 flex justify-end gap-2 pt-2">

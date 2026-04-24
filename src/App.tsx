@@ -16,6 +16,8 @@ import FahrtenbuchPage from "@/pages/Fahrtenbuch";
 import CustomersPage from "@/pages/Customers";
 import BankImportPage from "@/pages/BankImport";
 import SteuerbrichtPage from "@/pages/Steuerbericht";
+import ProjectsPage from "@/pages/Projects";
+import ProjectDetailPage from "@/pages/ProjectDetail";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/UpdateDialog";
@@ -47,6 +49,8 @@ const router = createBrowserRouter([
       { path: "/customers", element: <CustomersPage /> },
       { path: "/bank-import", element: <BankImportPage /> },
       { path: "/steuerbericht", element: <SteuerbrichtPage /> },
+      { path: "/projects", element: <ProjectsPage /> },
+      { path: "/projects/:id", element: <ProjectDetailPage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/help", element: <HelpPage /> },
     ],

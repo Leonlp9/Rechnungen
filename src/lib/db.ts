@@ -132,6 +132,22 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
   async (db) => {
     try { await db.execute("ALTER TABLE invoices ADD COLUMN pdf_text TEXT NOT NULL DEFAULT ''"); } catch { /* Spalte existiert bereits */ }
   },
+  // v5 → v6: Projekte
+  async (db) => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        links TEXT NOT NULL DEFAULT '[]',
+        youtube_url TEXT NOT NULL DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    try { await db.execute("ALTER TABLE invoices ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"); } catch { /* exists */ }
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_invoices_project ON invoices(project_id)');
+  },
 ];
 
 async function migrate(db: Database) {
@@ -259,6 +275,7 @@ interface InvoiceRow {
   storno_of: string;
   customer_id?: string;
   pdf_text?: string;
+  project_id?: string;
 }
 
 export async function getAllInvoices(): Promise<import('@/types').Invoice[]> {
@@ -297,15 +314,16 @@ function mapInvoiceRow(row: InvoiceRow): import('@/types').Invoice {
     delivery_date: row.delivery_date ?? '',
     storno_of: row.storno_of ?? '',
     pdf_text: row.pdf_text ?? '',
+    project_id: row.project_id ?? '',
   };
 }
 
 export async function insertInvoice(inv: import('@/types').Invoice): Promise<void> {
   const db = await getDb();
   await db.execute(
-    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of, pdf_text)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
-    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '', inv.pdf_text ?? '']
+    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of, pdf_text, project_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '', inv.pdf_text ?? '', inv.project_id ?? '']
   );
   await addAuditLog(inv.id, 'created');
 }
@@ -320,8 +338,8 @@ export async function updateInvoice(inv: import('@/types').Invoice): Promise<voi
   if (old) await logInvoiceChanges(old, inv);
 
   await db.execute(
-    `UPDATE invoices SET date=$1, year=$2, month=$3, category=$4, description=$5, partner=$6, netto=$7, ust=$8, brutto=$9, type=$10, currency=$11, pdf_path=$12, note=$13, updated_at=$14, delivery_date=$15 WHERE id=$16`,
-    [inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, new Date().toISOString(), inv.delivery_date ?? '', inv.id]
+    `UPDATE invoices SET date=$1, year=$2, month=$3, category=$4, description=$5, partner=$6, netto=$7, ust=$8, brutto=$9, type=$10, currency=$11, pdf_path=$12, note=$13, updated_at=$14, delivery_date=$15, project_id=$16 WHERE id=$17`,
+    [inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, new Date().toISOString(), inv.delivery_date ?? '', inv.project_id ?? '', inv.id]
   );
 }
 
@@ -899,3 +917,81 @@ export async function updateBankTransactionMatch(id: string, matchedInvoiceId: s
   const db = await getDb();
   await db.execute('UPDATE bank_transactions SET matched_invoice_id = $1 WHERE id = $2', [matchedInvoiceId, id]);
 }
+
+// --- Projekte ---
+
+interface ProjectRow {
+  id: string;
+  title: string;
+  description: string;
+  links: string;
+  youtube_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapProjectRow(row: ProjectRow): import('@/types').Project {
+  let links: import('@/types').ProjectLink[] = [];
+  try { links = JSON.parse(row.links); } catch { links = []; }
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    links,
+    youtube_url: row.youtube_url,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+export const projects = {
+  async getAll(): Promise<import('@/types').Project[]> {
+    const db = await getDb();
+    const rows = await db.select<ProjectRow[]>('SELECT * FROM projects ORDER BY created_at DESC');
+    return rows.map(mapProjectRow);
+  },
+
+  async getById(id: string): Promise<import('@/types').Project | null> {
+    const db = await getDb();
+    const rows = await db.select<ProjectRow[]>('SELECT * FROM projects WHERE id=$1', [id]);
+    return rows[0] ? mapProjectRow(rows[0]) : null;
+  },
+
+  async create(title: string): Promise<import('@/types').Project> {
+    const db = await getDb();
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db.execute(
+      `INSERT INTO projects (id, title, description, links, youtube_url, created_at, updated_at) VALUES ($1,$2,'','[]','',$3,$4)`,
+      [id, title, now, now]
+    );
+    return { id, title, description: '', links: [], youtube_url: '', created_at: now, updated_at: now };
+  },
+
+  async update(id: string, fields: Partial<Omit<import('@/types').Project, 'id' | 'created_at'>>): Promise<void> {
+    const db = await getDb();
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+    if (fields.title !== undefined) { updates.push(`title=$${i++}`); values.push(fields.title); }
+    if (fields.description !== undefined) { updates.push(`description=$${i++}`); values.push(fields.description); }
+    if (fields.links !== undefined) { updates.push(`links=$${i++}`); values.push(JSON.stringify(fields.links)); }
+    if (fields.youtube_url !== undefined) { updates.push(`youtube_url=$${i++}`); values.push(fields.youtube_url); }
+    updates.push(`updated_at=$${i++}`);
+    values.push(new Date().toISOString());
+    values.push(id);
+    await db.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id=$${i}`, values);
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute("UPDATE invoices SET project_id='' WHERE project_id=$1", [id]);
+    await db.execute('DELETE FROM projects WHERE id=$1', [id]);
+  },
+
+  async getInvoices(projectId: string): Promise<import('@/types').Invoice[]> {
+    const db = await getDb();
+    const rows = await db.select<InvoiceRow[]>('SELECT * FROM invoices WHERE project_id=$1 ORDER BY date DESC', [projectId]);
+    return rows.map(mapInvoiceRow);
+  },
+};

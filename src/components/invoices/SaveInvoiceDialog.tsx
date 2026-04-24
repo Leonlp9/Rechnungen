@@ -10,6 +10,7 @@ import { getAllInvoices } from '@/lib/db';
 import { toast } from 'sonner';
 import { CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForBranche, getDefaultCategoryForType } from '@/types';
 import type { Category, InvoiceType } from '@/types';
+import { ProjectSelector } from '@/components/projects/ProjectSelector';
 import { format, parse, isValid } from 'date-fns';
 
 interface Props {
@@ -36,6 +37,7 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
   const [type, setType] = useState<InvoiceType>('einnahme');
   const [category, setCategory] = useState<Category>('umsatz_pflichtig');
   const [brutto, setBrutto] = useState(prefill.brutto.toFixed(2));
+  const [projectId, setProjectId] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -75,6 +77,7 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
         pdf_sha256: '',
         delivery_date: '',
         storno_of: '',
+        project_id: projectId,
       };
 
       await insertInvoice(inv);
@@ -147,6 +150,11 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Projekt</Label>
+            <ProjectSelector value={projectId} onChange={setProjectId} size="sm" />
           </div>
 
           <div className="space-y-1">

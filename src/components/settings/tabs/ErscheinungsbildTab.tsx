@@ -1,4 +1,4 @@
-import { Check, Navigation } from 'lucide-react';
+import {Check, FolderKanban, Navigation} from 'lucide-react';
 import {
   LayoutDashboard, FileText, FilePlus2, PenSquare, ListTodo, Mail,
   Settings as SettingsIcon, HelpCircle, CalendarDays, Users, Car, Landmark,
@@ -18,8 +18,10 @@ const NAV_ITEMS_CONFIG = [
   { to: '/gmail', label: 'Mail', icon: Mail },
   { to: '/calendar', label: 'Kalender', icon: CalendarDays },
   { to: '/customers', label: 'Kunden', icon: Users },
+  { to: '/projects', label: 'Projekte', icon: FolderKanban },
   { to: '/fahrtenbuch', label: 'Fahrtenbuch', icon: Car },
   { to: '/bank-import', label: 'Bankimport', icon: Landmark },
+  { to: '/steuerbericht', label: 'Steuerbericht', icon: FileText },
   { to: '/settings', label: 'Einstellungen', icon: SettingsIcon },
   { to: '/help', label: 'Hilfe', icon: HelpCircle },
 ];

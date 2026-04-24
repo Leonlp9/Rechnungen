@@ -19,5 +19,9 @@ export const queryKeys = {
   fahrtenbuch: {
     all: ['fahrtenbuch'] as const,
   },
+  projects: {
+    all: ['projects'] as const,
+    detail: (id: string) => ['projects', 'detail', id] as const,
+  },
 } as const;
 

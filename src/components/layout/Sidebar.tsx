@@ -17,6 +17,7 @@ import {
   Users,
   Landmark,
   Receipt,
+  FolderKanban,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,7 @@ const NAV_ITEMS = [
   { to: '/gmail', label: 'Mail', icon: Mail, tutorialId: 'nav-gmail' },
   { to: '/calendar', label: 'Kalender', icon: CalendarDays, tutorialId: 'nav-calendar' },
   { to: '/customers', label: 'Kunden', icon: Users, tutorialId: 'nav-customers' },
+  { to: '/projects', label: 'Projekte', icon: FolderKanban, tutorialId: 'nav-projects' },
   { to: '/fahrtenbuch', label: 'Fahrtenbuch', icon: Car, tutorialId: 'nav-fahrtenbuch' },
   { to: '/bank-import', label: 'Bankimport', icon: Landmark, tutorialId: 'nav-bank-import' },
   { to: '/steuerbericht', label: 'Steuerbericht', icon: Receipt, tutorialId: 'nav-steuerbericht' },
