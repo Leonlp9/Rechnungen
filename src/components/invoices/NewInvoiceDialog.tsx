@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select';
 import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForBranche, getDefaultCategoryForType } from '@/types';
 import type { Invoice } from '@/types';
-import { insertInvoice, getAllInvoices, insertDraftDb } from '@/lib/db';
+import { insertInvoice, getAllInvoices, insertDraftDb, setPdfText } from '@/lib/db';
 import { copyPdfToAppData, readPdfAsBase64, copyPdfToDraftsFolder, getAbsolutePdfPath } from '@/lib/pdf';
 import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
@@ -289,6 +289,13 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       };
 
       await insertInvoice(invoice);
+
+      // PDF-Volltext im Hintergrund extrahieren (für Volltextsuche), ohne die UX zu blockieren
+      const absPath = await getAbsolutePdfPath(relativePath);
+      invoke<string>('extract_pdf_text', { path: absPath })
+        .then((text) => setPdfText(id, text))
+        .catch(() => { /* Fehler ignorieren – Text kann später per Batch nachgeholt werden */ });
+
       const all = await getAllInvoices();
       setInvoices(all);
       toast.success('Rechnung gespeichert!');

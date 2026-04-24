@@ -256,6 +256,8 @@ export interface Invoice {
   delivery_date: string;
   /** Falls Stornobuchung: ID des stornierten Belegs */
   storno_of: string;
+  /** Extrahierter Volltext des PDFs für die Volltextsuche */
+  pdf_text?: string;
 }
 
 export interface Setting {

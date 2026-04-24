@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useAppStore } from '@/store';
 import { isCategoryValidForType, CATEGORY_LABELS, TYPE_LABELS } from '@/types';
 import type { Invoice } from '@/types';
-import { AlertTriangle, X, ExternalLink, CheckCircle2, Sparkles } from 'lucide-react';
+import { AlertTriangle, X, ExternalLink, CheckCircle2, Sparkles, FileSearch, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { invoke } from '@tauri-apps/api/core';
+import { getAllInvoices, setPdfText } from '@/lib/db';
+import { getAbsolutePdfPath } from '@/lib/pdf';
 
 // ─── Fehler-Typen ─────────────────────────────────────────────────────────────
 
@@ -77,20 +80,73 @@ export function detectIssues(invoices: Invoice[]): DataIssue[] {
 
 export function DataIssuesIndicator() {
   const invoices = useAppStore((s) => s.invoices);
+  const setInvoices = useAppStore((s) => s.setInvoices);
   const setActiveAiFix = useAppStore((s) => s.setActiveAiFix);
   const activeAiFix = useAppStore((s) => s.activeAiFix);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
+  // PDF-Indizierungsstatus
+  const [indexing, setIndexing] = useState(false);
+  const [indexProgress, setIndexProgress] = useState<{ current: number; total: number } | null>(null);
+  const [indexFailed, setIndexFailed] = useState<{ id: string; description: string; partner: string }[]>([]);
+
   const issues = useMemo(() => detectIssues(invoices), [invoices]);
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
-  const total = issues.length;
 
-  if (total === 0) return null;
+  // Rechnungen mit PDF aber ohne extrahierten Text
+  const unindexedInvoices = useMemo(
+    () => invoices.filter((inv) => inv.pdf_path && !inv.pdf_text),
+    [invoices]
+  );
+  const unindexedCount = unindexedInvoices.length;
+
+  const total = issues.length;
+  const showIndicator = total > 0 || unindexedCount > 0 || indexFailed.length > 0;
+
+  const handleStartIndexing = useCallback(async () => {
+    if (indexing) return;
+    setIndexing(true);
+    setIndexFailed([]);
+    setIndexProgress({ current: 0, total: unindexedInvoices.length });
+
+    const failed: typeof indexFailed = [];
+
+    for (let i = 0; i < unindexedInvoices.length; i++) {
+      const inv = unindexedInvoices[i];
+      setIndexProgress({ current: i, total: unindexedInvoices.length });
+      try {
+        const absPath = await getAbsolutePdfPath(inv.pdf_path);
+        const text = await invoke<string>('extract_pdf_text', { path: absPath });
+        // Wenn der Text leer ist (z.B. gescannte Bilder ohne OCR), trotzdem als versucht markieren
+        await setPdfText(inv.id, text || '[kein Text extrahierbar]');
+      } catch {
+        // PDF nicht lesbar (verschlüsselt, beschädigt, etc.) – als dauerhaft fehlgeschlagen markieren
+        await setPdfText(inv.id, '[PDF nicht lesbar]').catch(() => {});
+        failed.push({ id: inv.id, description: inv.description, partner: inv.partner });
+      }
+    }
+
+    setIndexFailed(failed);
+    setIndexProgress({ current: unindexedInvoices.length, total: unindexedInvoices.length });
+
+    // Store aktualisieren
+    try {
+      const all = await getAllInvoices();
+      setInvoices(all);
+    } catch { /* ignore */ }
+
+    setTimeout(() => {
+      setIndexing(false);
+    }, 500);
+  }, [indexing, unindexedInvoices, setInvoices]);
+
+  if (!showIndicator) return null;
 
   const primaryColor = errors.length > 0 ? 'text-destructive' : 'text-amber-500';
   const badgeBg = errors.length > 0 ? 'bg-destructive' : 'bg-amber-500';
+  const badgeCount = total + (unindexedCount > 0 ? 1 : 0) + (indexFailed.length > 0 && unindexedCount === 0 ? 1 : 0);
 
   const handleAiFix = (issue: DataIssue, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -99,12 +155,16 @@ export function DataIssuesIndicator() {
     navigate(`/invoices/${issue.invoiceId}`);
   };
 
+  const indexPercent = indexProgress && indexProgress.total > 0
+    ? Math.round((indexProgress.current / indexProgress.total) * 100)
+    : 0;
+
   return (
     <div className="relative">
       {/* Trigger Button */}
       <button
         onClick={() => setOpen((v) => !v)}
-        title={`${total} Datenproblem${total !== 1 ? 'e' : ''} gefunden`}
+        title={`${badgeCount} Hinweis${badgeCount !== 1 ? 'e' : ''}`}
         className={cn(
           'relative flex items-center justify-center h-9 w-9 rounded-md border border-border bg-background hover:bg-muted transition-colors',
           primaryColor,
@@ -115,7 +175,7 @@ export function DataIssuesIndicator() {
           'absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white',
           badgeBg,
         )}>
-          {total > 99 ? '99+' : total}
+          {badgeCount > 99 ? '99+' : badgeCount}
         </span>
       </button>
 
@@ -129,11 +189,13 @@ export function DataIssuesIndicator() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
               <div>
-                <h3 className="font-semibold text-sm">Datenprobleme</h3>
+                <h3 className="font-semibold text-sm">Hinweise</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {errors.length > 0 && <span className="text-destructive font-medium">{errors.length} Fehler</span>}
-                  {errors.length > 0 && warnings.length > 0 && <span className="text-muted-foreground"> · </span>}
+                  {errors.length > 0 && (warnings.length > 0 || unindexedCount > 0) && <span className="text-muted-foreground"> · </span>}
                   {warnings.length > 0 && <span className="text-amber-500 font-medium">{warnings.length} Warnung{warnings.length !== 1 ? 'en' : ''}</span>}
+                  {warnings.length > 0 && unindexedCount > 0 && <span className="text-muted-foreground"> · </span>}
+                  {unindexedCount > 0 && <span className="text-amber-500 font-medium">{unindexedCount} PDF{unindexedCount !== 1 ? 's' : ''} nicht indiziert</span>}
                 </p>
               </div>
               <button onClick={() => setOpen(false)} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors">
@@ -143,7 +205,80 @@ export function DataIssuesIndicator() {
 
             {/* List */}
             <div className="overflow-y-auto flex-1">
-              {issues.length === 0 ? (
+              {/* PDF-Indizierungshinweis */}
+              {(unindexedCount > 0 || indexFailed.length > 0) && (
+                <div className="px-4 py-3 border-b bg-amber-500/5">
+                  <div className="flex items-start gap-3">
+                    <FileSearch className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground">PDF-Volltextsuche nicht vollständig</p>
+
+                      {unindexedCount > 0 && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                          {unindexedCount} von {invoices.filter((i) => i.pdf_path).length} Rechnungen wurden noch nicht für die Volltext&shy;suche indiziert.
+                        </p>
+                      )}
+
+                      {/* Fortschrittsbalken während der Indizierung */}
+                      {indexProgress !== null && (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Loader2 className={cn('h-3 w-3', indexProgress.current < indexProgress.total && 'animate-spin')} />
+                              {indexProgress.current < indexProgress.total
+                                ? `Indiziere ${indexProgress.current + 1} / ${indexProgress.total}…`
+                                : indexFailed.length > 0
+                                  ? `${indexProgress.total - indexFailed.length} indiziert, ${indexFailed.length} fehlgeschlagen`
+                                  : `Fertig – ${indexProgress.total} PDF${indexProgress.total !== 1 ? 's' : ''} indiziert`}
+                            </span>
+                            <span className="font-mono font-semibold text-primary">{indexPercent}%</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-amber-500 transition-all duration-200"
+                              style={{ width: `${indexPercent}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fehlerliste nach abgeschlossener Indizierung */}
+                      {!indexing && indexFailed.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-[10px] font-medium text-destructive">
+                            {indexFailed.length} PDF{indexFailed.length !== 1 ? 's' : ''} konnten nicht gelesen werden (verschlüsselt oder beschädigt):
+                          </p>
+                          <div className="space-y-0.5">
+                            {indexFailed.map((f) => (
+                              <div
+                                key={f.id}
+                                className="text-[10px] text-muted-foreground truncate cursor-pointer hover:text-foreground transition-colors"
+                                onClick={() => { setOpen(false); navigate(`/invoices/${f.id}`); }}
+                                title="Rechnung öffnen"
+                              >
+                                · {f.partner ? `${f.partner} – ` : ''}{f.description || f.id}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {indexProgress === null && unindexedCount > 0 && (
+                        <button
+                          onClick={handleStartIndexing}
+                          disabled={indexing}
+                          className="mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-300/40 hover:bg-amber-500/25 transition-colors"
+                        >
+                          <FileSearch className="h-3 w-3" />
+                          Jetzt alle indizieren
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {issues.length === 0 && unindexedCount === 0 && indexFailed.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
                   <CheckCircle2 className="h-8 w-8 text-green-500" />
                   <p className="text-sm">Keine Probleme gefunden</p>
@@ -221,4 +356,3 @@ export function DataIssuesIndicator() {
     </div>
   );
 }
-

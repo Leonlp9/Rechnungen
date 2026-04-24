@@ -128,6 +128,10 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
     await db.execute('CREATE INDEX IF NOT EXISTS idx_bank_tx_date ON bank_transactions(booking_date)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_bank_tx_batch ON bank_transactions(import_batch)');
   },
+  // v4 → v5: PDF-Volltext für Offline-Volltextsuche
+  async (db) => {
+    try { await db.execute("ALTER TABLE invoices ADD COLUMN pdf_text TEXT NOT NULL DEFAULT ''"); } catch { /* Spalte existiert bereits */ }
+  },
 ];
 
 async function migrate(db: Database) {
@@ -254,6 +258,7 @@ interface InvoiceRow {
   delivery_date: string;
   storno_of: string;
   customer_id?: string;
+  pdf_text?: string;
 }
 
 export async function getAllInvoices(): Promise<import('@/types').Invoice[]> {
@@ -291,15 +296,16 @@ function mapInvoiceRow(row: InvoiceRow): import('@/types').Invoice {
     pdf_sha256: row.pdf_sha256 ?? '',
     delivery_date: row.delivery_date ?? '',
     storno_of: row.storno_of ?? '',
+    pdf_text: row.pdf_text ?? '',
   };
 }
 
 export async function insertInvoice(inv: import('@/types').Invoice): Promise<void> {
   const db = await getDb();
   await db.execute(
-    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
-    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '']
+    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of, pdf_text)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '', inv.pdf_text ?? '']
   );
   await addAuditLog(inv.id, 'created');
 }
@@ -657,6 +663,25 @@ export async function getPdfHash(invoiceId: string): Promise<string> {
   const db = await getDb();
   const rows: { pdf_sha256: string }[] = await db.select('SELECT pdf_sha256 FROM invoices WHERE id = $1', [invoiceId]);
   return rows[0]?.pdf_sha256 ?? '';
+}
+
+/**
+ * Speichert den extrahierten PDF-Volltext für die Volltextsuche.
+ */
+export async function setPdfText(invoiceId: string, text: string): Promise<void> {
+  const db = await getDb();
+  await db.execute('UPDATE invoices SET pdf_text = $1 WHERE id = $2', [text, invoiceId]);
+}
+
+/**
+ * Gibt alle Rechnungen zurück, die ein PDF haben, aber noch keinen extrahierten Text.
+ */
+export async function getInvoicesWithoutPdfText(): Promise<import('@/types').Invoice[]> {
+  const db = await getDb();
+  const rows: InvoiceRow[] = await db.select(
+    "SELECT * FROM invoices WHERE pdf_path != '' AND (pdf_text IS NULL OR pdf_text = '') ORDER BY date DESC"
+  );
+  return rows.map(mapInvoiceRow);
 }
 
 // --- Rechnungsnummern-Dubletten-Prüfung ---

@@ -9,7 +9,7 @@ import {
   CommandList,
   CommandSeparator,
 } from 'cmdk';
-import { Loader2, FileSearch, X } from 'lucide-react';
+import { Loader2, FileSearch, X } from 'lucide-react'; // Loader2 für Ladespinner im Input
 import { useAppStore } from '@/store';
 import { getProviders, registerSearchProvider, searchAll } from '@/lib/search/registry';
 import { createNavigationProvider } from '@/lib/search/providers/navigationProvider';
@@ -17,7 +17,7 @@ import { createSettingsProvider } from '@/lib/search/providers/settingsProvider'
 import { createInvoiceProvider } from '@/lib/search/providers/invoiceProvider';
 import { createPdfProvider } from '@/lib/search/providers/pdfProvider';
 import { createHelpProvider } from '@/lib/search/providers/helpProvider';
-import type { ProgressInfo, SearchResult } from '@/lib/search/types';
+import type { SearchResult } from '@/lib/search/types';
 
 interface GlobalSearchProps {
   open: boolean;
@@ -36,7 +36,6 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   const [results, setResults] = useState<Map<string, SearchResult[]>>(new Map());
   const [loading, setLoading] = useState(false);
   const [pdfEnabled, setPdfEnabled] = useState(false);
-  const [pdfProgress, setPdfProgress] = useState<ProgressInfo | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const providersRegistered = useRef(false);
 
@@ -77,7 +76,6 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       if (!q.trim()) {
         setResults(new Map());
         setLoading(false);
-        setPdfProgress(null);
         return;
       }
 
@@ -86,26 +84,19 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       abortRef.current = controller;
 
       setLoading(true);
-      setPdfProgress(null);
 
       const enabled = getProviders()
         .filter((p) => p.defaultEnabled !== false || (pdfEnabled && p.id === 'pdf'))
         .map((p) => p.id);
 
       try {
-        const res = await searchAll(q, enabled, controller.signal, (providerId, info) => {
-          if (providerId === 'pdf') {
-            setPdfProgress({ ...info });
-          }
-        });
+        const res = await searchAll(q, enabled, controller.signal);
         if (!controller.signal.aborted) {
           setResults(res);
         }
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
-          // Progress kurz stehen lassen, dann ausblenden
-          setTimeout(() => setPdfProgress(null), 1500);
         }
       }
     },
@@ -124,7 +115,6 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       setQuery('');
       setResults(new Map());
       setLoading(false);
-      setPdfProgress(null);
       abortRef.current?.abort();
     }
   }, [open]);
@@ -133,9 +123,6 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
 
   const allProviders = getProviders();
   const totalResults = [...results.values()].reduce((sum, r) => sum + r.length, 0);
-  const pdfPercent = pdfProgress && pdfProgress.total > 0
-    ? Math.round((pdfProgress.current / pdfProgress.total) * 100)
-    : null;
 
   return (
     <div
@@ -168,7 +155,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
             </kbd>
           </div>
 
-          {/* PDF-Option + Fortschrittsanzeige */}
+          {/* PDF-Volltextsuche Option */}
           <div className="border-b border-border bg-muted/40">
             <div className="flex items-center gap-2 px-4 py-2">
               <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
@@ -179,46 +166,14 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
                   className="rounded"
                 />
                 <FileSearch className="h-3.5 w-3.5" />
-                PDF-Inhalte durchsuchen
-                <span className="text-[10px] bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1 py-0.5">
-                  langsam
-                </span>
+                PDF-Volltextsuche
               </label>
               {query && (
                 <span className="ml-auto text-[10px] text-muted-foreground">
-                  {loading && !pdfProgress ? 'Suche läuft…' : !loading ? `${totalResults} Treffer` : null}
+                  {loading ? 'Suche läuft…' : `${totalResults} Treffer`}
                 </span>
               )}
             </div>
-
-            {/* PDF-Fortschrittsbalken */}
-            {pdfEnabled && pdfProgress !== null && (
-              <div className="px-4 pb-2.5 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Loader2 className={`h-3 w-3 ${pdfProgress.current < pdfProgress.total ? 'animate-spin' : ''}`} />
-                    <span className="truncate max-w-xs">
-                      {pdfProgress.current < pdfProgress.total
-                        ? `Durchsuche: ${pdfProgress.label ?? '…'}`
-                        : `✓ ${pdfProgress.total} PDF${pdfProgress.total !== 1 ? 's' : ''} durchsucht`}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-mono text-muted-foreground ml-2">
-                    {pdfProgress.current} / {pdfProgress.total}
-                    {pdfPercent !== null && (
-                      <span className="ml-1 text-primary font-semibold">({pdfPercent}%)</span>
-                    )}
-                  </span>
-                </div>
-                {/* Balken */}
-                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-200"
-                    style={{ width: `${pdfPercent ?? 0}%` }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Results */}
@@ -257,9 +212,6 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
                   <CommandGroup
                     heading={
                       <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-2 py-1">
-                        {provider.slow && (
-                          <span className="text-[9px] bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1">langsam</span>
-                        )}
                         {provider.label}
                       </span>
                     }
