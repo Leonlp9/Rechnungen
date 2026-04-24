@@ -1,4 +1,4 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -20,38 +20,38 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 
 function useNavHistory() {
   const location = useLocation();
-  const [idx, setIdx] = useState(() => (window.history.state as { idx?: number })?.idx ?? 0);
-  const [maxIdx, setMaxIdx] = useState(() => (window.history.state as { idx?: number })?.idx ?? 0);
-  const isPop = useRef(false);
+  const navType = useNavigationType(); // 'PUSH' | 'POP' | 'REPLACE'
+
+  const getHistoryIdx = () => (window.history.state as { idx?: number })?.idx ?? 0;
+
+  const [state, setState] = useState(() => {
+    const idx = getHistoryIdx();
+    return { idx, maxIdx: idx };
+  });
 
   useEffect(() => {
-    const onPop = () => {
-      isPop.current = true;
-      const newIdx = (window.history.state as { idx?: number })?.idx ?? 0;
-      setIdx(newIdx);
-      setMaxIdx((prev) => Math.max(prev, newIdx));
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  useEffect(() => {
-    const newIdx = (window.history.state as { idx?: number })?.idx ?? 0;
-    if (isPop.current) {
-      isPop.current = false;
+    const currentIdx = getHistoryIdx();
+    if (navType === 'PUSH') {
+      // Push navigation clears the forward stack
+      setState({ idx: currentIdx, maxIdx: currentIdx });
+    } else if (navType === 'POP') {
+      // POP (back or forward) – preserve maxIdx so forward stays available
+      setState((prev) => ({
+        idx: currentIdx,
+        maxIdx: Math.max(prev.maxIdx, currentIdx),
+      }));
     } else {
-      // push navigation → forward history cleared
-      setIdx(newIdx);
-      setMaxIdx(newIdx);
+      // REPLACE – same idx, only path changes, don't touch maxIdx
+      setState((prev) => ({ ...prev, idx: currentIdx }));
     }
-  }, [location]);
+  }, [location, navType]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { canGoBack: idx > 0, canGoForward: idx < maxIdx };
+  return { canGoBack: state.idx > 0, canGoForward: state.idx < state.maxIdx };
 }
 
 const NAV_ITEMS = [

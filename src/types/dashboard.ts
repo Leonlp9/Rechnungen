@@ -62,7 +62,8 @@ export type GridType =
   | 'grid-masonry'
   | 'grid-accordion'
   | 'grid-sidebar'
-  | 'grid-bento';
+  | 'grid-bento'
+  | 'grid-split-h';
 
 export type NodeType = ElementType | GridType;
 
@@ -95,7 +96,8 @@ export function createNode(type: NodeType): DashboardNode {
     type === 'grid-masonry' ||
     type === 'grid-accordion' ||
     type === 'grid-sidebar' ||
-    type === 'grid-bento'
+    type === 'grid-bento' ||
+    type === 'grid-split-h'
   ) {
     return { id, type, children: [] };
   }
@@ -113,7 +115,8 @@ export function isGridType(type: NodeType): type is GridType {
     type === 'grid-masonry' ||
     type === 'grid-accordion' ||
     type === 'grid-sidebar' ||
-    type === 'grid-bento'
+    type === 'grid-bento' ||
+    type === 'grid-split-h'
   );
 }
 

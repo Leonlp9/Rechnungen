@@ -11,6 +11,7 @@ import {
   Percent, PiggyBank, Table2,
   PanelLeft, LayoutGrid, LayoutDashboard, AlignJustify,
   User, Search, ShieldCheck, Package, Eye, HardDrive,
+  GripHorizontal,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -150,6 +151,7 @@ interface DashboardEditSidebarProps {
 
 const ALL_ITEMS: SidebarItemDef[] = [
     // ── Layout-Container ──
+    { section: '🧱 Layout-Container', type: 'grid-split-h', label: 'Split (resizierbar)', icon: <GripHorizontal className="h-4 w-4 text-indigo-500" />, description: 'Zwei Spalten – Breite per Drag verschiebbar', tooltip: 'Teilt den Bereich in zwei Spalten. Die Breite lässt sich durch Ziehen des mittleren Trenners frei einstellen. Die prozentuale Aufteilung wird automatisch gespeichert.' },
     { section: '🧱 Layout-Container', type: 'grid-horizontal', label: 'Horizontal', icon: <Columns2 className="h-4 w-4 text-blue-500" />, description: 'Elemente nebeneinander', tooltip: 'Ordnet alle enthaltenen Elemente nebeneinander in einer Zeile an. Ideal für KPI-Karten, die auf einen Blick verglichen werden sollen.' },
     { section: '🧱 Layout-Container', type: 'grid-vertical', label: 'Vertikal', icon: <Rows2 className="h-4 w-4 text-purple-500" />, description: 'Elemente untereinander', tooltip: 'Stapelt alle enthaltenen Elemente untereinander. Perfekt als Hauptstruktur oder um mehrere Charts in einer Spalte zu gruppieren.' },
     { section: '🧱 Layout-Container', type: 'grid-pages', label: 'Seiten', icon: <BookOpen className="h-4 w-4 text-orange-500" />, description: 'Tab-Seiten mit eigenem Inhalt', tooltip: 'Erstellt mehrere benannte Tab-Seiten in einem Container. So kannst du z. B. verschiedene Zeiträume oder Themenbereiche trennen, ohne Platz zu verschwenden.' },

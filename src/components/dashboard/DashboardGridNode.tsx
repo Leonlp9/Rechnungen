@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useDashboardStore } from '@/store/dashboardStore';
 import {
   SortableContext,
   useSortable,
@@ -16,16 +17,63 @@ import { cn } from '@/lib/utils';
 import {
   GripVertical, X, Plus, BookOpen, Columns2, Rows2, Settings,
   PanelLeft, LayoutGrid, LayoutDashboard, AlignJustify,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, GripHorizontal,
 } from 'lucide-react';
 
 // Element types that expose a settings panel
 const ELEMENTS_WITH_SETTINGS = new Set(['list-recent-emails', 'card-partner']);
 
+// ─── Split-H Resize Divider ──────────────────────────────────────────────────
+
+function SplitDivider({
+  splitPercent,
+  onMouseDown,
+  isDragging,
+  editMode,
+}: {
+  splitPercent: number;
+  onMouseDown: (e: React.MouseEvent) => void;
+  isDragging: boolean;
+  editMode: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex-shrink-0 relative flex items-center justify-center select-none touch-none w-3 group/divider',
+        editMode ? 'cursor-col-resize' : 'pointer-events-none',
+        isDragging && 'z-50',
+      )}
+      onMouseDown={editMode ? onMouseDown : undefined}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {/* Vertical line – always visible */}
+      <div className={cn(
+        'w-px h-full absolute left-1/2 -translate-x-1/2 rounded-full transition-colors',
+        isDragging ? 'bg-primary' : 'bg-border',
+        editMode && !isDragging && 'group-hover/divider:bg-primary/60',
+      )} />
+      {/* Grip handle – only in edit mode */}
+      {editMode && (
+        <div className={cn(
+          'relative z-10 rounded p-0.5 transition-all bg-background border shadow-sm',
+          isDragging ? 'opacity-100 border-primary/50 scale-110' : 'opacity-0 group-hover/divider:opacity-100',
+        )}>
+          <GripVertical className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )}
+      {/* Percentage tooltip – only while dragging */}
+      {isDragging && (
+        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-background border rounded px-1.5 py-0.5 text-[10px] font-mono whitespace-nowrap shadow-sm z-20 pointer-events-none">
+          {splitPercent}% ↔ {100 - splitPercent}%
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Insertion line ──────────────────────────────────────────────────────────
 
-function InsertionLine({ horizontal }: { horizontal: boolean }) {
-  return (
+function InsertionLine({ horizontal }: { horizontal: boolean }) {  return (
     <div
       className={cn(
         'flex-shrink-0 bg-primary rounded-full pointer-events-none z-30',
@@ -58,9 +106,24 @@ export function DashboardGridNode({
   node, editMode, overContainerId, overItemId, activeDragId,
   onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, onUpdateNodeProps, depth = 0,
 }: GridNodeProps) {
-  const [activePageId, setActivePageId] = useState<string | undefined>(
-    node.type === 'grid-pages' ? node.pages?.[0]?.id : undefined,
-  );
+  const activePageIds = useDashboardStore((s) => s.activePageIds);
+  const setActivePageIdInStore = useDashboardStore((s) => s.setActivePageId);
+
+  const firstPageId = node.type === 'grid-pages' ? node.pages?.[0]?.id : undefined;
+  const activePageId = node.type === 'grid-pages'
+    ? (activePageIds[node.id] ?? firstPageId)
+    : undefined;
+  const setActivePageId = (id: string) => setActivePageIdInStore(node.id, id);
+
+  // Falls die gespeicherte Seite nicht mehr existiert (z. B. nach Edit), auf erste Seite zurückfallen
+  useEffect(() => {
+    if (node.type !== 'grid-pages' || !node.pages?.length) return;
+    const pageIds = node.pages.map((p) => p.id);
+    if (activePageId && !pageIds.includes(activePageId)) {
+      setActivePageId(pageIds[0]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.pages]);
   const [openAccordionIds, setOpenAccordionIds] = useState<Set<string>>(new Set());
 
   const isRoot = node.id === 'root';
@@ -70,6 +133,35 @@ export function DashboardGridNode({
   const isAccordion = node.type === 'grid-accordion';
   const isSidebar = node.type === 'grid-sidebar';
   const isBento = node.type === 'grid-bento';
+  const isSplitH = node.type === 'grid-split-h';
+
+  // Split-H resize state
+  const [localSplitPercent, setLocalSplitPercent] = useState<number | null>(null);
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const effectiveSplitPercent = localSplitPercent ?? (isSplitH ? (typeof node.props?.splitPercent === 'number' ? node.props.splitPercent : 50) : 50);
+
+  const handleDividerMouseDown = (e: React.MouseEvent) => {
+    if (!isSplitH) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const container = splitContainerRef.current;
+    if (!container) return;
+    const onMove = (ev: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const pct = Math.round(Math.max(10, Math.min(90, ((ev.clientX - rect.left) / rect.width) * 100)));
+      setLocalSplitPercent(pct);
+    };
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      const rect = container.getBoundingClientRect();
+      const pct = Math.round(Math.max(10, Math.min(90, ((ev.clientX - rect.left) / rect.width) * 100)));
+      setLocalSplitPercent(null);
+      onUpdateNodeProps(node.id, { ...node.props, splitPercent: pct });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   const dropId = `${node.id}__drop`;
 
@@ -90,7 +182,8 @@ export function DashboardGridNode({
   const showEmptyHint = editMode && children.length === 0;
 
   const gridLabel =
-    isHorizontal ? 'Horizontal'
+    isSplitH ? 'Split-H (resizierbar)'
+    : isHorizontal ? 'Horizontal'
     : isPages ? 'Seiten'
     : isMasonry ? 'Masonry'
     : isAccordion ? 'Akkordeon'
@@ -99,7 +192,8 @@ export function DashboardGridNode({
     : 'Vertikal';
 
   const GridIcon =
-    isHorizontal ? Columns2
+    isSplitH ? GripHorizontal
+    : isHorizontal ? Columns2
     : isPages ? BookOpen
     : isMasonry ? LayoutGrid
     : isAccordion ? AlignJustify
@@ -108,17 +202,19 @@ export function DashboardGridNode({
     : Rows2;
 
   const sortingStrategy =
-    isHorizontal || isSidebar ? horizontalListSortingStrategy : verticalListSortingStrategy;
+    isHorizontal || isSidebar || isSplitH ? horizontalListSortingStrategy : verticalListSortingStrategy;
 
   const containerClass = cn(
     'relative transition-all',
     isHorizontal || isSidebar
       ? 'flex flex-row gap-3 items-stretch'
-      : isBento
-        ? 'grid gap-3'
-        : isMasonry
-          ? 'columns-2 gap-3'
-          : 'flex flex-col gap-3',
+      : isSplitH
+        ? 'flex flex-row items-stretch'
+        : isBento
+          ? 'grid gap-3'
+          : isMasonry
+            ? 'columns-2 gap-3'
+            : 'flex flex-col gap-3',
     editMode && [
       'rounded-xl border-2 border-dashed p-3',
       isTargeted
@@ -163,6 +259,11 @@ export function DashboardGridNode({
           {isSidebar && (
             <span className="text-[10px] text-muted-foreground/60 ml-1">(1. Kind = Seitenleiste)</span>
           )}
+          {isSplitH && (
+            <span className="text-[10px] text-muted-foreground/60 ml-2">
+              {effectiveSplitPercent}% / {100 - effectiveSplitPercent}%
+            </span>
+          )}
           <button
             onClick={() => onDelete(node.id)}
             className="ml-auto h-5 w-5 rounded hover:bg-destructive/10 hover:text-destructive flex items-center justify-center text-muted-foreground transition-colors"
@@ -188,7 +289,10 @@ export function DashboardGridNode({
 
       <SortableContext items={childIds} strategy={sortingStrategy}>
         <div
-          ref={setDropRef}
+          ref={(el) => {
+            setDropRef(el);
+            if (isSplitH) splitContainerRef.current = el;
+          }}
           className={containerClass}
           style={isBento ? { gridTemplateColumns: `repeat(${bentoColumns ?? 3}, 1fr)` } : undefined}
         >
@@ -219,7 +323,7 @@ export function DashboardGridNode({
             return (
               <React.Fragment key={child.id}>
                 {showLineBefore && (
-                  <InsertionLine horizontal={isHorizontal || isSidebar} />
+                  <InsertionLine horizontal={isHorizontal || isSidebar || isSplitH} />
                 )}
                 <SortableItem
                   node={child}
@@ -230,6 +334,8 @@ export function DashboardGridNode({
                   isBento={isBento}
                   isMasonry={isMasonry}
                   isAccordion={isAccordion}
+                  isSplitH={isSplitH}
+                  splitPercent={effectiveSplitPercent}
                   accordionOpen={accordionOpen}
                   onAccordionToggle={toggleAccordion}
                   overContainerId={overContainerId}
@@ -243,12 +349,24 @@ export function DashboardGridNode({
                   onUpdateNodeProps={onUpdateNodeProps}
                   depth={depth + 1}
                 />
+                {isSplitH && index === 0 && children.length > 1 && (
+                  editMode ? (
+                    <SplitDivider
+                      splitPercent={effectiveSplitPercent}
+                      onMouseDown={handleDividerMouseDown}
+                      isDragging={localSplitPercent !== null}
+                      editMode={editMode}
+                    />
+                  ) : (
+                    <div className="flex-shrink-0 w-3" />
+                  )
+                )}
               </React.Fragment>
             );
           })}
 
           {/* End-of-container insertion line */}
-          {showEndLine && <InsertionLine horizontal={isHorizontal || isSidebar} />}
+          {showEndLine && <InsertionLine horizontal={isHorizontal || isSidebar || isSplitH} />}
         </div>
       </SortableContext>
     </div>
@@ -266,6 +384,8 @@ interface SortableItemProps {
   isBento: boolean;
   isMasonry: boolean;
   isAccordion: boolean;
+  isSplitH: boolean;
+  splitPercent: number;
   accordionOpen: boolean;
   onAccordionToggle: () => void;
   overContainerId: string | null;
@@ -282,7 +402,8 @@ interface SortableItemProps {
 
 function SortableItem({
   node, editMode, isHorizontal, itemIndex,
-  isSidebar, isBento, isMasonry, isAccordion, accordionOpen, onAccordionToggle,
+  isSidebar, isBento, isMasonry, isAccordion, isSplitH, splitPercent,
+  accordionOpen, onAccordionToggle,
   overContainerId, overItemId, activeDragId,
   onDelete, onAddPage, onDeletePage, onRenamePage, onReorderPages, onUpdateNodeProps, depth,
 }: SortableItemProps) {
@@ -307,6 +428,10 @@ function SortableItem({
   } else if (isBento) {
     const colSpan = typeof node.props?.colSpan === 'number' ? node.props.colSpan : 1;
     itemFlexStyle = { gridColumn: `span ${colSpan}` };
+  } else if (isSplitH) {
+    itemFlexStyle = itemIndex === 0
+      ? { flexBasis: `calc(${splitPercent}% - 6px)`, flexGrow: 0, flexShrink: 0, minWidth: 0 }
+      : { flex: '1 1 0', minWidth: 0 };
   } else if (isHorizontal) {
     itemFlexStyle = { flex: '1 1 0', minWidth: 0 };
   }
@@ -315,7 +440,7 @@ function SortableItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.2 : 1,
-    alignSelf: isHorizontal ? 'stretch' : undefined,
+    alignSelf: (isHorizontal || isSplitH) ? 'stretch' : undefined,
     ...itemFlexStyle,
   };
 

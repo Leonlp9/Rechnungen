@@ -1,6 +1,7 @@
 import { useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useChatStore } from '@/store/chatStore';
+import { customers } from '@/lib/db';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -40,6 +41,14 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
   const setVisibleInvoiceIds = useChatStore((s) => s.setVisibleInvoiceIds);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Set of customer names (lowercase) to check if a partner has a customer record
+  const [customerNames, setCustomerNames] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    customers.getAll().then((list) => {
+      setCustomerNames(new Set(list.map((c) => c.name.trim().toLowerCase())));
+    }).catch(console.error);
+  }, []);
 
   // Read state from URL
   const search = searchParams.get('q') ?? '';
@@ -417,14 +426,18 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                   </TableCell>
                   <TableCell>{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</TableCell>
                   <TableCell>
-                    <button
-                      type="button"
-                      className="hover:underline hover:text-primary transition-colors text-left"
-                      onClick={(e) => { e.stopPropagation(); navigate(`/customers?q=${encodeURIComponent(inv.partner)}`); }}
-                      title={`Kunden „${inv.partner}" anzeigen`}
-                    >
-                      {inv.partner}
-                    </button>
+                    {customerNames.has(inv.partner.trim().toLowerCase()) ? (
+                      <button
+                        type="button"
+                        className="hover:underline hover:text-primary transition-colors text-left"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/customers?q=${encodeURIComponent(inv.partner)}`); }}
+                        title={`Kunden „${inv.partner}" anzeigen`}
+                      >
+                        {inv.partner}
+                      </button>
+                    ) : (
+                      <span>{inv.partner}</span>
+                    )}
                   </TableCell>
                   <TableCell className="max-w-[200px] truncate">{inv.description}</TableCell>
                   <TableCell>{CATEGORY_LABELS[inv.category]}</TableCell>
