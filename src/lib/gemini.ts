@@ -83,7 +83,7 @@ export async function sendChatMessage(
     pdfBase64?: string | null,
 ): Promise<ChatResponse> {
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
+  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt. Bitte unter Einstellungen eingeben.');
@@ -201,7 +201,7 @@ function newId() {
 
 export async function analyzeInvoiceLayoutWithAI(base64: string, mimeType: string): Promise<AiTemplateResult> {
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
+  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {
@@ -512,7 +512,7 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
 
 export async function analyzeInvoicePdf(base64: string, recentInvoices?: import('@/types').Invoice[]): Promise<GeminiResult> {
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
+  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {
@@ -521,8 +521,9 @@ export async function analyzeInvoicePdf(base64: string, recentInvoices?: import(
 
   // Load user profile for context
   const profileKeys = [
-    'profile_name', 'profile_address', 'profile_tax_number', 'profile_vat_id',
+    'profile_name', 'profile_address', 'profile_tax_number', 'profile_w_idnr', 'profile_vat_id',
     'profile_iban', 'profile_bic', 'profile_email', 'profile_phone', 'profile_business_type',
+    'profile_finanzamt',
   ];
   const profileEntries = await Promise.all(
     profileKeys.map(async (k) => [k.replace('profile_', ''), await getSetting(k) ?? ''] as const)
@@ -541,9 +542,11 @@ KONTEXT – Der Benutzer dieser Software ist:
 - Name/Firma: ${profile.name || '(nicht angegeben)'}
 - Adresse: ${profile.address || '(nicht angegeben)'}
 - Steuernummer: ${profile.tax_number || '(nicht angegeben)'}
+- W-IdNr.: ${profile.w_idnr || '(nicht angegeben)'}
 - USt-IdNr.: ${profile.vat_id || '(nicht angegeben)'}
 - IBAN: ${profile.iban || '(nicht angegeben)'}
 - Branche/Tätigkeit: ${profile.business_type || '(nicht angegeben)'}
+- Finanzamt: ${profile.finanzamt || '(nicht angegeben)'}
 
 Nutze diese Informationen, um zu entscheiden:
 - Wenn der Benutzer der EMPFÄNGER der Leistung ist (er bezahlt), dann type = "ausgabe".
@@ -575,7 +578,7 @@ WICHTIG: Wenn der Aussteller/Empfänger der Rechnung einem dieser Partner entspr
     }
   }
 
-  const prompt = `Analysiere diese PDF-Rechnung/Dokument und extrahiere die folgenden Informationen als JSON.
+  const prompt = `Analysiere dieses PDF-Dokument und extrahiere Buchhaltungsdaten als JSON.
 Antworte NUR mit validem JSON, kein Markdown, kein Text drumherum.
 ${profileContext}${knownPartnersContext}${aiInstructions.trim() ? `
 ═══════════════════════════════════════════════════════
@@ -584,8 +587,31 @@ PERSÖNLICHE KI-ANWEISUNGEN DES NUTZERS (höchste Priorität – halte dich stri
 ${aiInstructions.trim()}
 
 ` : ''}
+=== WICHTIG: GÜLTIGE DOKUMENTE ===
+Setze "is_invoice": true NUR wenn das Dokument eines der folgenden ist:
+- Rechnung, Gutschrift, Stornorechnung
+- Quittung, Kassenbon, Zahlungsbeleg
+- Kontoauszug, Buchungsbeleg
+- Gehaltsabrechnung, Honorarrechnung
+- Steuerbescheid, Steuervorauszahlung
+- Lieferschein mit Preisen
+- Versicherungspolice mit Beitrag
+- Vertrag mit konkreten Zahlungsangaben
+- Spendenbescheinigung
+- Jahresabschluss / betriebliche Auswertung
+
+Setze "is_invoice": false wenn das Dokument kein Buchhaltungsdokument ist, z.B.:
+- Lebenslauf / Bewerbungsunterlagen
+- Foto / Bild / Screenshot (ohne Rechnungsinhalt)
+- Zeitung / Artikel / Blogpost
+- Bedienungsanleitung / Handbuch
+- Offensichtlich privates oder nicht buchhalterisches Dokument
+In diesem Fall: "rejection_reason" mit kurzer Erklärung auf Deutsch befüllen.
+
 JSON-Schema:
 {
+  "is_invoice": true,
+  "rejection_reason": "",
   "date": "YYYY-MM-DD (Rechnungsdatum)",
   "description": "Kurze Beschreibung des Inhalts",
   "partner": "Name des Rechnungsstellers oder -empfängers",
@@ -678,6 +704,8 @@ WICHTIG:
       responseSchema: {
         type: 'OBJECT',
         properties: {
+          is_invoice: { type: 'BOOLEAN' },
+          rejection_reason: { type: 'STRING' },
           date: { type: 'STRING' },
           description: { type: 'STRING' },
           partner: { type: 'STRING' },
@@ -691,7 +719,7 @@ WICHTIG:
             enum: ['umsatz_pflichtig', 'umsatz_steuerfrei', 'reverse_charge', 'ust_erstattung', 'privateinlage', 'anlagenverkauf', 'erstattungen', 'sponsoring', 'affiliate', 'donations_tips', 'sachzuwendungen', 'sonstige_einnahmen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'bewirtungskosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'privatentnahme', 'sonstiges'],
           },
         },
-        required: ['date', 'description', 'partner', 'netto', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],
+        required: ['is_invoice', 'date', 'description', 'partner', 'netto', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],
       },
     },
   };

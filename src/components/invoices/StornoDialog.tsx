@@ -142,6 +142,13 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
     try {
       const base64 = await readPdfAsBase64(pdfPath);
       const result = await analyzeInvoicePdf(base64, allInvoices);
+      if (!result.is_invoice) {
+        toast.warning(
+          `⚠️ Kein Buchhaltungsdokument erkannt${result.rejection_reason ? `: ${result.rejection_reason}` : '. Bitte prüfe das hochgeladene Dokument.'}`,
+          { duration: 6000 }
+        );
+        return;
+      }
       // Only update description, date, note – keep partner + amounts locked to original
       form.setValue('date', result.date);
       form.setValue('description', result.description ? `[STORNO] ${result.description}` : form.getValues('description'));

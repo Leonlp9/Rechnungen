@@ -157,7 +157,7 @@ export default function FahrtenbuchPage() {
       </Card>
 
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Neue Fahrt eintragen</DialogTitle></DialogHeader>
           <FahrtForm onSave={async (data) => { await fahrtenbuch.add(data); await reload(); setShowAdd(false); toast.success('Fahrt eingetragen'); }} />
         </DialogContent>

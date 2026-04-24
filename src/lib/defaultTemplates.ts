@@ -9,6 +9,7 @@ const sharedVars: TemplateVariable[] = [
   { key: 'sender_email', label: 'Ihre E-Mail', defaultValue: '', settingsKey: 'profile_email', multiline: false },
   { key: 'sender_phone', label: 'Ihr Telefon', defaultValue: '', settingsKey: 'profile_phone', multiline: false },
   { key: 'sender_tax_number', label: 'Steuernummer', defaultValue: '', settingsKey: 'profile_tax_number', multiline: false },
+  { key: 'sender_w_idnr', label: 'W-IdNr.', defaultValue: '', settingsKey: 'profile_w_idnr', multiline: false },
   { key: 'sender_vat_id', label: 'USt-IdNr.', defaultValue: '', settingsKey: 'profile_vat_id', multiline: false },
   { key: 'sender_iban', label: 'IBAN', defaultValue: '', settingsKey: 'profile_iban', multiline: false },
   { key: 'sender_bic', label: 'BIC', defaultValue: '', settingsKey: 'profile_bic', multiline: false },

@@ -128,6 +128,15 @@ export default function InvoiceDetail() {
       const base64 = await readPdfAsBase64(absPath);
       const result = await analyzeInvoicePdf(base64 as string, invoices);
 
+      if (result.is_invoice === false) {
+        toast.warning(
+          `⚠️ Kein Buchhaltungsdokument erkannt${result.rejection_reason ? `: ${result.rejection_reason}` : '.'}`,
+          { duration: 6000 }
+        );
+        setActiveAiFix(null);
+        return;
+      }
+
       const fields = activeAiFix?.invoiceId === inv.id
         ? activeAiFix.fields
         : (['category'] as Array<'category' | 'type'>);

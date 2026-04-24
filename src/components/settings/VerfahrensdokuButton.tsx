@@ -17,6 +17,8 @@ export function VerfahrensdokuButton() {
       const dates = invoices.map(i => i.date).filter(Boolean).sort();
       const profileName = await getSetting('profile_name') ?? 'Nicht angegeben';
       const profileTaxNumber = await getSetting('profile_tax_number') ?? 'Nicht angegeben';
+      const profileWIdNr = await getSetting('profile_w_idnr') ?? '';
+      const profileFinanzamt = await getSetting('profile_finanzamt') ?? '';
       const erstellDatum = new Date().toLocaleDateString('de-DE');
 
       const doc = new jsPDF({ format: 'a4', unit: 'mm' });
@@ -36,6 +38,8 @@ export function VerfahrensdokuButton() {
       h1('1. Allgemeine Angaben');
       field('Unternehmen', profileName);
       field('Steuernummer', profileTaxNumber);
+      if (profileWIdNr) field('W-IdNr.', profileWIdNr);
+      if (profileFinanzamt) field('Finanzamt', profileFinanzamt);
       field('Besteuerung', store.steuerregelung === 'kleinunternehmer' ? 'Kleinunternehmer § 19 UStG' : 'Regelbesteuerung');
       field('Dokument erstellt', erstellDatum);
       y += 5;

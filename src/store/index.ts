@@ -116,7 +116,7 @@ export const useAppStore = create<AppState>()(
       setSteuerregelung: (steuerregelung) => set({ steuerregelung }),
       taetigkeitsart: 'gewerbetreibend' as Taetigkeitsart,
       setTaetigkeitsart: (taetigkeitsart) => set({ taetigkeitsart }),
-      rechtsform: 'gewerbetreibend' as Rechtsform,
+      rechtsform: 'freiberufler' as Rechtsform,
       setRechtsform: (rechtsform) => set({ rechtsform }),
       branchenprofil: 'standard' as Branchenprofil,
       setBranchenprofil: (branchenprofil) => set({ branchenprofil }),

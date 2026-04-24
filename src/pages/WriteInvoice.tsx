@@ -22,7 +22,8 @@ import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
 const SETTINGS_KEYS = [
   'profile_name', 'profile_address', 'profile_email', 'profile_phone',
-  'profile_tax_number', 'profile_vat_id', 'profile_iban', 'profile_bic', 'profile_business_type',
+  'profile_tax_number', 'profile_w_idnr', 'profile_vat_id', 'profile_finanzamt',
+  'profile_iban', 'profile_bic', 'profile_business_type',
 ];
 function newLineItemId() { return `li-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`; }
 function emptyItem(): LineItem {

@@ -273,5 +273,9 @@ export interface GeminiResult {
   currency: string;
   type: InvoiceType;
   suggested_category: Category;
+  /** true wenn das Dokument eindeutig ein Rechnungs-/Buchhaltungsdokument ist */
+  is_invoice: boolean;
+  /** Ablehnungsgrund falls is_invoice=false, z.B. "Das Dokument ist ein Lebenslauf" */
+  rejection_reason?: string;
 }
 

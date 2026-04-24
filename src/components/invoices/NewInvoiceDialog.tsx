@@ -232,6 +232,13 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     try {
       const base64 = await readPdfAsBase64(pdfPath);
       const result = await analyzeInvoicePdf(base64 as string, allInvoices);
+      if (!result.is_invoice) {
+        toast.warning(
+          `⚠️ Kein Buchhaltungsdokument erkannt${result.rejection_reason ? `: ${result.rejection_reason}` : '. Bitte prüfe das hochgeladene Dokument.'}`,
+          { duration: 6000 }
+        );
+        return;
+      }
       form.setValue('date', result.date);
       form.setValue('description', result.description);
       form.setValue('partner', result.partner);
