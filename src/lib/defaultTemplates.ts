@@ -2,6 +2,7 @@
 
 let _uid = 1;
 function uid() { return `el-${_uid++}`; }
+const BUILTIN_UPDATED_AT = '2026-04-29T00:00:00.000Z';
 
 const sharedVars: TemplateVariable[] = [
   { key: 'sender_name', label: 'Ihr Name / Firma', defaultValue: '', settingsKey: 'profile_name', multiline: false },
@@ -11,6 +12,7 @@ const sharedVars: TemplateVariable[] = [
   { key: 'sender_tax_number', label: 'Steuernummer', defaultValue: '', settingsKey: 'profile_tax_number', multiline: false },
   { key: 'sender_w_idnr', label: 'W-IdNr.', defaultValue: '', settingsKey: 'profile_w_idnr', multiline: false },
   { key: 'sender_vat_id', label: 'USt-IdNr.', defaultValue: '', settingsKey: 'profile_vat_id', multiline: false },
+  { key: 'sender_finanzamt', label: 'Finanzamt', defaultValue: '', settingsKey: 'profile_finanzamt', multiline: false },
   { key: 'sender_iban', label: 'IBAN', defaultValue: '', settingsKey: 'profile_iban', multiline: false },
   { key: 'sender_bic', label: 'BIC', defaultValue: '', settingsKey: 'profile_bic', multiline: false },
   { key: 'receiver_name', label: 'Empfänger Name', defaultValue: '', settingsKey: '', multiline: false },
@@ -19,8 +21,9 @@ const sharedVars: TemplateVariable[] = [
   { key: 'doc_date', label: 'Datum', defaultValue: '', settingsKey: '', multiline: false },
   { key: 'due_date', label: 'Fällig bis', defaultValue: '', settingsKey: '', multiline: false },
   { key: 'delivery_date', label: 'Leistungszeitpunkt', defaultValue: '', settingsKey: '', multiline: false },
-  { key: 'payment_terms', label: 'Zahlungsbedingungen', defaultValue: '', settingsKey: '', multiline: false },
-  { key: 'notes', label: 'Hinweise', defaultValue: 'Zahlung per Überweisung innerhalb von 14 Tagen nach Erhalt der Rechnung.', settingsKey: '', multiline: true },
+  { key: 'payment_terms', label: 'Zahlungsbedingungen', defaultValue: 'Zahlbar innerhalb von 14 Tagen ohne Abzug.', settingsKey: '', multiline: false },
+  { key: 'legal_notice', label: 'Steuerhinweis', defaultValue: 'Bei Anwendung der Kleinunternehmerregelung nach § 19 UStG wird keine Umsatzsteuer berechnet.', settingsKey: '', multiline: true },
+  { key: 'notes', label: 'Hinweise', defaultValue: 'Vielen Dank für Ihren Auftrag. Bitte geben Sie bei der Überweisung die Dokumenten-Nr. an.', settingsKey: '', multiline: true },
   // Auto-calculated from line items – not shown as manual inputs
   { key: 'netto', label: 'Nettobetrag', defaultValue: '0,00 €', settingsKey: '', multiline: false, autoCalculated: true },
   { key: 'vat_amount', label: 'MwSt. Betrag', defaultValue: '0,00 €', settingsKey: '', multiline: false, autoCalculated: true },
@@ -39,11 +42,13 @@ function buildInvoiceElements(titleText: string, titleColor: string): TemplateEl
     { id: uid(), type: 'variable', x: 30, y: 54, width: 360, height: 18, zIndex: 2, variableKey: 'sender_address', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#6b7280', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     // Sender email
     { id: uid(), type: 'variable', x: 30, y: 74, width: 360, height: 18, zIndex: 2, variableKey: 'sender_email', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#6b7280', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    // Sender phone
+    { id: uid(), type: 'variable', x: 250, y: 74, width: 140, height: 18, zIndex: 2, variableKey: 'sender_phone', prefix: 'Tel: ', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#6b7280', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     // Blue accent line
     { id: uid(), type: 'rectangle', x: 0, y: 100, width: 794, height: 3, zIndex: 1, backgroundColor: titleColor, borderColor: 'transparent', borderWidth: 0, borderRadius: 0 },
 
     // -- Invoice meta box (top right) --
-    { id: uid(), type: 'rectangle', x: 494, y: 115, width: 270, height: 115, zIndex: 1, backgroundColor: '#f8fafc', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 6 },
+    { id: uid(), type: 'rectangle', x: 494, y: 115, width: 270, height: 138, zIndex: 1, backgroundColor: '#f8fafc', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 6 },
     { id: uid(), type: 'text', x: 504, y: 125, width: 120, height: 18, zIndex: 3, content: 'Dokument-Nr.:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 624, y: 125, width: 130, height: 18, zIndex: 3, variableKey: 'doc_number', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
     { id: uid(), type: 'text', x: 504, y: 148, width: 120, height: 18, zIndex: 3, content: 'Datum:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
@@ -52,6 +57,8 @@ function buildInvoiceElements(titleText: string, titleColor: string): TemplateEl
     { id: uid(), type: 'variable', x: 624, y: 171, width: 130, height: 18, zIndex: 3, variableKey: 'delivery_date', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
     { id: uid(), type: 'text', x: 504, y: 194, width: 120, height: 18, zIndex: 3, content: 'Fällig bis:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 624, y: 194, width: 130, height: 18, zIndex: 3, variableKey: 'due_date', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
+    { id: uid(), type: 'text', x: 504, y: 217, width: 120, height: 18, zIndex: 3, content: 'Zahlungsziel:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#888', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'variable', x: 624, y: 217, width: 130, height: 18, zIndex: 3, variableKey: 'payment_terms', prefix: '', suffix: '', fontSize: 9, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
 
     // -- Receiver --
     { id: uid(), type: 'text', x: 30, y: 118, width: 250, height: 16, zIndex: 2, content: 'Rechnungsempfänger', fontSize: 8, fontWeight: 'normal', fontStyle: 'normal', color: '#bbb', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
@@ -65,6 +72,7 @@ function buildInvoiceElements(titleText: string, titleColor: string): TemplateEl
       fontSize: 9, rowHeight: 22,
       headerBgColor: titleColor, headerTextColor: '#ffffff',
       borderColor: '#e2e8f0', altRowBgColor: '#f8fafc', summaryBgColor: titleColor,
+      groupSubtotalBgColor: '#f3f4f6', groupSubtotalTextColor: '#7c3aed',
       mwstRate: 19,
       colWidths: [0.06, 0.40, 0.09, 0.09, 0.16, 0.20],
     } as TemplateElement,
@@ -73,15 +81,20 @@ function buildInvoiceElements(titleText: string, titleColor: string): TemplateEl
     { id: uid(), type: 'rectangle', x: 494, y: 418, width: 270, height: 110, zIndex: 1, backgroundColor: '#f8fafc', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 6 },
     { id: uid(), type: 'text', x: 504, y: 430, width: 130, height: 18, zIndex: 3, content: 'Netto:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#666', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 634, y: 430, width: 120, height: 18, zIndex: 3, variableKey: 'netto', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#222', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
-    { id: uid(), type: 'text', x: 504, y: 452, width: 130, height: 18, zIndex: 3, content: 'MwSt. (19%):', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#666', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'text', x: 504, y: 452, width: 130, height: 18, zIndex: 3, content: 'USt.-Betrag:', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#666', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 634, y: 452, width: 120, height: 18, zIndex: 3, variableKey: 'vat_amount', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#222', backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
     { id: uid(), type: 'rectangle', x: 504, y: 474, width: 250, height: 1, zIndex: 2, backgroundColor: '#cbd5e1', borderColor: 'transparent', borderWidth: 0, borderRadius: 0 },
     { id: uid(), type: 'text', x: 504, y: 480, width: 130, height: 24, zIndex: 3, content: 'Gesamt:', fontSize: 11, fontWeight: 'bold', fontStyle: 'normal', color: '#111', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 560, y: 480, width: 194, height: 24, zIndex: 3, variableKey: 'total', prefix: '', suffix: '', fontSize: 13, fontWeight: 'bold', fontStyle: 'normal', color: titleColor, backgroundColor: 'transparent', textAlign: 'right', lineHeight: 1.2 },
 
     // -- Notes --
-    { id: uid(), type: 'text', x: 30, y: 422, width: 400, height: 16, zIndex: 2, content: 'Hinweise:', fontSize: 8, fontWeight: 'bold', fontStyle: 'normal', color: '#bbb', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
-    { id: uid(), type: 'variable', x: 30, y: 440, width: 420, height: 55, zIndex: 2, variableKey: 'notes', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#555', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.5 },
+    { id: uid(), type: 'text', x: 30, y: 422, width: 400, height: 16, zIndex: 2, content: 'Hinweise & Bedingungen:', fontSize: 8, fontWeight: 'bold', fontStyle: 'normal', color: '#bbb', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'variable', x: 30, y: 440, width: 420, height: 18, zIndex: 2, variableKey: 'payment_terms', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#555', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'variable', x: 30, y: 460, width: 420, height: 28, zIndex: 2, variableKey: 'legal_notice', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#555', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.3 },
+    { id: uid(), type: 'variable', x: 30, y: 492, width: 420, height: 36, zIndex: 2, variableKey: 'notes', prefix: '', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#555', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.4 },
+
+    // EPC/GiroCode area
+    { id: uid(), type: 'qr_code', x: 644, y: 536, width: 110, height: 110, zIndex: 2, label: 'EPC-QR', fgColor: '#111827', bgColor: '#ffffff', borderColor: '#d1d5db', borderWidth: 1, borderRadius: 8, padding: 6, labelColor: titleColor, showLabel: true } as TemplateElement,
 
     // -- Bank info --
     { id: uid(), type: 'text', x: 30, y: 540, width: 300, height: 16, zIndex: 2, content: 'Bankverbindung:', fontSize: 8, fontWeight: 'bold', fontStyle: 'normal', color: '#bbb', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
@@ -89,6 +102,8 @@ function buildInvoiceElements(titleText: string, titleColor: string): TemplateEl
     { id: uid(), type: 'variable', x: 30, y: 578, width: 420, height: 18, zIndex: 2, variableKey: 'sender_bic', prefix: 'BIC: ', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#444', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 30, y: 598, width: 420, height: 18, zIndex: 2, variableKey: 'sender_tax_number', prefix: 'St.-Nr.: ', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#444', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
     { id: uid(), type: 'variable', x: 30, y: 618, width: 420, height: 18, zIndex: 2, variableKey: 'sender_vat_id', prefix: 'USt-IdNr.: ', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#444', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'variable', x: 30, y: 638, width: 420, height: 18, zIndex: 2, variableKey: 'sender_w_idnr', prefix: 'W-IdNr.: ', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#444', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
+    { id: uid(), type: 'variable', x: 30, y: 658, width: 420, height: 18, zIndex: 2, variableKey: 'sender_finanzamt', prefix: 'Finanzamt: ', suffix: '', fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', color: '#444', backgroundColor: 'transparent', textAlign: 'left', lineHeight: 1.2 },
 
     // -- Footer --
     { id: uid(), type: 'rectangle', x: 0, y: 1092, width: 794, height: 1, zIndex: 1, backgroundColor: '#e2e8f0', borderColor: 'transparent', borderWidth: 0, borderRadius: 0 },
@@ -103,8 +118,9 @@ export const DEFAULT_RECHNUNG: InvoiceTemplate = {
   isBuiltin: true,
   variables: sharedVars,
   elements: buildInvoiceElements('RECHNUNG', '#2563eb'),
+  pageCount: 1,
   createdAt: '2024-01-01T00:00:00.000Z',
-  updatedAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: BUILTIN_UPDATED_AT,
 };
 
 export const DEFAULT_GUTSCHRIFT: InvoiceTemplate = {
@@ -114,10 +130,12 @@ export const DEFAULT_GUTSCHRIFT: InvoiceTemplate = {
   isBuiltin: true,
   variables: sharedVars.map(v =>
     v.key === 'doc_number' ? { ...v, label: 'Gutschrift-Nr.', defaultValue: 'G-2024-001' } :
-    v.key === 'due_date' ? { ...v, label: 'Gutschrift gültig bis' } : v
+    v.key === 'due_date' ? { ...v, label: 'Gutschrift gültig bis' } :
+    v.key === 'legal_notice' ? { ...v, defaultValue: 'Diese Gutschrift reduziert Ihre Verbindlichkeit aus dem ursprünglichen Vorgang.' } : v
   ),
   elements: buildInvoiceElements('GUTSCHRIFT', '#16a34a'),
+  pageCount: 1,
   createdAt: '2024-01-01T00:00:00.000Z',
-  updatedAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: BUILTIN_UPDATED_AT,
 };
 

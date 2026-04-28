@@ -1,7 +1,8 @@
 import React from 'react';
 import type {
-  TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement, ItemsElement, LineItem,
+  TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement, ItemsElement, LineItem, QrCodeElement,
 } from '@/types/template';
+import { buildLineItemRenderEntries, lineItemTotal } from '@/lib/lineItems';
 
 interface Props {
   element: TemplateElement;
@@ -12,9 +13,10 @@ interface Props {
   lineItems?: LineItem[];
   includeMwst?: boolean;
   simpleMode?: boolean;
+  epcQrDataUrl?: string;
 }
 
-export function ElementRenderer({ element: el, variableValues, isSelected, isHovered, isResizeHovered, lineItems, simpleMode }: Props) {
+export function ElementRenderer({ element: el, variableValues, isSelected, isHovered, isResizeHovered, lineItems, simpleMode, epcQrDataUrl }: Props) {
   // ── Items table – handled before the discriminated-union switch ──────────
   if (el.type === 'items') {
     const it = el as ItemsElement;
@@ -28,16 +30,26 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
       n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
 
     const isLive = Array.isArray(lineItems) && lineItems.length > 0;
+    const entries = isLive ? buildLineItemRenderEntries(lineItems!) : [];
+    const subtotalBg = it.groupSubtotalBgColor || '#f3f4f6';
+    const subtotalText = it.groupSubtotalTextColor || '#7c3aed';
 
     // Simple mode: only Bezeichnung + Betrag (2 columns)
     if (simpleMode) {
       const simpleCols = [0.78, 0.22];
       const simpleHeaders = ['Bezeichnung', 'Betrag'];
       const simpleRows: string[][] = isLive
-        ? lineItems!.map((item) => [
-            item.description || '',
-            fmtNum(item.unitPrice),
-          ])
+        ? entries.map((entry) => {
+            if (entry.kind === 'group') {
+              const indent = ' '.repeat(entry.depth * 2);
+              return [`${indent}${entry.item.description || 'Gruppe'}`, ''];
+            }
+            if (entry.kind === 'subtotal') {
+              const indent = ' '.repeat(entry.depth * 2);
+              return [`${indent}∑ ${entry.label}`, fmtNum(entry.amount)];
+            }
+            return [`${' '.repeat(entry.depth * 2)}${entry.item.description || ''}`, fmtNum(lineItemTotal(entry.item))];
+          })
         : [
             ['Beispielposition', '100,00 \u20ac'],
             ['Weitere Position', '200,00 \u20ac'],
@@ -50,13 +62,16 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
               <div key={i} style={{ width: `${simpleCols[i] * 100}%`, padding: '4px 6px', borderRight: i < simpleHeaders.length - 1 ? '1px solid rgba(255,255,255,0.2)' : 'none', textAlign: i === 1 ? 'right' : 'left', fontSize: fs, boxSizing: 'border-box' }}>{h}</div>
             ))}
           </div>
-          {simpleRows.map((row, ri) => (
-            <div key={ri} style={{ display: 'flex', backgroundColor: ri % 2 === 1 ? altBg : '#ffffff', borderBottom: `1px solid ${border}` }}>
+          {simpleRows.map((row, ri) => {
+            const isSubtotal = row[0].trimStart().startsWith('∑ ');
+            const isGroupHeader = !isSubtotal && row[1] === '';
+            return (
+            <div key={ri} style={{ display: 'flex', backgroundColor: isSubtotal ? subtotalBg : isGroupHeader ? '#e5e7eb' : (ri % 2 === 1 ? altBg : '#ffffff'), borderBottom: `1px solid ${border}` }}>
               {row.map((cell, ci) => (
-                <div key={ci} style={{ width: `${simpleCols[ci] * 100}%`, padding: '4px 6px', borderRight: ci < row.length - 1 ? `1px solid ${border}` : 'none', textAlign: ci === 1 ? 'right' : 'left', fontSize: fs, color: '#111827', boxSizing: 'border-box' }}>{cell}</div>
+                <div key={ci} style={{ width: `${simpleCols[ci] * 100}%`, padding: '4px 6px', borderRight: ci < row.length - 1 ? `1px solid ${border}` : 'none', textAlign: ci === 1 ? 'right' : 'left', fontSize: fs, color: isSubtotal ? subtotalText : '#111827', fontWeight: isSubtotal || isGroupHeader ? 'bold' : 'normal', boxSizing: 'border-box' }}>{cell}</div>
               ))}
             </div>
-          ))}
+          )})}
           {!isLive && (
             <div style={{ position: 'absolute', top: 2, right: 4, fontSize: 9, color: headerBg, opacity: 0.6, fontWeight: 'bold', pointerEvents: 'none' }}>POSITIONS-TABELLE</div>
           )}
@@ -67,14 +82,22 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
     const cols: number[] = (it.colWidths as unknown as number[]) || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
     const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
     const rows: string[][] = isLive
-      ? lineItems!.map((item, idx) => [
-          String(idx + 1),
-          item.description || '',
-          item.quantity.toLocaleString('de-DE'),
-          item.unit || '',
-          fmtNum(item.unitPrice),
-          fmtNum(item.quantity * item.unitPrice),
-        ])
+      ? entries.map((entry) => {
+          if (entry.kind === 'group') {
+            return ['', `${' '.repeat(entry.depth * 2)}${entry.item.description || 'Gruppe'}`, '', '', '', ''];
+          }
+          if (entry.kind === 'subtotal') {
+            return ['', `${' '.repeat(entry.depth * 2)}∑ ${entry.label}`, '', '', '', fmtNum(entry.amount)];
+          }
+          return [
+            String(entry.position),
+            `${' '.repeat(entry.depth * 2)}${entry.item.description || ''}`,
+            entry.item.quantity.toLocaleString('de-DE'),
+            entry.item.unit || '',
+            fmtNum(entry.item.unitPrice),
+            fmtNum(lineItemTotal(entry.item)),
+          ];
+        })
       : [
           ['1', 'Beispielposition', '1', 'Std.', '100,00 \u20ac', '100,00 \u20ac'],
           ['2', 'Weitere Position', '2', 'Stk.',  '50,00 \u20ac', '100,00 \u20ac'],
@@ -106,10 +129,13 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
           ))}
         </div>
         {/* Data rows */}
-        {rows.map((row, ri) => (
+        {rows.map((row, ri) => {
+          const isSubtotal = row[1].trimStart().startsWith('∑ ');
+          const isGroupHeader = !isSubtotal && row[0] === '' && row[5] === '';
+          return (
           <div key={ri} style={{
             display: 'flex',
-            backgroundColor: ri % 2 === 1 ? altBg : '#ffffff',
+            backgroundColor: isSubtotal ? subtotalBg : isGroupHeader ? '#e5e7eb' : (ri % 2 === 1 ? altBg : '#ffffff'),
             borderBottom: `1px solid ${border}`,
           }}>
             {row.map((cell, ci) => (
@@ -119,12 +145,13 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
                 borderRight: ci < row.length - 1 ? `1px solid ${border}` : 'none',
                 textAlign: ci >= 2 ? 'right' : 'left',
                 fontSize: fs,
-                color: '#111827',
+                color: isSubtotal ? subtotalText : '#111827',
+                fontWeight: isSubtotal || isGroupHeader ? 'bold' : 'normal',
                 boxSizing: 'border-box',
               }}>{cell}</div>
             ))}
           </div>
-        ))}
+        )})}
         {/* Designer label */}
         {!isLive && (
           <div style={{
@@ -231,6 +258,67 @@ export function ElementRenderer({ element: el, variableValues, isSelected, isHov
               <span>🖼</span><span>Bild</span>
             </div>
           )}
+        </div>
+      );
+    }
+    case 'qr_code': {
+      const qr = el as QrCodeElement;
+      const fg = qr.fgColor || '#111827';
+      const bg = qr.bgColor || '#ffffff';
+      const borderColor = qr.borderColor || '#d1d5db';
+      const borderWidth = qr.borderWidth ?? 1;
+      const borderRadius = qr.borderRadius ?? 6;
+      const padding = qr.padding ?? 6;
+      const label = qr.label || 'EPC-QR';
+      const showLabel = qr.showLabel ?? true;
+      const labelColor = qr.labelColor || '#6366f1';
+
+      const frameStyle: React.CSSProperties = {
+        ...base,
+        border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : 'none',
+        borderRadius,
+        background: bg,
+        padding,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: 4,
+      };
+
+      if (epcQrDataUrl) {
+        return (
+          <div style={frameStyle}>
+            <img src={epcQrDataUrl} alt="EPC QR" style={{ width: '100%', height: showLabel ? '86%' : '100%', objectFit: 'contain', display: 'block' }} />
+            {showLabel && <span style={{ fontSize: 9, color: labelColor, fontFamily: 'sans-serif', fontWeight: 'bold' }}>{label}</span>}
+          </div>
+        );
+      }
+      return (
+        <div style={{ ...frameStyle, borderStyle: 'dashed' }}>
+          {/* QR placeholder grid */}
+          <svg viewBox="0 0 48 48" width={Math.min(el.width, el.height) * 0.6} height={Math.min(el.width, el.height) * 0.6} style={{ opacity: 0.45 }} xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="18" height="18" rx="2" fill="none" stroke={fg} strokeWidth="3"/>
+            <rect x="6" y="6" width="10" height="10" fill={fg}/>
+            <rect x="28" y="2" width="18" height="18" rx="2" fill="none" stroke={fg} strokeWidth="3"/>
+            <rect x="32" y="6" width="10" height="10" fill={fg}/>
+            <rect x="2" y="28" width="18" height="18" rx="2" fill="none" stroke={fg} strokeWidth="3"/>
+            <rect x="6" y="32" width="10" height="10" fill={fg}/>
+            <rect x="28" y="28" width="4" height="4" fill={fg}/>
+            <rect x="36" y="28" width="4" height="4" fill={fg}/>
+            <rect x="28" y="36" width="4" height="4" fill={fg}/>
+            <rect x="36" y="36" width="4" height="4" fill={fg}/>
+            <rect x="32" y="32" width="4" height="4" fill={fg}/>
+            <rect x="32" y="28" width="4" height="4" fill={fg}/>
+            <rect x="28" y="32" width="4" height="4" fill={fg}/>
+            <rect x="40" y="32" width="4" height="4" fill={fg}/>
+            <rect x="36" y="40" width="4" height="4" fill={fg}/>
+            <rect x="44" y="28" width="4" height="4" fill={fg}/>
+            <rect x="44" y="36" width="4" height="4" fill={fg}/>
+            <rect x="44" y="44" width="4" height="4" fill={fg}/>
+          </svg>
+          {showLabel && <span style={{ fontSize: 9, color: labelColor, fontFamily: 'sans-serif', fontWeight: 'bold' }}>{label}</span>}
+          <span style={{ fontSize: 8, color: '#9ca3af', fontFamily: 'sans-serif', textAlign: 'center' }}>Wird beim Erstellen angezeigt</span>
         </div>
       );
     }

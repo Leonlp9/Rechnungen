@@ -16,6 +16,7 @@ export function NewTemplateDialog({ open, onClose, onCreateFromScratch, onCreate
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [userPrompt, setUserPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +25,7 @@ export function NewTemplateDialog({ open, onClose, onCreateFromScratch, onCreate
     setMode('choose');
     setFile(null);
     setPreview(null);
+    setUserPrompt('');
     setLoading(false);
     setError(null);
   }
@@ -57,21 +59,33 @@ export function NewTemplateDialog({ open, onClose, onCreateFromScratch, onCreate
   }
 
   async function handleAnalyze() {
-    if (!file) return;
+    if (!file && !userPrompt.trim()) {
+      setError('Bitte gib mindestens einen Prompt ein oder lade eine Datei hoch.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          // Strip data URL prefix
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const result = await analyzeInvoiceLayoutWithAI(base64, file.type);
+      let base64: string | undefined;
+      let mimeType: string | undefined;
+      if (file) {
+        const reader = new FileReader();
+        base64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        mimeType = file.type;
+      }
+
+      const result = await analyzeInvoiceLayoutWithAI(
+        base64 ?? '',
+        mimeType ?? 'application/octet-stream',
+        userPrompt.trim() || undefined,
+      );
       reset();
       onCreateFromAI(result);
     } catch (e: unknown) {
@@ -119,11 +133,22 @@ export function NewTemplateDialog({ open, onClose, onCreateFromScratch, onCreate
         {mode === 'ai' && (
           <div className="flex flex-col gap-4 pt-2">
             <p className="text-sm text-muted-foreground">
-              Lade eine Rechnung als <strong>Bild (JPG/PNG)</strong> oder <strong>PDF</strong> hoch.
-              Die KI analysiert das Layout und baut alle Elemente automatisch nach.
+              Du kannst mit <strong>Prompt</strong>, mit <strong>Datei</strong> oder mit <strong>beidem</strong> arbeiten.
+              Datei: KI analysiert Layout. Prompt: KI beachtet deine Designwünsche.
               <br />
               <span className="text-xs mt-1 block text-amber-600">Hinweis: Bildplatzhalter (z.B. Logos) werden als leere Bildfelder eingefügt – du kannst dort anschließend dein eigenes Bild hinterlegen.</span>
             </p>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Prompt (optional)</label>
+              <textarea
+                rows={4}
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                placeholder="z.B. Modern, viel Weißraum, blaues Headerband, große Summenbox rechts unten"
+                className="w-full text-sm border border-border rounded px-3 py-2 bg-background resize-y min-h-20"
+              />
+            </div>
 
             {/* Drop zone */}
             <div
@@ -177,7 +202,7 @@ export function NewTemplateDialog({ open, onClose, onCreateFromScratch, onCreate
               <Button variant="ghost" onClick={() => setMode('choose')} disabled={loading}>
                 Zurück
               </Button>
-              <Button onClick={handleAnalyze} disabled={!file || loading} className="gap-2">
+              <Button onClick={handleAnalyze} disabled={(!file && !userPrompt.trim()) || loading} className="gap-2">
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />

@@ -4,6 +4,7 @@ import { Rnd } from 'react-rnd';
 import type { InvoiceTemplate, TemplateElement, BaseElement, LineElement, LineItem, ItemsElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { ElementRenderer } from './ElementRenderer';
+import { estimateLineItemRows } from '@/lib/lineItems';
 
 // ── Snap helpers ────────────────────────────────────────────────────────────
 const SNAP_THRESHOLD = 8;
@@ -61,6 +62,7 @@ interface Props {
   lineItems?: LineItem[];
   includeMwst?: boolean;
   simpleMode?: boolean;
+  epcQrDataUrl?: string;
 }
 
 /** Cursor styles for each resize handle direction */
@@ -97,7 +99,7 @@ type LineDrag =
 
 export function DesignerCanvas({
   template, selectedId, onSelect, onUpdate, scale, variableValues, readOnly, snapEnabled = true,
-  lineItems, simpleMode,
+  lineItems, simpleMode, epcQrDataUrl,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export function DesignerCanvas({
   const overflowPx = ((): number => {
     if (!itemsElForLayout || !lineItems || lineItems.length === 0) return 0;
     const rowH = itemsElForLayout.rowHeight || 24;
-    const actualH = rowH * 1.25 + lineItems.length * rowH;
+    const actualH = rowH * 1.25 + estimateLineItemRows(lineItems) * rowH;
     return Math.max(0, actualH - itemsElForLayout.height);
   })();
 
@@ -180,7 +182,7 @@ export function DesignerCanvas({
       if (el.type === 'items' && lineItems && lineItems.length > 0) {
         const it = el as unknown as ItemsElement;
         const rh = it.rowHeight || 24;
-        const actualH = rh * 1.25 + lineItems.length * rh;
+          const actualH = rh * 1.25 + estimateLineItemRows(lineItems) * rh;
         max = Math.max(max, base.y + actualH);
       } else {
         max = Math.max(max, getAdjY(base.y) + base.height);
@@ -282,7 +284,13 @@ export function DesignerCanvas({
               minHeight: el.type === 'items' ? base.height : undefined,
               zIndex: base.zIndex,
             }}>
-              <ElementRenderer element={el} variableValues={variableValues} lineItems={lineItems} simpleMode={simpleMode} />
+              <ElementRenderer
+                element={el}
+                variableValues={variableValues}
+                lineItems={lineItems}
+                simpleMode={simpleMode}
+                epcQrDataUrl={epcQrDataUrl}
+              />
             </div>
           ) : (
             <Rnd
@@ -341,6 +349,7 @@ export function DesignerCanvas({
                   isHovered={hoveredId === el.id && el.id !== selectedId}
                   isResizeHovered={resizeHoveredId === el.id}
                   simpleMode={simpleMode}
+                  epcQrDataUrl={epcQrDataUrl}
                 />
               </div>
             </Rnd>

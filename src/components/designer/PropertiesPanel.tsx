@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type {
   TemplateElement, TextElement, VariableElement, ImageElement, RectangleElement, ItemsElement, LineElement,
-  TemplateVariable,
+  TemplateVariable, QrCodeElement,
 } from '@/types/template';
 import { FONT_FAMILIES, DEFAULT_FONT_FAMILY } from '@/types/template';
 import { Trash2, ChevronUp, ChevronDown } from 'lucide-react';
@@ -242,6 +242,8 @@ function ItemsPanel({ element, onUpdate }: { element: ItemsElement; onUpdate: (p
       <ColorInput label="Trennlinien" value={element.borderColor || '#d1d5db'} onChange={(v) => onUpdate({ borderColor: v })} />
       <ColorInput label="Alt.-Zeile Hintergrund" value={element.altRowBgColor || '#f8fafc'} onChange={(v) => onUpdate({ altRowBgColor: v })} />
       <ColorInput label="Summen-Zeile Hintergrund" value={element.summaryBgColor || '#1e3a5f'} onChange={(v) => onUpdate({ summaryBgColor: v })} />
+      <ColorInput label="Gruppen-Zwischensumme Hintergrund" value={element.groupSubtotalBgColor || '#f3f4f6'} onChange={(v) => onUpdate({ groupSubtotalBgColor: v })} />
+      <ColorInput label="Gruppen-Zwischensumme Text" value={element.groupSubtotalTextColor || '#7c3aed'} onChange={(v) => onUpdate({ groupSubtotalTextColor: v })} />
       <div className="space-y-1">
         <Label className="text-xs font-medium">Spaltenbreiten (%)</Label>
         {colLabels.map((label, i) => (
@@ -265,13 +267,42 @@ function ItemsPanel({ element, onUpdate }: { element: ItemsElement; onUpdate: (p
   );
 }
 
+function QrPanel({ element, onUpdate }: { element: QrCodeElement; onUpdate: (p: Partial<TemplateElement>) => void }) {
+  return (
+    <>
+      <div className="space-y-1">
+        <Label className="text-xs">Label</Label>
+        <Input value={element.label || ''} onChange={(e) => onUpdate({ label: e.target.value })} className="h-8 text-xs" placeholder="z.B. Bezahlcode" />
+      </div>
+      <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={element.showLabel ?? true}
+          onChange={(e) => onUpdate({ showLabel: e.target.checked })}
+          className="accent-primary"
+        />
+        Label anzeigen
+      </label>
+      <ColorInput label="QR Vordergrund" value={element.fgColor || '#111827'} onChange={(v) => onUpdate({ fgColor: v })} />
+      <ColorInput label="QR Hintergrund" value={element.bgColor || '#ffffff'} onChange={(v) => onUpdate({ bgColor: v })} />
+      <ColorInput label="Rahmenfarbe" value={element.borderColor || '#d1d5db'} onChange={(v) => onUpdate({ borderColor: v })} />
+      <ColorInput label="Label-Farbe" value={element.labelColor || '#6366f1'} onChange={(v) => onUpdate({ labelColor: v })} />
+      <div className="grid grid-cols-2 gap-2">
+        <NumInput label="Rahmen (px)" value={element.borderWidth ?? 1} onChange={(v) => onUpdate({ borderWidth: Math.max(0, v) })} min={0} max={20} />
+        <NumInput label="Radius (px)" value={element.borderRadius ?? 6} onChange={(v) => onUpdate({ borderRadius: Math.max(0, v) })} min={0} max={40} />
+        <NumInput label="Padding (px)" value={element.padding ?? 6} onChange={(v) => onUpdate({ padding: Math.max(0, v) })} min={0} max={40} />
+      </div>
+    </>
+  );
+}
+
 export function PropertiesPanel({ element, variables, onUpdate, onDelete }: Props) {
   if (!element) {
     return <div className="p-4 text-xs text-muted-foreground text-center mt-8">Element auswählen, um Eigenschaften zu bearbeiten</div>;
   }
 
   const patch = (p: Partial<TemplateElement>) => onUpdate({ ...element, ...p } as TemplateElement);
-  const typeLabel = element.type === 'text' ? 'Text' : element.type === 'variable' ? 'Variable' : element.type === 'image' ? 'Bild' : element.type === 'items' ? 'Positionen' : element.type === 'line' ? 'Linie' : 'Rechteck';
+  const typeLabel = element.type === 'text' ? 'Text' : element.type === 'variable' ? 'Variable' : element.type === 'image' ? 'Bild' : element.type === 'items' ? 'Positionen' : element.type === 'line' ? 'Linie' : element.type === 'qr_code' ? 'EPC-QR' : 'Rechteck';
 
   return (
     <div className="p-3 space-y-4 text-sm overflow-y-auto">
@@ -314,6 +345,7 @@ export function PropertiesPanel({ element, variables, onUpdate, onDelete }: Prop
       {element.type === 'image' && <ImagePanel element={element as ImageElement} onUpdate={patch} />}
       {element.type === 'items' && <ItemsPanel element={element as ItemsElement} onUpdate={patch} />}
       {element.type === 'line' && <LinePanel element={element as LineElement} onUpdate={patch} />}
+      {element.type === 'qr_code' && <QrPanel element={element as QrCodeElement} onUpdate={patch} />}
     </div>
   );
 }

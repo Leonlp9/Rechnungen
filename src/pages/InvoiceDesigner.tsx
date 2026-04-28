@@ -14,7 +14,7 @@ import { DEFAULT_RECHNUNG } from '@/lib/defaultTemplates';
 import {
   Plus, Trash2, Copy, Type, Variable, Image, Square, Sliders, FileText, CheckSquare,
   Save, RotateCcw, RefreshCcw, Magnet, Undo2, Redo2, Table2, ArrowLeftRight, Maximize2, Minus,
-  FileStack,
+  FileStack, QrCode,
 } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -42,12 +42,20 @@ function defaultItemsEl(): ItemsElement {
     fontSize: 10, rowHeight: 24,
     headerBgColor: '#1e3a5f', headerTextColor: '#ffffff',
     borderColor: '#d1d5db', altRowBgColor: '#f8fafc', summaryBgColor: '#1e3a5f',
+    groupSubtotalBgColor: '#f3f4f6', groupSubtotalTextColor: '#7c3aed',
     mwstRate: 19,
     colWidths: [0.07, 0.38, 0.1, 0.1, 0.15, 0.2],
   };
 }
 function defaultLineEl(): LineElement {
   return { id: newId(), type: 'line', zIndex: 3, x1: 40, y1: 300, x2: 754, y2: 300, color: '#d1d5db', thickness: 1, style: 'solid' };
+}
+function defaultQrEl(): TemplateElement {
+  return {
+    id: newId(), type: 'qr_code', x: 600, y: 700, width: 100, height: 100, zIndex: 5,
+    label: 'EPC-QR', fgColor: '#111827', bgColor: '#ffffff', borderColor: '#d1d5db',
+    borderWidth: 1, borderRadius: 6, padding: 6, labelColor: '#6366f1', showLabel: true,
+  };
 }
 
 export default function InvoiceDesigner() {
@@ -558,6 +566,7 @@ export default function InvoiceDesigner() {
                       { icon: <Image className="h-4 w-4" />, label: 'Bild', action: () => addDraftElement(defaultImgEl()) },
                       { icon: <Table2 className="h-4 w-4" />, label: 'Positionen', action: () => addDraftElement(defaultItemsEl()) },
                       { icon: <Minus className="h-4 w-4" />, label: 'Linie', action: () => addDraftElement(defaultLineEl()) },
+                      { icon: <QrCode className="h-4 w-4" />, label: 'EPC-QR', action: () => addDraftElement(defaultQrEl()) },
                     ].map(({ icon, label, action }) => (
                       <div key={label} className="flex flex-col items-center gap-0.5">
                         <Button variant="outline" size="sm"

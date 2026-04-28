@@ -187,7 +187,7 @@ ${isFirstMessage ? '- Erstelle einen kurzen, prägnanten Chat-Titel (max. 6 Wör
   }
 }
 
-import type {TemplateElement, ItemsElement, LineElement} from '@/types/template';
+import type {TemplateElement, ItemsElement, LineElement, QrCodeElement} from '@/types/template';
 import {CANVAS_W, CANVAS_H, DEFAULT_FONT_FAMILY, FONT_FAMILIES} from '@/types/template';
 
 export interface AiTemplateResult {
@@ -199,7 +199,23 @@ function newId() {
   return `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export async function analyzeInvoiceLayoutWithAI(base64: string, mimeType: string): Promise<AiTemplateResult> {
+export async function analyzeInvoiceLayoutWithAI(base64: string, mimeType: string, userPrompt?: string): Promise<AiTemplateResult>;
+export async function analyzeInvoiceLayoutWithAI(input: {
+  base64?: string;
+  mimeType?: string;
+  userPrompt?: string;
+}): Promise<AiTemplateResult>;
+export async function analyzeInvoiceLayoutWithAI(
+  inputOrBase64: { base64?: string; mimeType?: string; userPrompt?: string } | string,
+  mimeTypeArg?: string,
+  userPromptArg?: string,
+): Promise<AiTemplateResult> {
+  const { base64, mimeType, userPrompt } = typeof inputOrBase64 === 'string'
+    ? { base64: inputOrBase64, mimeType: mimeTypeArg, userPrompt: userPromptArg }
+    : inputOrBase64;
+  if (!base64 && !userPrompt?.trim()) {
+    throw new Error('Bitte Prompt oder Datei für die KI-Analyse angeben.');
+  }
   const consented = await ensureGeminiConsent();
   if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
 
@@ -210,7 +226,7 @@ export async function analyzeInvoiceLayoutWithAI(base64: string, mimeType: strin
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-  const prompt = `Du bist ein Experte für Rechnungsdesign. Analysiere das gegebene Rechnungsbild/-dokument und erstelle daraus ein präzises JSON-Template-Layout.
+  const prompt = `Du bist ein Experte für Rechnungsdesign. Analysiere das gegebene Rechnungsbild/-dokument und/oder die Nutzeranweisung und erstelle daraus ein präzises JSON-Template-Layout.
 
 Das Canvas hat die Größe ${CANVAS_W}×${CANVAS_H}px (A4 bei 96dpi, Hochformat).
 
@@ -260,6 +276,10 @@ ELEMENTTYPEN
    Verwenden für: Trennlinien, horizontale Striche unter Überschriften, dekorative Linien.
    Hat KEIN x/y/width/height, sondern x1,y1 (Startpunkt) und x2,y2 (Endpunkt) in Pixeln.
 
+7. "qr_code" – EPC/GiroCode Platzhalter
+   Verwenden für: Bereiche mit Hinweis auf Bezahl-QR, GiroCode, EPC QR, "Scan & Pay".
+   Übliche Position: nahe Summen-/Zahlungsbereich, meist unten rechts.
+
 ═══════════════════════════════════════════════════════
 MAPPING-REGELN (was wird zu welchem Typ?)
 ═══════════════════════════════════════════════════════
@@ -282,6 +302,7 @@ MAPPING-REGELN (was wird zu welchem Typ?)
 - Logos, Bilder → image
 - Farbige Balken, Boxen → rectangle
 - Trennlinien, horizontale Striche → line
+- Bereiche "GiroCode", "EPC QR", "Bezahl-QR" → qr_code
 
 ═══════════════════════════════════════════════════════
 POSITIONIERUNGSREGELN
@@ -293,20 +314,29 @@ POSITIONIERUNGSREGELN
 - lineHeight: Zahl zwischen 1.0 und 2.0
 - fontFamily: Wähle die Schriftart die optisch am besten zum Layout passt. Standard ist "Helvetica, Arial, sans-serif". Mögliche Werte: ${FONT_FAMILIES.map(f => `"${f.value}"`).join(', ')}
 
-Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Blau", "Klassisch Minimalistisch").`;
+Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Blau", "Klassisch Minimalistisch").
+
+${userPrompt?.trim() ? `
+═══════════════════════════════════════════════════════
+NUTZER-ANWEISUNG (zusätzlich beachten)
+═══════════════════════════════════════════════════════
+${userPrompt.trim()}
+` : ''}`;
+
+  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+  if (base64 && mimeType) {
+    parts.push({
+      inline_data: {
+        mime_type: mimeType,
+        data: base64,
+      },
+    });
+  }
 
   const body = {
     contents: [
       {
-        parts: [
-          {text: prompt},
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: base64,
-            },
-          },
-        ],
+        parts,
       },
     ],
     generationConfig: {
@@ -323,7 +353,7 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
               type: 'object',
               required: ['type', 'x', 'y', 'width', 'height', 'zIndex'],
               properties: {
-                type: {type: 'string', enum: ['text', 'variable', 'rectangle', 'image', 'items', 'line']},
+                type: {type: 'string', enum: ['text', 'variable', 'rectangle', 'image', 'items', 'line', 'qr_code']},
                 x: {type: 'number', description: 'X-Position in Pixeln (nicht für type=line)'},
                 y: {type: 'number', description: 'Y-Position in Pixeln (nicht für type=line)'},
                 width: {type: 'number', description: 'Breite in Pixeln (nicht für type=line)'},
@@ -385,6 +415,13 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
                   minItems: 6,
                   maxItems: 6,
                 },
+                // qr_code only
+                label: {type: 'string'},
+                fgColor: {type: 'string'},
+                bgColor: {type: 'string'},
+                padding: {type: 'number'},
+                labelColor: {type: 'string'},
+                showLabel: {type: 'boolean'},
               },
             },
           },
@@ -458,6 +495,8 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
         borderColor: String(el.borderColor ?? '#d1d5db'),
         altRowBgColor: String(el.altRowBgColor ?? '#f8fafc'),
         summaryBgColor: String(el.summaryBgColor ?? '#1e3a5f'),
+        groupSubtotalBgColor: String(el.groupSubtotalBgColor ?? '#f3f4f6'),
+        groupSubtotalTextColor: String(el.groupSubtotalTextColor ?? '#7c3aed'),
         mwstRate: Number(el.mwstRate ?? 19),
         colWidths: cols
       } as ItemsElement;
@@ -473,6 +512,21 @@ Gib dem Template einen passenden Namen basierend auf dem Stil (z.B. "Modernes Bl
         thickness: Number(el.thickness ?? 1),
         style: (el.style as LineElement['style']) ?? 'solid',
       } as unknown as TemplateElement;
+    }
+    if (el.type === 'qr_code') {
+      return {
+        ...base,
+        type: 'qr_code' as const,
+        label: String(el.label ?? 'EPC-QR'),
+        fgColor: String(el.fgColor ?? '#111827'),
+        bgColor: String(el.bgColor ?? '#ffffff'),
+        borderColor: String(el.borderColor ?? '#d1d5db'),
+        borderWidth: Number(el.borderWidth ?? 1),
+        borderRadius: Number(el.borderRadius ?? 6),
+        padding: Number(el.padding ?? 6),
+        labelColor: String(el.labelColor ?? '#6366f1'),
+        showLabel: Boolean(el.showLabel ?? true),
+      } as QrCodeElement;
     }
     if (el.type === 'variable') {
       return {
@@ -749,4 +803,172 @@ WICHTIG:
   }
 }
 
+// ─── Rechnungs-Compliance-Check ───────────────────────────────────────────────
 
+export interface ComplianceIssue {
+  type: 'error' | 'warning' | 'tip';
+  field: string;
+  message: string;
+}
+
+export interface ComplianceResult {
+  ok: boolean;
+  issues: ComplianceIssue[];
+  improvedNote?: string; // KI-verbesserter Hinweistext (falls 'notes' vorhanden)
+}
+
+export interface ComplianceCheckInput {
+  values: Record<string, string>;
+  lineItems: import('@/types/template').LineItem[];
+  includeMwst: boolean;
+  mwstRate: number;
+  netto: number;
+  globalDiscount: number;
+  isKleinunternehmer: boolean;
+}
+
+/**
+ * Prüft eine Rechnung auf rechtliche Pflichtangaben (§ 14 Abs. 4 UStG)
+ * und schlägt Verbesserungen vor.
+ */
+export async function checkInvoiceCompliance(input: ComplianceCheckInput): Promise<ComplianceResult> {
+  const consented = await ensureGeminiConsent();
+  if (!consented) throw new Error('KI-Nutzung wurde nicht bestätigt.');
+
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt. Bitte unter Einstellungen eingeben.');
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  const itemsSummary = input.lineItems
+    .filter(i => !i.isGroupHeader)
+    .map(i => `- ${i.description || '(kein Name)'}: ${i.quantity} × ${i.unitPrice} €${i.discount ? ` (${i.discount}% Rabatt)` : ''}`)
+    .join('\n');
+
+  const prompt = `Du bist ein Steuerberater-Assistent für deutsche Rechnungen. Prüfe folgende Rechnung auf Vollständigkeit und rechtliche Korrektheit.
+
+RECHNUNGSDATEN:
+- Rechnungsnummer (doc_number): "${input.values['doc_number'] || ''}"
+- Rechnungsdatum (doc_date): "${input.values['doc_date'] || ''}"
+- Fälligkeitsdatum (due_date): "${input.values['due_date'] || ''}"
+- Leistungszeitpunkt (delivery_date): "${input.values['delivery_date'] || ''}"
+- Empfänger Name: "${input.values['receiver_name'] || ''}"
+- Empfänger Adresse: "${input.values['receiver_address'] || ''}"
+- Absender Name: "${input.values['sender_name'] || ''}"
+- Steuernummer: "${input.values['sender_tax_number'] || ''}"
+- USt-IdNr.: "${input.values['sender_vat_id'] || ''}"
+- MwSt. ausgewiesen: ${input.includeMwst ? `Ja (${input.mwstRate}%)` : 'Nein'}
+- Kleinunternehmer (§19 UStG): ${input.isKleinunternehmer ? 'Ja' : 'Nein'}
+- Nettobetrag: ${input.netto.toFixed(2)} €
+- Globaler Rabatt: ${input.globalDiscount}%
+- Hinweistext (notes): "${input.values['notes'] || ''}"
+
+POSITIONEN:
+${itemsSummary || '(keine Positionen)'}
+
+PFLICHTANGABEN nach § 14 Abs. 4 UStG:
+1. Vollständiger Name und Anschrift des Rechnungsstellers
+2. Vollständiger Name und Anschrift des Leistungsempfängers  
+3. Steuernummer ODER USt-IdNr. des Rechnungsstellers
+4. Ausstellungsdatum der Rechnung
+5. Fortlaufende Rechnungsnummer
+6. Menge und Art der gelieferten Leistung/Ware
+7. Zeitpunkt der Lieferung/Leistung
+8. Entgelt (Nettobetrag)
+9. Steuerbetrag oder Hinweis auf Steuerbefreiung (§19 UStG bei Kleinunternehmer)
+10. Anzuwendender Steuersatz
+
+Prüfe auf:
+- Fehlende Pflichtangaben (error)
+- Inkonsistenzen (z.B. Datum in Vergangenheit ohne Begründung = warning)
+- Positionen mit 0 € Preis ohne Begründung (warning)
+- Fehlender Hinweis bei Kleinunternehmer (§19 UStG) in notes (error)
+- Sehr kurze oder generische Beschreibungen (tip)
+
+Falls ein Hinweistext (notes) vorhanden ist: Formuliere ihn professioneller auf Deutsch (improvedNote).
+Falls kein Hinweistext vorhanden: Schlage einen passenden vor (improvedNote).
+
+Antworte mit strukturiertem JSON.`;
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        required: ['ok', 'issues'],
+        properties: {
+          ok: { type: 'BOOLEAN' },
+          issues: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              required: ['type', 'field', 'message'],
+              properties: {
+                type: { type: 'STRING', enum: ['error', 'warning', 'tip'] },
+                field: { type: 'STRING' },
+                message: { type: 'STRING' },
+              },
+            },
+          },
+          improvedNote: { type: 'STRING' },
+        },
+      },
+    },
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API Fehler (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Keine Antwort von Gemini erhalten.');
+
+  try {
+    return JSON.parse(text) as ComplianceResult;
+  } catch {
+    return { ok: false, issues: [{ type: 'error', field: 'general', message: 'KI-Antwort konnte nicht verarbeitet werden.' }] };
+  }
+}
+
+/**
+ * Verbessert einen Rechnungshinweistext mit KI.
+ * Schnelle Variante ohne vollständigen Compliance-Check.
+ */
+export async function improveInvoiceNote(note: string, context?: string): Promise<string> {
+  const consented = await ensureGeminiConsent();
+  if (!consented) throw new Error('KI-Nutzung wurde nicht bestätigt.');
+
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt.');
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  const prompt = `Verbessere folgenden deutschen Rechnungshinweistext. Mache ihn professionell, höflich und klar. Behalte alle Informationen (besonders Zahlungsfristen und Bankdaten). Antworte NUR mit dem verbesserten Text, ohne Erklärungen.${context ? `\n\nKontext: ${context}` : ''}
+
+Original: "${note}"`;
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'text/plain' },
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) throw new Error(`Gemini API Fehler (${res.status})`);
+
+  const data = await res.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? note;
+}

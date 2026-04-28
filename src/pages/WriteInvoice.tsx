@@ -5,30 +5,45 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useTemplateStore } from '@/store/templateStore';
 import { DesignerCanvas } from '@/components/designer/DesignerCanvas';
 import { generateTemplatePdf } from '@/lib/pdfExport';
 import { getSetting, customers } from '@/lib/db';
 import type { Customer } from '@/lib/db';
+import { generateInvoiceNumber } from '@/lib/db';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
-import { FileDown, Eye, EyeOff, FileText, Plus, Trash2, ReceiptText, ArrowLeftRight, Maximize2, Users, Check, ChevronsUpDown } from 'lucide-react';
+import {
+  FileDown, Eye, EyeOff, FileText, ArrowLeftRight,
+  Maximize2, Users, Check, ChevronsUpDown, Sparkles, AlertCircle,
+  AlertTriangle, Lightbulb, Wand2, QrCode, ChevronRight,
+} from 'lucide-react';
 import { format } from 'date-fns';
-import type { LineItem, ItemsElement } from '@/types/template';
+import type { LineItem, ItemsElement, QrCodeElement } from '@/types/template';
 import { CANVAS_W, CANVAS_H } from '@/types/template';
 import { SaveInvoiceDialog } from '@/components/invoices/SaveInvoiceDialog';
+import { LineItemsEditor, emptyItem } from '@/components/invoices/LineItemsEditor';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
+import { checkInvoiceCompliance, improveInvoiceNote } from '@/lib/gemini';
+import type { ComplianceIssue } from '@/lib/gemini';
+import { generateEpcQrDataUrl } from '@/lib/epcQrCode';
+
 const SETTINGS_KEYS = [
   'profile_name', 'profile_address', 'profile_email', 'profile_phone',
   'profile_tax_number', 'profile_w_idnr', 'profile_vat_id', 'profile_finanzamt',
   'profile_iban', 'profile_bic', 'profile_business_type',
 ];
-function newLineItemId() { return `li-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`; }
-function emptyItem(): LineItem {
-  return { id: newLineItemId(), description: '', quantity: 1, unit: 'Std.', unitPrice: 0 };
+
+function effectiveItemTotal(item: LineItem): number {
+  const base = item.quantity * item.unitPrice;
+  return item.discount ? base * (1 - item.discount / 100) : base;
 }
+
 export default function WriteInvoice() {
   const { templates } = useTemplateStore();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
@@ -43,16 +58,50 @@ export default function WriteInvoice() {
   const [exporting, setExporting] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveDialogPrefill, setSaveDialogPrefill] = useState<{ partner: string; date: string; description: string; netto: number; ust: number; brutto: number } | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [sidebarWidth, setSidebarWidth] = useState(360);
   const isResizing = useRef(false);
   const startX = useRef(0);
-  const startWidth = useRef(320);
+  const startWidth = useRef(360);
 
-  // Customer picker state
+  // Customer picker
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+  // Line items + discounts
+  const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
+  const [includeMwst, setIncludeMwst] = useState(!isKleinunternehmer);
+  const [simpleMode, setSimpleMode] = useState(false);
+  const [customMwstRate, setCustomMwstRate] = useState<number | null>(null);
+  const [globalDiscount, setGlobalDiscount] = useState(0);
+
+  // AI compliance
+  const [complianceOpen, setComplianceOpen] = useState(false);
+  const [complianceLoading, setComplianceLoading] = useState(false);
+  const [complianceResult, setComplianceResult] = useState<{ ok: boolean; issues: ComplianceIssue[]; improvedNote?: string } | null>(null);
+
+  // EPC QR
+  const [epcQrDataUrl, setEpcQrDataUrl] = useState<string | null>(null);
+  const [epcQrLoading, setEpcQrLoading] = useState(false);
+  const [showEpcPanel, setShowEpcPanel] = useState(false);
+
+  // Improve dialog
+  const [improveDialog, setImproveDialog] = useState<{ key: string; original: string; suggested: string } | null>(null);
+  const [improvingKey, setImprovingKey] = useState<string | null>(null);
+
+  const template = templates.find((t) => t.id === selectedId) ?? null;
+  const itemsEl = template?.elements.find((e) => e.type === 'items') as ItemsElement | undefined;
+  const qrEl = template?.elements.find((e) => e.type === 'qr_code') as QrCodeElement | undefined;
+  const hasItemsTable = !!itemsEl;
+  const mwstRate = customMwstRate ?? (itemsEl?.mwstRate ?? 19);
+
+  const dataItems = lineItems.filter(i => !i.isGroupHeader);
+  const netto = dataItems.reduce((s, i) => s + effectiveItemTotal(i), 0);
+  const nettoFinal = globalDiscount > 0 ? netto * (1 - globalDiscount / 100) : netto;
+  const mwstAmt = includeMwst ? nettoFinal * (mwstRate / 100) : 0;
+  const brutto = nettoFinal + mwstAmt;
+  const fmt = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR';
 
   useEffect(() => {
     customers.getAll().then(setAllCustomers).catch(() => {});
@@ -77,6 +126,7 @@ export default function WriteInvoice() {
       setValue('payment_terms', `Zahlbar innerhalb von ${c.payment_days} Tagen`);
     }
   }
+
   const handleResizeStart = (e: React.MouseEvent) => {
     isResizing.current = true;
     startX.current = e.clientX;
@@ -94,26 +144,13 @@ export default function WriteInvoice() {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   };
-  const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
-  const [includeMwst, setIncludeMwst] = useState(!isKleinunternehmer);
-  const [simpleMode, setSimpleMode] = useState(false);
-  const [customMwstRate, setCustomMwstRate] = useState<number | null>(null);
-  const template = templates.find((t) => t.id === selectedId) ?? null;
-  const itemsEl = template?.elements.find((e) => e.type === 'items') as ItemsElement | undefined;
-  const hasItemsTable = !!itemsEl;
-  const mwstRate = customMwstRate ?? (itemsEl?.mwstRate ?? 19);
-  const netto = lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
-  const mwstAmt = includeMwst ? netto * (mwstRate / 100) : 0;
-  const brutto = netto + mwstAmt;
-  const fmt = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR';  const addItem = () => setLineItems((p) => [...p, emptyItem()]);
-  const removeItem = (id: string) => setLineItems((p) => p.filter((i) => i.id !== id));
-  const updateItem = useCallback((id: string, patch: Partial<LineItem>) =>
-    setLineItems((p) => p.map((i) => i.id === id ? { ...i, ...patch } : i)), []);
+
   useEffect(() => {
     Promise.all(SETTINGS_KEYS.map(async (k) => [k, (await getSetting(k)) ?? ''] as const))
       .then((entries) => setSettingsValues(Object.fromEntries(entries)))
       .catch(console.error);
   }, []);
+
   useEffect(() => {
     if (!template) return;
     const today = format(new Date(), 'dd.MM.yyyy');
@@ -127,52 +164,25 @@ export default function WriteInvoice() {
     }
     setValues(initial);
     setLineItems([emptyItem()]);
+    setGlobalDiscount(0);
+    setEpcQrDataUrl(null);
+    setComplianceResult(null);
   }, [selectedId, template, settingsValues]);
-  const setValue = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
-  const exportPdf = async () => {
-    if (!template) return;
-    // § 14 Abs. 4 UStG: Leistungszeitpunkt ist Pflichtangabe
-    if (!values['delivery_date']?.trim()) {
-      toast.warning('Leistungszeitpunkt fehlt – Pflichtangabe nach § 14 Abs. 4 UStG. Bitte ausfüllen.');
-    }
-    try {
-      setExporting(true);
-      const ab = await generateTemplatePdf(template, values, hasItemsTable ? lineItems : undefined, simpleMode);
-      const suggested = (values['doc_number'] || 'Rechnung').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const path = await saveDialog({ defaultPath: `${suggested}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
-      if (!path) return;
-      await writeFile(path, new Uint8Array(ab));
-      toast.success('PDF gespeichert!');
-      // Ask user if they want to add to invoice list
-      setSaveDialogPrefill({
-        partner: values['receiver_name'] ?? '',
-        date: values['doc_date'] ?? format(new Date(), 'dd.MM.yyyy'),
-        description: values['doc_number'] ?? suggested,
-        netto,
-        ust: mwstAmt,
-        brutto,
-      });
-      setSaveDialogOpen(true);
-    } catch (e) {
-      toast.error('Fehler: ' + String(e));
-    } finally {
-      setExporting(false);
-    }
-  };
-  const settingsVars = template?.variables.filter((v) => v.settingsKey && !v.autoCalculated) ?? [];
-  const manualVars = template?.variables.filter((v) => !v.settingsKey && !v.autoCalculated) ?? [];
 
-  // Auto-populate calculated variables whenever line items or MwSt toggle changes
+  const setValue = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
+
+  // Auto-populate calculated variables
   useEffect(() => {
     if (!hasItemsTable) return;
     const fmtVal = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
     setValues((v) => ({
       ...v,
-      netto: fmtVal(netto),
+      netto: fmtVal(nettoFinal),
       vat_amount: includeMwst ? fmtVal(mwstAmt) : '0,00 \u20ac',
       total: fmtVal(brutto),
     }));
-  }, [netto, mwstAmt, brutto, includeMwst, hasItemsTable]);
+  }, [netto, nettoFinal, mwstAmt, brutto, includeMwst, hasItemsTable]);
+
   // Ctrl+Wheel zoom
   useEffect(() => {
     const container = previewContainerRef.current;
@@ -180,9 +190,8 @@ export default function WriteInvoice() {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      const factor = e.deltaY > 0 ? 0.9 : 1.1;
       setFitMode('manual');
-      setPreviewScale((s) => Math.min(5, Math.max(0.2, +(s * factor).toFixed(2))));
+      setPreviewScale((s) => Math.min(5, Math.max(0.2, +(s * (e.deltaY > 0 ? 0.9 : 1.1)).toFixed(2))));
     };
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
@@ -196,17 +205,121 @@ export default function WriteInvoice() {
     const compute = () => {
       const pw = container.clientWidth - 64;
       const ph = container.clientHeight - 64;
-      if (fitMode === 'width') {
-        setPreviewScale(Math.max(0.1, pw / CANVAS_W));
-      } else {
-        setPreviewScale(Math.max(0.1, Math.min(pw / CANVAS_W, ph / CANVAS_H)));
-      }
+      setPreviewScale(Math.max(0.1, fitMode === 'width' ? pw / CANVAS_W : Math.min(pw / CANVAS_W, ph / CANVAS_H)));
     };
     compute();
     const ro = new ResizeObserver(compute);
     ro.observe(container);
     return () => ro.disconnect();
   }, [fitMode, showPreview]);
+
+  // Suggest next invoice number
+  const suggestInvoiceNumber = useCallback(async () => {
+    try {
+      const next = await generateInvoiceNumber('R');
+      setValue('doc_number', next);
+      toast.success(`Rechnungsnummer vorgeschlagen: ${next}`);
+    } catch {
+      toast.error('Konnte keine Rechnungsnummer generieren');
+    }
+  }, []);
+
+  // AI Compliance Check
+  const runComplianceCheck = useCallback(async () => {
+    setComplianceLoading(true);
+    setComplianceOpen(true);
+    setComplianceResult(null);
+    try {
+      const result = await checkInvoiceCompliance({
+        values, lineItems, includeMwst, mwstRate,
+        netto: nettoFinal, globalDiscount, isKleinunternehmer,
+      });
+      setComplianceResult(result);
+    } catch (e) {
+      toast.error('KI-Prüfung fehlgeschlagen: ' + String(e));
+      setComplianceOpen(false);
+    } finally {
+      setComplianceLoading(false);
+    }
+  }, [values, lineItems, includeMwst, mwstRate, nettoFinal, globalDiscount, isKleinunternehmer]);
+
+  const improveNote = useCallback(async (noteKey: string) => {
+    const current = values[noteKey] ?? '';
+    setImprovingKey(noteKey);
+    try {
+      const improved = await improveInvoiceNote(current, values['receiver_name']);
+      setImproveDialog({ key: noteKey, original: current, suggested: improved });
+    } catch (e) {
+      toast.error('KI-Verbesserung fehlgeschlagen: ' + String(e));
+    } finally {
+      setImprovingKey(null);
+    }
+  }, [values]);
+
+  // Generate EPC QR code
+  const generateEpcQr = useCallback(async () => {
+    const iban = settingsValues['profile_iban'] || values['sender_iban'];
+    const bic = settingsValues['profile_bic'] || values['sender_bic'] || '';
+    const name = settingsValues['profile_name'] || values['sender_name'] || '';
+    if (!iban) { toast.error('Keine IBAN in den Einstellungen hinterlegt'); return; }
+    if (brutto <= 0) { toast.error('Bitte erst Positionen mit Preisen eingeben'); return; }
+    setEpcQrLoading(true);
+    try {
+      const url = await generateEpcQrDataUrl(
+        iban,
+        bic,
+        name,
+        brutto,
+        values['doc_number'] || 'Rechnung',
+        {
+          fgColor: qrEl?.fgColor,
+          bgColor: qrEl?.bgColor,
+        }
+      );
+      setEpcQrDataUrl(url);
+      toast.success('EPC QR-Code generiert');
+    } catch (e) {
+      toast.error('QR-Code-Fehler: ' + String(e));
+    } finally {
+      setEpcQrLoading(false);
+    }
+  }, [settingsValues, values, brutto, qrEl]);
+
+  const exportPdf = async () => {
+    if (!template) return;
+    if (!values['delivery_date']?.trim()) {
+      toast.warning('Leistungszeitpunkt fehlt – Pflichtangabe nach § 14 Abs. 4 UStG.');
+    }
+    try {
+      setExporting(true);
+      const ab = await generateTemplatePdf(
+        template, values,
+        hasItemsTable ? lineItems : undefined,
+        simpleMode, globalDiscount, epcQrDataUrl ?? undefined
+      );
+      const suggested = (values['doc_number'] || 'Rechnung').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const path = await saveDialog({ defaultPath: `${suggested}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+      if (!path) return;
+      await writeFile(path, new Uint8Array(ab));
+      toast.success('PDF gespeichert!');
+      setSaveDialogPrefill({
+        partner: values['receiver_name'] ?? '',
+        date: values['doc_date'] ?? format(new Date(), 'dd.MM.yyyy'),
+        description: values['doc_number'] ?? suggested,
+        netto: nettoFinal, ust: mwstAmt, brutto,
+      });
+      setSaveDialogOpen(true);
+    } catch (e) {
+      toast.error('Fehler: ' + String(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const settingsVars = template?.variables.filter((v) => v.settingsKey && !v.autoCalculated) ?? [];
+  const manualVars = template?.variables.filter((v) => !v.settingsKey && !v.autoCalculated && v.key !== 'delivery_date' && v.key !== 'payment_terms') ?? [];
+  const complianceIssueCount = complianceResult?.issues.filter(i => i.type === 'error').length ?? 0;
+  const complianceWarningCount = complianceResult?.issues.filter(i => i.type === 'warning').length ?? 0;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -221,7 +334,7 @@ export default function WriteInvoice() {
           <div className="space-y-1.5">
             <Label className="text-sm">Template</Label>
             <Select value={selectedId} onValueChange={setSelectedId}>
-              <SelectTrigger><SelectValue placeholder="Template waehlen..." /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Template wählen..." /></SelectTrigger>
               <SelectContent>
                 {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
@@ -229,7 +342,7 @@ export default function WriteInvoice() {
           </div>
           {template && (
             <>
-              {/* Kunden-Schnellauswahl */}
+              {/* Customer picker */}
               {allCustomers.length > 0 && (
                 <div className="space-y-1.5">
                   <Label className="text-sm flex items-center gap-1.5">
@@ -248,23 +361,17 @@ export default function WriteInvoice() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-72 p-2" align="start">
-                      <Input
-                        placeholder="Suchen…"
-                        value={customerSearch}
+                      <Input placeholder="Suchen…" value={customerSearch}
                         onChange={(e) => setCustomerSearch(e.target.value)}
-                        className="h-8 text-sm mb-2"
-                        autoFocus
-                      />
+                        className="h-8 text-sm mb-2" autoFocus />
                       <div className="max-h-52 overflow-y-auto space-y-0.5">
                         {filteredCustomers.length === 0 && (
                           <p className="text-xs text-muted-foreground text-center py-3">Keine Kunden gefunden</p>
                         )}
                         {filteredCustomers.map((c) => (
-                          <button
-                            key={c.id}
+                          <button key={c.id}
                             className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted transition-colors text-left"
-                            onClick={() => applyCustomer(c)}
-                          >
+                            onClick={() => applyCustomer(c)}>
                             <Check className={cn('h-3.5 w-3.5 shrink-0', selectedCustomerId === c.id ? 'opacity-100' : 'opacity-0')} />
                             <div className="flex-1 min-w-0">
                               <p className="font-medium truncate">{c.name}</p>
@@ -277,13 +384,31 @@ export default function WriteInvoice() {
                   </Popover>
                 </div>
               )}
+
+              {/* Document data */}
               {manualVars.length > 0 && (
                 <Card className="rounded-xl">
                   <CardHeader className="py-3 px-4"><CardTitle className="text-sm">Dokumentdaten</CardTitle></CardHeader>
                   <CardContent className="px-4 pb-4 space-y-3">
                     {manualVars.map((v) => (
                       <div key={v.key} className="space-y-1">
-                        <Label className="text-xs">{v.label}</Label>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">{v.label}</Label>
+                          {v.key === 'doc_number' && (
+                            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-primary"
+                              onClick={suggestInvoiceNumber} title="Nächste fortlaufende Nummer vorschlagen">
+                              <Wand2 className="h-2.5 w-2.5" /> Vorschlagen
+                            </Button>
+                          )}
+                          {(v.key === 'notes' || v.key === 'payment_terms') && (
+                            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-primary"
+                              onClick={() => improveNote(v.key)} title="Mit KI verbessern"
+                              disabled={improvingKey === v.key}>
+                              <Sparkles className={cn("h-2.5 w-2.5", improvingKey === v.key && "animate-spin")} />
+                              {improvingKey === v.key ? 'Verbessere…' : 'Verbessern'}
+                            </Button>
+                          )}
+                        </div>
                         {v.multiline ? (
                           <textarea value={values[v.key] ?? ''} rows={4}
                             onChange={(e) => setValue(v.key, e.target.value)}
@@ -295,129 +420,99 @@ export default function WriteInvoice() {
                         )}
                       </div>
                     ))}
-                    {/* Leistungszeitpunkt – Pflichtangabe § 14 Abs. 4 UStG */}
+                    {/* Delivery date */}
                     <div className="space-y-1">
                       <Label className="text-xs">Leistungszeitpunkt *</Label>
-                      <Input
-                        value={values['delivery_date'] ?? ''}
+                      <Input value={values['delivery_date'] ?? ''}
                         onChange={(e) => setValue('delivery_date', e.target.value)}
-                        placeholder="z.B. März 2026 oder 01.03.2026 – 31.03.2026"
-                        className="text-sm"
-                      />
-                      <p className="text-[10px] text-muted-foreground">Pflichtangabe auf jeder Rechnung (§ 14 Abs. 4 UStG)</p>
+                        placeholder="z.B. März 2026 oder 01.03.2026 – 31.03.2026" className="text-sm" />
+                      <p className="text-[10px] text-muted-foreground">Pflichtangabe (§ 14 Abs. 4 UStG)</p>
                     </div>
-                    {/* Zahlungsbedingungen */}
+                    {/* Payment terms */}
                     <div className="space-y-1">
-                      <Label className="text-xs">Zahlungsbedingungen</Label>
-                      <Input
-                        value={values['payment_terms'] ?? ''}
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">Zahlungsbedingungen</Label>
+                        <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-primary"
+                          onClick={() => improveNote('payment_terms')}
+                          disabled={improvingKey === 'payment_terms'}>
+                          <Sparkles className={cn("h-2.5 w-2.5", improvingKey === 'payment_terms' && "animate-spin")} />
+                          {improvingKey === 'payment_terms' ? 'Verbessere…' : 'Verbessern'}
+                        </Button>
+                      </div>
+                      <Input value={values['payment_terms'] ?? ''}
                         onChange={(e) => setValue('payment_terms', e.target.value)}
-                        placeholder="z.B. Zahlbar innerhalb von 14 Tagen"
-                        className="text-sm"
-                      />
+                        placeholder="z.B. Zahlbar innerhalb von 14 Tagen" className="text-sm" />
                     </div>
                   </CardContent>
                 </Card>
               )}
+
+              {/* Line items with DnD, groups, discounts */}
               {hasItemsTable && (
-                <Card className="rounded-xl" data-tutorial="write-invoice-items">
-                  <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <ReceiptText className="h-4 w-4 text-primary" />
-                      Positionen
-                    </CardTitle>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none" title="Nur Bezeichnung & Betrag, ohne Menge/Einheit/Einzelpreis">
-                        <input type="checkbox" checked={simpleMode} onChange={(e) => setSimpleMode(e.target.checked)} className="accent-primary" />
-                        Einfach
-                      </label>
-                      <Select value={String(mwstRate)} onValueChange={(v) => setCustomMwstRate(Number(v))}>
-                        <SelectTrigger className="h-6 w-[80px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="19">19 %</SelectItem>
-                          <SelectItem value="7">7 %</SelectItem>
-                          <SelectItem value="0">0 %</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <label
-                        className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
-                        title={isKleinunternehmer ? 'Als Kleinunternehmer (§ 19 UStG) weist du keine MwSt. auf Rechnungen aus. Du kannst die Checkbox trotzdem aktivieren, falls du die Regelbesteuerung wählst.' : ''}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={includeMwst}
-                          onChange={(e) => setIncludeMwst(e.target.checked)}
-                          className="accent-primary"
-                        />
-                        MwSt. ({mwstRate} %)
-                        {isKleinunternehmer && !includeMwst && (
-                          <span className="text-muted-foreground/70 text-[10px]">(Kleinunternehmer)</span>
-                        )}
-                      </label>
+                <LineItemsEditor
+                  lineItems={lineItems} onChange={setLineItems}
+                  simpleMode={simpleMode} onSimpleModeChange={setSimpleMode}
+                  includeMwst={includeMwst} onIncludeMwstChange={setIncludeMwst}
+                  mwstRate={mwstRate} onMwstRateChange={setCustomMwstRate}
+                  globalDiscount={globalDiscount} onGlobalDiscountChange={setGlobalDiscount}
+                  isKleinunternehmer={isKleinunternehmer}
+                />
+              )}
+
+              {/* EPC QR Panel */}
+              {hasItemsTable && (
+                <Card className="rounded-xl">
+                  <CardHeader className="py-2.5 px-4 cursor-pointer select-none" onClick={() => setShowEpcPanel(v => !v)}>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <QrCode className="h-4 w-4 text-primary" />
+                        Bezahl-QR (EPC/GiroCode)
+                        {epcQrDataUrl && <Badge variant="secondary" className="h-4 text-[10px] px-1.5">Aktiv</Badge>}
+                      </CardTitle>
+                      <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', showEpcPanel && 'rotate-90')} />
                     </div>
                   </CardHeader>
-                  <CardContent className="px-3 pb-4 space-y-2">
-                    {lineItems.map((item, idx) => (
-                      <div key={item.id} className="border border-border rounded-lg p-2 bg-muted/20 relative group space-y-1.5">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground w-4 shrink-0">{idx + 1}.</span>
-                          <Input value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                            placeholder="Bezeichnung" className="h-7 text-xs flex-1" />
-                          {simpleMode && (
-                            <Input
-                              type="number" min={0} step={0.01}
-                              value={item.unitPrice}
-                              onChange={(e) => updateItem(item.id, { quantity: 1, unit: '', unitPrice: parseFloat(e.target.value) || 0 })}
-                              placeholder="Betrag" className="h-7 text-xs text-right w-24"
-                            />
-                          )}
-                          <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity shrink-0"
-                            onClick={() => removeItem(item.id)} title="Entfernen">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        {!simpleMode && (
-                          <div className="flex gap-1 items-center pl-5">
-                            <Input type="number" min={0} step={0.01} value={item.quantity}
-                              onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                              placeholder="Menge" className="h-7 text-xs text-right w-14" />
-                            <Input value={item.unit} onChange={(e) => updateItem(item.id, { unit: e.target.value })}
-                              placeholder="Einh." className="h-7 text-xs w-12" />
-                            <span className="text-xs text-muted-foreground">x</span>
-                            <Input type="number" min={0} step={0.01} value={item.unitPrice}
-                              onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                              placeholder="0,00" className="h-7 text-xs text-right w-20" />
-                            <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">
-                              = {fmt(item.quantity * item.unitPrice)}
-                            </span>
+                  {showEpcPanel && (
+                    <CardContent className="px-4 pb-4 space-y-3">
+                      <p className="text-xs text-muted-foreground">
+                        Generiert einen EPC QR-Code aus deiner IBAN und dem Bruttobetrag.
+                        Der Kunde scannt ihn mit der Banking-App – alle Daten vorausgefüllt.
+                      </p>
+                      {settingsValues['profile_iban'] ? (
+                        <div className="flex items-start gap-3">
+                          {epcQrDataUrl && <img src={epcQrDataUrl} alt="EPC QR" className="w-16 h-16 border border-border rounded shrink-0" />}
+                          <div className="flex-1 space-y-1.5">
+                            <p className="text-xs text-muted-foreground">
+                              IBAN: <span className="font-mono">{settingsValues['profile_iban'].slice(0, 8)}…</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Betrag: <span className="font-medium text-foreground">{fmt(brutto)}</span>
+                            </p>
+                            <Button variant={epcQrDataUrl ? 'outline' : 'default'} size="sm"
+                              className="w-full h-7 text-xs gap-1"
+                              onClick={generateEpcQr} disabled={epcQrLoading || brutto <= 0}>
+                              <QrCode className="h-3 w-3" />
+                              {epcQrLoading ? 'Generiere…' : epcQrDataUrl ? 'Aktualisieren' : 'QR-Code generieren'}
+                            </Button>
+                            {epcQrDataUrl && (
+                              <Button variant="ghost" size="sm" className="w-full h-6 text-xs text-muted-foreground"
+                                onClick={() => setEpcQrDataUrl(null)}>
+                                Entfernen
+                              </Button>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                    <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1" onClick={addItem}>
-                      <Plus className="h-3 w-3" /> Position hinzufuegen
-                    </Button>
-                    <div className="border-t border-border pt-2 space-y-1 text-xs">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Netto</span>
-                        <span className="font-medium text-foreground tabular-nums">{fmt(netto)}</span>
-                      </div>
-                      {includeMwst && (
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>MwSt. ({mwstRate} %)</span>
-                          <span className="font-medium text-foreground tabular-nums">{fmt(mwstAmt)}</span>
                         </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Hinterlege deine IBAN in den <a href="/settings" className="text-primary underline">Einstellungen</a>.
+                        </p>
                       )}
-                      <div className="flex justify-between font-bold text-sm border-t border-border pt-1.5">
-                        <span>Gesamt</span>
-                        <span className="tabular-nums">{fmt(brutto)}</span>
-                      </div>
-                    </div>
-                  </CardContent>
+                    </CardContent>
+                  )}
                 </Card>
               )}
+
+              {/* Sender settings */}
               {settingsVars.length > 0 && (
                 <Card className="rounded-xl">
                   <CardHeader className="py-3 px-4">
@@ -431,16 +526,39 @@ export default function WriteInvoice() {
                           placeholder={v.label} className="text-xs" />
                       </div>
                     ))}
-                    <p className="text-xs text-muted-foreground">
-                      Diese Werte kommen aus den Einstellungen, koennen aber hier ueberschrieben werden.
-                    </p>
+                    <p className="text-xs text-muted-foreground">Überschreibbar für diese Rechnung.</p>
                   </CardContent>
                 </Card>
               )}
             </>
           )}
         </div>
+
+        {/* Footer */}
         <div className="p-4 border-t border-border space-y-2">
+          {template && (
+            <Button
+              variant="outline"
+              className={cn(
+                'w-full text-xs gap-1.5',
+                complianceResult && !complianceResult.ok && complianceIssueCount > 0 && 'border-red-300 text-red-600',
+                complianceResult?.ok && 'border-green-300 text-green-600',
+              )}
+              onClick={complianceResult ? () => setComplianceOpen(true) : runComplianceCheck}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              KI-Compliance-Check
+              {complianceIssueCount > 0 && (
+                <Badge variant="destructive" className="h-4 min-w-4 text-[10px] px-1 ml-auto">{complianceIssueCount}</Badge>
+              )}
+              {complianceWarningCount > 0 && complianceIssueCount === 0 && (
+                <Badge variant="secondary" className="h-4 min-w-4 text-[10px] px-1 ml-auto">{complianceWarningCount}</Badge>
+              )}
+              {complianceResult?.ok && complianceResult.issues.length === 0 && (
+                <Check className="h-3 w-3 text-green-500 ml-auto" />
+              )}
+            </Button>
+          )}
           <Button className="w-full" onClick={exportPdf} disabled={!template || exporting}>
             <FileDown className="mr-2 h-4 w-4" />
             {exporting ? 'Erstelle PDF...' : 'Als PDF exportieren'}
@@ -451,61 +569,167 @@ export default function WriteInvoice() {
           </Button>
         </div>
       </div>
+
       {/* Resize Handle */}
-      <div
-        onMouseDown={handleResizeStart}
+      <div onMouseDown={handleResizeStart}
         className="w-1.5 cursor-col-resize bg-border hover:bg-primary/40 transition-colors shrink-0 active:bg-primary/60"
-        title="Breite anpassen"
-      />
+        title="Breite anpassen" />
+
       {showPreview && (
         <div className="flex-1 overflow-auto bg-muted/20 flex flex-col">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background shrink-0">
             <span className="text-xs text-muted-foreground">Zoom</span>
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.max(0.2, +(s * 0.9).toFixed(2))); }}>-</Button>
+            <Button variant="outline" size="icon" className="h-7 w-7 text-xs"
+              onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.max(0.2, +(s * 0.9).toFixed(2))); }}>-</Button>
             <input type="range" min={20} max={500} value={Math.round(previewScale * 100)}
               onChange={(e) => { setFitMode('manual'); setPreviewScale(Number(e.target.value) / 100); }}
               className="w-28 h-1.5 accent-primary" />
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs" onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.min(5, +(s * 1.1).toFixed(2))); }}>+</Button>
+            <Button variant="outline" size="icon" className="h-7 w-7 text-xs"
+              onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.min(5, +(s * 1.1).toFixed(2))); }}>+</Button>
             <span className="text-xs text-muted-foreground w-10">{Math.round(previewScale * 100)}%</span>
             <Button
               variant={(fitMode === 'width' || fitMode === 'page') ? 'default' : 'outline'}
               size="icon" className="h-7 w-7"
-              title={fitMode === 'width' ? 'An Breite anpassen (aktiv) – klicken für Seite' : 'An Seite anpassen (aktiv) – klicken für Breite'}
               onClick={() => setFitMode((m) => m === 'width' ? 'page' : 'width')}
             >
               {fitMode === 'width' ? <ArrowLeftRight className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </Button>
+            {epcQrDataUrl && (
+              <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                <QrCode className="h-3.5 w-3.5 text-green-500" />
+                <span>EPC QR aktiv</span>
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-auto p-8 select-text" ref={previewContainerRef}>
             {template ? (
               <div className="space-y-3 w-fit mx-auto">
-                <p className="text-xs text-center text-muted-foreground">Vorschau (Variablen aufgeloest)</p>
+                <p className="text-xs text-center text-muted-foreground">Vorschau (Variablen aufgelöst)</p>
                 <DesignerCanvas
-                  template={template}
-                  selectedId={null}
-                  onSelect={() => {}}
-                  onUpdate={() => {}}
-                  scale={previewScale}
-                  variableValues={values}
+                  template={template} selectedId={null}
+                  onSelect={() => {}} onUpdate={() => {}}
+                  scale={previewScale} variableValues={values}
                   lineItems={hasItemsTable ? lineItems : undefined}
-                  includeMwst={includeMwst}
-                  simpleMode={simpleMode}
-                  readOnly
+                  includeMwst={includeMwst} simpleMode={simpleMode} readOnly
+                  epcQrDataUrl={epcQrDataUrl ?? undefined}
                 />
               </div>
             ) : (
-              <div className="text-muted-foreground text-sm mt-20">Template auswaehlen</div>
+              <div className="text-muted-foreground text-sm mt-20">Template auswählen</div>
             )}
           </div>
         </div>
       )}
+
       {saveDialogOpen && saveDialogPrefill && (
-        <SaveInvoiceDialog
-          open={saveDialogOpen}
-          onClose={() => setSaveDialogOpen(false)}
-          prefill={saveDialogPrefill}
-        />
+        <SaveInvoiceDialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} prefill={saveDialogPrefill} />
       )}
+
+      {/* AI Compliance Dialog */}
+      <Dialog open={complianceOpen} onOpenChange={setComplianceOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              KI-Compliance-Check
+            </DialogTitle>
+          </DialogHeader>
+          {complianceLoading ? (
+            <div className="space-y-3 py-2">
+              <Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" />
+              <p className="text-xs text-muted-foreground text-center mt-2">KI prüft deine Rechnung auf Pflichtangaben…</p>
+            </div>
+          ) : complianceResult ? (
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              {complianceResult.ok && complianceResult.issues.length === 0 ? (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 text-green-600">
+                  <Check className="h-4 w-4 shrink-0" />
+                  <p className="text-sm font-medium">Rechnung ist vollständig und rechtssicher ✓</p>
+                </div>
+              ) : (
+                complianceResult.issues.map((issue, i) => (
+                  <div key={i} className={cn(
+                    'flex gap-2.5 p-3 rounded-lg text-sm',
+                    issue.type === 'error' && 'bg-destructive/10 text-destructive',
+                    issue.type === 'warning' && 'bg-orange-500/10 text-orange-600',
+                    issue.type === 'tip' && 'bg-blue-500/10 text-blue-600',
+                  )}>
+                    {issue.type === 'error' && <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+                    {issue.type === 'warning' && <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
+                    {issue.type === 'tip' && <Lightbulb className="h-4 w-4 shrink-0 mt-0.5" />}
+                    <div>
+                      {issue.field && <p className="font-medium text-xs mb-0.5 opacity-80">{issue.field}</p>}
+                      <p className="text-xs">{issue.message}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              {complianceResult.improvedNote && (
+                <div className="border border-primary/20 rounded-lg p-3 space-y-2 bg-primary/5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                    <Wand2 className="h-3.5 w-3.5" />
+                    Vorgeschlagener Hinweistext
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{complianceResult.improvedNote}</p>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
+                    onClick={() => { setValue('notes', complianceResult.improvedNote!); toast.success('Hinweistext übernommen'); }}>
+                    <Check className="h-3 w-3" /> Übernehmen
+                  </Button>
+                </div>
+              )}
+              <div className="pt-1 flex gap-2">
+                <Button variant="outline" size="sm" className="text-xs gap-1" onClick={runComplianceCheck}>
+                  <Sparkles className="h-3 w-3" /> Erneut prüfen
+                </Button>
+                <Button size="sm" className="text-xs ml-auto" onClick={() => setComplianceOpen(false)}>Schließen</Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Improve Note Dialog */}
+      <Dialog open={!!improveDialog} onOpenChange={(open) => { if (!open) setImproveDialog(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              KI-Verbesserungsvorschlag
+            </DialogTitle>
+          </DialogHeader>
+          {improveDialog && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Original</p>
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm leading-relaxed min-h-20 whitespace-pre-wrap">
+                    {improveDialog.original || <span className="text-muted-foreground italic">Kein Text vorhanden</span>}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-primary uppercase tracking-wide">Vorschlag</p>
+                  <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm leading-relaxed min-h-20 whitespace-pre-wrap">
+                    {improveDialog.suggested}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImproveDialog(null)}>Verwerfen</Button>
+            <Button onClick={() => {
+              if (improveDialog) {
+                setValue(improveDialog.key, improveDialog.suggested);
+                toast.success('Verbesserung übernommen');
+                setImproveDialog(null);
+              }
+            }}>
+              <Check className="h-3.5 w-3.5 mr-1.5" /> Übernehmen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

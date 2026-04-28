@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import type { InvoiceTemplate, TemplateElement, ItemsElement, LineItem } from '@/types/template';
 import { PX_TO_MM, FONT_FAMILIES } from '@/types/template';
+import { buildLineItemRenderEntries, estimateLineItemRows } from '@/lib/lineItems';
 
 const A4_H_MM = 297;
 
@@ -73,8 +74,15 @@ function gotoPage(doc: jsPDF, page: number) {
   doc.setPage(page);
 }
 
+/** Computes effective total for a single line item (applying per-line discount). */
+function lineTotal(item: LineItem): number {
+  const base = item.quantity * item.unitPrice;
+  return item.discount ? base * (1 - item.discount / 100) : base;
+}
+
 /**
  * Renders the items table with automatic page breaks.
+ * Supports group headers with subtotals, per-line discounts, global discount and EPC QR code.
  * Returns the absolute y position (in mm) after the last rendered row.
  */
 function renderItemsTable(
@@ -82,6 +90,8 @@ function renderItemsTable(
   el: ItemsElement,
   lineItems: LineItem[],
   simpleMode = false,
+  globalDiscount = 0,
+  epcQrDataUrl?: string,
 ): number {
   const x = el.x * PX_TO_MM;
   const w = el.width * PX_TO_MM;
@@ -92,8 +102,11 @@ function renderItemsTable(
   const headerTxt = el.headerTextColor || '#ffffff';
   const borderCol = el.borderColor || '#d1d5db';
   const altBg = el.altRowBgColor || '#f8fafc';
+  const summaryBg = el.summaryBgColor || '#1e3a5f';
+  const groupHeaderBg = '#e5e7eb'; // light gray for group rows
+  const subtotalBg = el.groupSubtotalBgColor || '#f3f4f6';
+  const subtotalText = el.groupSubtotalTextColor || '#7c3aed';
 
-  // Track absolute y (across page boundaries)
   let absCy = el.y * PX_TO_MM;
 
   const drawRow = (
@@ -137,42 +150,138 @@ function renderItemsTable(
     absCy += rowHeight;
   };
 
+  // Draw full-width row (for group headers, subtotals, etc.)
+  const drawFullRow = (text: string, rowHeight: number, bgColor: string | null, textColor: string, bold: boolean, indent = 0) => {
+    const page = Math.floor(absCy / A4_H_MM) + 1;
+    gotoPage(doc, page);
+    const cy = absCy - (page - 1) * A4_H_MM;
+
+    if (bgColor) {
+      const [r, g, b] = hexToRgb(bgColor);
+      doc.setFillColor(r, g, b);
+      doc.rect(x, cy, w, rowHeight, 'F');
+    }
+    const [br, bg2, bb] = hexToRgb(borderCol);
+    doc.setDrawColor(br, bg2, bb);
+    doc.setLineWidth(0.2);
+    doc.rect(x, cy, w, rowHeight, 'S');
+
+    applyTextStyle(doc, { fontSize: fs, fontWeight: bold ? 'bold' : 'normal', fontStyle: 'normal', color: textColor });
+    doc.text(text, x + 2 + indent, cy + rowHeight * 0.65, { baseline: 'alphabetic', maxWidth: w - 4 });
+    absCy += rowHeight;
+  };
+
+  // Draw subtotal row (right-aligned value)
+  const drawSubtotalRow = (label: string, value: string, rowHeight: number) => {
+    const page = Math.floor(absCy / A4_H_MM) + 1;
+    gotoPage(doc, page);
+    const cy = absCy - (page - 1) * A4_H_MM;
+
+    const [r2, g2, b2] = hexToRgb(subtotalBg);
+    doc.setFillColor(r2, g2, b2);
+    doc.rect(x, cy, w, rowHeight, 'F');
+    const [br, bg2, bb] = hexToRgb(borderCol);
+    doc.setDrawColor(br, bg2, bb);
+    doc.setLineWidth(0.2);
+    doc.rect(x, cy, w, rowHeight, 'S');
+
+    applyTextStyle(doc, { fontSize: fs - 1, fontWeight: 'normal', fontStyle: 'italic', color: '#6b7280' });
+    doc.text(label, x + 4, cy + rowHeight * 0.65, { baseline: 'alphabetic' });
+    applyTextStyle(doc, { fontSize: fs, fontWeight: 'bold', fontStyle: 'normal', color: subtotalText });
+    doc.text(value, x + w - 2, cy + rowHeight * 0.65, { align: 'right', baseline: 'alphabetic' });
+    absCy += rowHeight;
+  };
+
+  const entries = buildLineItemRenderEntries(lineItems);
+
   if (simpleMode) {
     const simpleCols = [w * 0.78, w * 0.22];
     drawRow(['Bezeichnung', 'Betrag'], simpleCols, headerH, headerBg, headerTxt, true, ['left', 'right']);
-    lineItems.forEach((item, idx) => {
-      drawRow(
-        [item.description || '', fmt(item.unitPrice)],
-        simpleCols, rowH, idx % 2 === 1 ? altBg : '#ffffff', '#111827', false,
-        ['left', 'right'],
-      );
-    });
+
+    let dataIdx = 0;
+    for (const entry of entries) {
+      if (entry.kind === 'group') {
+        drawFullRow(`${' '.repeat(entry.depth * 2)}${entry.item.description || 'Gruppe'}`, rowH * 0.9, groupHeaderBg, '#1f2937', true, 0);
+      } else if (entry.kind === 'subtotal') {
+        drawSubtotalRow(`${' '.repeat(entry.depth * 2)}Zwischensumme ${entry.label}`, fmt(entry.amount), rowH * 0.85);
+      } else {
+        drawRow(
+          [`${' '.repeat(entry.depth * 2)}${entry.item.description || ''}`, fmt(lineTotal(entry.item))],
+          simpleCols, rowH, dataIdx % 2 === 1 ? altBg : '#ffffff', '#111827', false,
+          ['left', 'right'],
+        );
+        dataIdx++;
+      }
+    }
     return absCy;
   }
 
   // Full mode
   const cols = el.colWidths || [0.07, 0.38, 0.1, 0.1, 0.15, 0.2];
   const colW = cols.map((c) => c * w);
+  const hasDiscounts = lineItems.some(i => !i.isGroupHeader && (i.discount ?? 0) > 0);
   const headers = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt'];
+  if (hasDiscounts) headers[4] = 'EP / Rabatt';
 
   drawRow(headers, colW, headerH, headerBg, headerTxt, true,
     ['left', 'left', 'right', 'right', 'right', 'right']);
 
-  lineItems.forEach((item, idx) => {
-    const total = item.quantity * item.unitPrice;
-    drawRow(
-      [
-        String(idx + 1),
-        item.description || '',
-        item.quantity.toLocaleString('de-DE'),
-        item.unit || '',
-        fmt(item.unitPrice),
-        fmt(total),
-      ],
-      colW, rowH, idx % 2 === 1 ? altBg : '#ffffff', '#111827', false,
-      ['left', 'left', 'right', 'right', 'right', 'right'],
-    );
-  });
+  let dataIdx = 0;
+
+  for (const entry of entries) {
+    if (entry.kind === 'group') {
+      drawFullRow(`${' '.repeat(entry.depth * 2)}${entry.item.description || 'Gruppe'}`, rowH * 0.9, groupHeaderBg, '#1f2937', true, 0);
+    } else if (entry.kind === 'subtotal') {
+      const page = Math.floor(absCy / A4_H_MM) + 1;
+      gotoPage(doc, page);
+      const cy = absCy - (page - 1) * A4_H_MM;
+
+      const [r2, g2, b2] = hexToRgb(subtotalBg);
+      doc.setFillColor(r2, g2, b2);
+      doc.rect(x, cy, w, rowH * 0.85, 'F');
+      const [br, bg2, bb] = hexToRgb(borderCol);
+      doc.setDrawColor(br, bg2, bb);
+      doc.setLineWidth(0.2);
+      doc.rect(x, cy, w, rowH * 0.85, 'S');
+
+      applyTextStyle(doc, { fontSize: fs - 1, fontWeight: 'normal', fontStyle: 'italic', color: '#6b7280' });
+      doc.text(`${' '.repeat(entry.depth * 2)}Zwischensumme ${entry.label}`, x + 4, cy + rowH * 0.55, { baseline: 'alphabetic' });
+      applyTextStyle(doc, { fontSize: fs, fontWeight: 'bold', fontStyle: 'normal', color: subtotalText });
+      doc.text(fmt(entry.amount), x + w - 2, cy + rowH * 0.55, { align: 'right', baseline: 'alphabetic' });
+      absCy += rowH * 0.85;
+    } else {
+      const total = lineTotal(entry.item);
+      const priceCell = entry.item.discount
+        ? `${fmt(entry.item.unitPrice)}\n−${entry.item.discount}%`
+        : fmt(entry.item.unitPrice);
+      drawRow(
+        [
+          String(entry.position),
+          `${' '.repeat(entry.depth * 2)}${entry.item.description || ''}`,
+          entry.item.quantity.toLocaleString('de-DE'),
+          entry.item.unit || '',
+          priceCell,
+          fmt(total),
+        ],
+        colW, rowH, dataIdx % 2 === 1 ? altBg : '#ffffff', '#111827', false,
+        ['left', 'left', 'right', 'right', 'right', 'right'],
+      );
+      dataIdx++;
+    }
+  }
+
+  // Optional: show global discount row (Netto/MwSt/Brutto come from template variables)
+  if (globalDiscount > 0) {
+    const dataItems2 = lineItems.filter(i => !i.isGroupHeader);
+    const netto2 = dataItems2.reduce((s, i) => s + lineTotal(i), 0);
+    const discountAmt = netto2 * (globalDiscount / 100);
+    const summaryColW = [w - 50 * PX_TO_MM, 50 * PX_TO_MM];
+    drawRow([`Netto (vor Rabatt)`, fmt(netto2)], summaryColW, rowH * 0.9, '#f9fafb', '#6b7280', false, ['left', 'right']);
+    drawRow([`Rabatt (${globalDiscount} %)`, `–${fmt(discountAmt)}`], summaryColW, rowH * 0.9, '#fff7ed', '#ea580c', false, ['left', 'right']);
+  }
+
+  void summaryBg; // used for template variable rows (handled by template engine)
+  void epcQrDataUrl; // QR code is rendered via dedicated qr_code element in template
 
   return absCy;
 }
@@ -188,6 +297,7 @@ function renderElement(
   _lineItems?: LineItem[],
   _simpleMode = false,
   absYOverrideMm?: number,
+  epcQrDataUrl?: string,
 ) {
   // Line and items are handled in generateTemplatePdf directly
   if (el.type === 'line' || el.type === 'items') return;
@@ -239,6 +349,30 @@ function renderElement(
       }
       break;
     }
+    case 'qr_code': {
+      if (!isTransparent(el.bgColor || '')) {
+        const [r, g, b] = hexToRgb(el.bgColor || '#ffffff');
+        doc.setFillColor(r, g, b);
+        const rx = ((el.borderRadius || 0) * PX_TO_MM);
+        doc.roundedRect(x, yMm, w, h, rx, rx, 'F');
+      }
+      if ((el.borderWidth || 0) > 0 && !isTransparent(el.borderColor || '')) {
+        const [r, g, b] = hexToRgb(el.borderColor || '#d1d5db');
+        doc.setDrawColor(r, g, b);
+        doc.setLineWidth((el.borderWidth || 0) * PX_TO_MM);
+        const rx = ((el.borderRadius || 0) * PX_TO_MM);
+        doc.roundedRect(x, yMm, w, h, rx, rx, 'S');
+      }
+      if (epcQrDataUrl) {
+        try {
+          const padMm = (el.padding || 0) * PX_TO_MM;
+          const iw = Math.max(2, w - padMm * 2);
+          const ih = Math.max(2, h - padMm * 2);
+          doc.addImage(epcQrDataUrl, 'PNG', x + padMm, yMm + padMm, iw, ih);
+        } catch { /* ignore */ }
+      }
+      break;
+    }
   }
 }
 
@@ -247,6 +381,8 @@ export async function generateTemplatePdf(
   values: Record<string, string>,
   lineItems?: LineItem[],
   simpleMode = false,
+  globalDiscount = 0,
+  epcQrDataUrl?: string,
 ): Promise<ArrayBuffer> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
@@ -259,7 +395,10 @@ export async function generateTemplatePdf(
 
   if (itemsEl && lineItems && lineItems.length > 0) {
     const rowHmm = (itemsEl.rowHeight || 24) * PX_TO_MM;
-    const actualHMm = rowHmm * 1.25 + lineItems.length * rowHmm;
+    const dynamicRows = estimateLineItemRows(lineItems);
+    const hasGlobalDiscount = globalDiscount > 0;
+    const totalRows = dynamicRows + (hasGlobalDiscount ? 2 : 0);
+    const actualHMm = rowHmm * 1.25 + totalRows * rowHmm;
     const baseHMm = itemsEl.height * PX_TO_MM;
     overflowMm = Math.max(0, actualHMm - baseHMm);
     itemsBaseBtmPx = itemsEl.y + itemsEl.height;
@@ -289,13 +428,13 @@ export async function generateTemplatePdf(
       doc.setLineDashPattern([], 0);
 
     } else if (el.type === 'items') {
-      renderItemsTable(doc, el as ItemsElement, lineItems || [], simpleMode);
+      renderItemsTable(doc, el as ItemsElement, lineItems || [], simpleMode, globalDiscount, epcQrDataUrl);
 
     } else {
       const base = el as import('@/types/template').BaseElement;
       const isBelow = itemsEl != null && base.y >= itemsBaseBtmPx;
       const absYMm = base.y * PX_TO_MM + (isBelow ? overflowMm : 0);
-      renderElement(doc, el, values, lineItems, simpleMode, absYMm);
+      renderElement(doc, el, values, lineItems, simpleMode, absYMm, epcQrDataUrl);
     }
   }
 

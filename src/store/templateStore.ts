@@ -8,6 +8,18 @@ const BUILTIN_DEFAULTS: Record<string, InvoiceTemplate> = {
   [DEFAULT_GUTSCHRIFT.id]: DEFAULT_GUTSCHRIFT,
 };
 
+const LEGACY_BUILTIN_TIMESTAMPS = new Set([
+  '2024-01-01T00:00:00.000Z',
+]);
+
+function shouldUpgradeBuiltinTemplate(stored: InvoiceTemplate, fresh: InvoiceTemplate): boolean {
+  const looksLegacy =
+    LEGACY_BUILTIN_TIMESTAMPS.has(stored.updatedAt) ||
+    LEGACY_BUILTIN_TIMESTAMPS.has(stored.createdAt);
+  if (!looksLegacy) return false;
+  return stored.updatedAt !== fresh.updatedAt;
+}
+
 interface TemplateStoreState {
   templates: InvoiceTemplate[];
   addTemplate: (t: InvoiceTemplate) => void;
@@ -47,13 +59,13 @@ export const useTemplateStore = create<TemplateStoreState>()(
           ),
         })),
 
-      // Called on app mount – silently upgrades any builtin that is missing an 'items' element
+      // Called on app mount – upgrades untouched legacy builtins to the latest shipped defaults
       autoUpdateBuiltins: () =>
         set((s) => ({
           templates: s.templates.map((t) => {
             const fresh = BUILTIN_DEFAULTS[t.id];
             if (!fresh) return t;
-            if (!t.elements.some((el) => el.type === 'items')) {
+            if (shouldUpgradeBuiltinTemplate(t, fresh)) {
               return { ...fresh, updatedAt: new Date().toISOString() };
             }
             return t;
@@ -99,12 +111,13 @@ export const useTemplateStore = create<TemplateStoreState>()(
         if (!p?.templates?.length) return current;
         const stored = p.templates;
 
-        // Always bring builtins up-to-date: replace stored builtin if it lacks an 'items' element
+        // Bring untouched legacy builtins up-to-date to current shipped defaults.
         const upgraded = stored.map((t) => {
           const fresh = BUILTIN_DEFAULTS[t.id];
           if (!fresh) return t; // custom template – keep as-is
-          const hasItemsEl = t.elements.some((el) => el.type === 'items');
-          if (!hasItemsEl) return { ...fresh, updatedAt: new Date().toISOString() };
+          if (shouldUpgradeBuiltinTemplate(t, fresh)) {
+            return { ...fresh, updatedAt: new Date().toISOString() };
+          }
           return t;
         });
 

@@ -995,3 +995,52 @@ export const projects = {
     return rows.map(mapInvoiceRow);
   },
 };
+
+// ─── Produkt-Katalog ──────────────────────────────────────────────────────────
+
+export interface CatalogItem {
+  id: string;
+  name: string;
+  description: string;
+  unit: string;
+  unit_price: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const productCatalog = {
+  async getAll(): Promise<CatalogItem[]> {
+    const db = await getDb();
+    return db.select<CatalogItem[]>('SELECT * FROM product_catalog ORDER BY name ASC');
+  },
+
+  async search(query: string): Promise<CatalogItem[]> {
+    const db = await getDb();
+    return db.select<CatalogItem[]>(
+      'SELECT * FROM product_catalog WHERE name LIKE $1 OR description LIKE $1 ORDER BY name ASC LIMIT 10',
+      [`%${query}%`]
+    );
+  },
+
+  async upsert(item: Omit<CatalogItem, 'id' | 'created_at' | 'updated_at'> & { id?: string }): Promise<string> {
+    const db = await getDb();
+    if (item.id) {
+      await db.execute(
+        `UPDATE product_catalog SET name=$1, description=$2, unit=$3, unit_price=$4, updated_at=datetime('now') WHERE id=$5`,
+        [item.name, item.description, item.unit, item.unit_price, item.id]
+      );
+      return item.id;
+    }
+    const id = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO product_catalog (id, name, description, unit, unit_price) VALUES ($1, $2, $3, $4, $5)`,
+      [id, item.name, item.description, item.unit, item.unit_price]
+    );
+    return id;
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute('DELETE FROM product_catalog WHERE id=$1', [id]);
+  },
+};

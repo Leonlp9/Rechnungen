@@ -1,4 +1,4 @@
-export type ElementType = 'text' | 'variable' | 'image' | 'rectangle' | 'items' | 'line';
+export type ElementType = 'text' | 'variable' | 'image' | 'rectangle' | 'items' | 'line' | 'qr_code';
 
 export interface BaseElement {
   id: string;
@@ -73,6 +73,8 @@ export interface ItemsElement extends BaseElement {
   borderColor: string;
   altRowBgColor: string;      // alternating row tint, '' = none
   summaryBgColor: string;     // background for Netto/MwSt/Brutto rows
+  groupSubtotalBgColor?: string;
+  groupSubtotalTextColor?: string;
   mwstRate: number;           // e.g. 19
   // column widths as fractions of element width (must sum to 1)
   colWidths: [number, number, number, number, number, number];
@@ -91,13 +93,28 @@ export interface LineElement {
   style: 'solid' | 'dashed' | 'dotted';
 }
 
+export interface QrCodeElement extends BaseElement {
+  type: 'qr_code';
+  /** Label shown in the designer placeholder */
+  label?: string;
+  fgColor?: string;
+  bgColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  padding?: number;
+  labelColor?: string;
+  showLabel?: boolean;
+}
+
 export type TemplateElement =
   | TextElement
   | VariableElement
   | ImageElement
   | RectangleElement
   | ItemsElement
-  | LineElement;
+  | LineElement
+  | QrCodeElement;
 
 /** A single invoice line item used in WriteInvoice */
 export interface LineItem {
@@ -106,6 +123,12 @@ export interface LineItem {
   quantity: number;
   unit: string;
   unitPrice: number;
+  /** Zeilenrabatt in Prozent (z.B. 10 = 10 %). Wirkt auf qty × price. */
+  discount?: number;
+  /** Wenn true, ist diese Zeile ein Gruppen-Header (Zwischensumme-Trenner). */
+  isGroupHeader?: boolean;
+  /** Parent group id for nested groups. null/undefined means root level. */
+  parentGroupId?: string | null;
 }
 
 export interface TemplateVariable {
