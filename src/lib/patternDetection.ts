@@ -139,22 +139,34 @@ export function forecastCurrentMonth(patterns: DetectedPattern[], year?: number,
   const y = year ?? today.getFullYear();
   const m = month !== undefined ? month - 1 : today.getMonth(); // month is 1-based
   const startOfMonth = new Date(y, m, 1);
-  const endOfMonth = new Date(y, m + 1, 0);
+  const endOfMonth = new Date(y, m + 1, 0, 23, 59, 59, 999);
   // For the current actual month, only show future forecasts; for other months show all
   const isCurrentMonth = y === today.getFullYear() && m === today.getMonth();
   const filterFrom = isCurrentMonth ? today : startOfMonth;
 
-  return patterns
-    .filter((p) => {
-      const d = p.nextExpectedDate;
-      return d >= filterFrom && d >= startOfMonth && d <= endOfMonth;
-    })
-    .map((p) => ({
-      pattern: p,
-      expectedDate: p.nextExpectedDate,
-      expectedBrutto: p.avgBrutto,
-    }))
-    .sort((a, b) => a.expectedDate.getTime() - b.expectedDate.getTime());
+  const items: ForecastItem[] = [];
+
+  for (const p of patterns) {
+    const intervalMs = INTERVAL_DAYS[p.interval] * 24 * 60 * 60 * 1000;
+    let d = new Date(p.nextExpectedDate);
+
+    // Walk backward until we reach the first possible occurrence at or before startOfMonth
+    // so that we don't miss occurrences that fall within the window
+    while (d > endOfMonth) d = new Date(d.getTime() - intervalMs);
+    while (new Date(d.getTime() - intervalMs) >= startOfMonth) {
+      d = new Date(d.getTime() - intervalMs);
+    }
+
+    // Walk forward through the month, collecting all occurrences
+    while (d <= endOfMonth) {
+      if (d >= startOfMonth && d >= filterFrom) {
+        items.push({ pattern: p, expectedDate: new Date(d), expectedBrutto: p.avgBrutto });
+      }
+      d = new Date(d.getTime() + intervalMs);
+    }
+  }
+
+  return items.sort((a, b) => a.expectedDate.getTime() - b.expectedDate.getTime());
 }
 
 

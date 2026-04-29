@@ -89,7 +89,9 @@ export default function BankImportPage() {
       const matchMap = new Map<string, string>();
       result.transactions.forEach((tx) => {
         const candidate = invoices.find((inv) => {
-          const amountMatch = Math.abs(Math.abs(inv.brutto) - Math.abs(tx.amount)) < 0.01;
+          const grossMatch = Math.abs(Math.abs(inv.brutto) - Math.abs(tx.amount)) < 0.01;
+          const payoutMatch = Math.abs(Math.abs(inv.brutto - (inv.fee ?? 0)) - Math.abs(tx.amount)) < 0.01;
+          const amountMatch = grossMatch || payoutMatch;
           const dateClose = Math.abs(new Date(inv.date).getTime() - new Date(tx.booking_date).getTime()) < 14 * 86400_000;
           return amountMatch && dateClose;
         });

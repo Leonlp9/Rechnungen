@@ -670,6 +670,7 @@ JSON-Schema:
   "description": "Kurze Beschreibung des Inhalts",
   "partner": "Name des Rechnungsstellers oder -empfängers",
   "netto": 0.00,
+  "fee": 0.00,
   "ust": 0.00,
   "brutto": 0.00,
   "currency": "EUR",
@@ -735,7 +736,8 @@ WICHTIG:
 - Erhaltene Spenden/Donations → type="einnahme", suggested_category="sonstige_einnahmen"
 - Gezahlte Spenden → type="ausgabe", suggested_category="spenden"
 - Krankenkasse/Sozialversicherung → type="ausgabe", suggested_category="krankenkasse" oder "sozialversicherung"
-- Beträge als Zahlen (nicht Strings). Wenn kein Betrag erkennbar → netto=0, ust=0, brutto=0.
+- Beträge als Zahlen (nicht Strings). Wenn kein Betrag erkennbar → netto=0, fee=0, ust=0, brutto=0.
+- fee = nicht steuerbare Gebuehren (z. B. Zahlungsanbieter-/Transaktionsgebuehren). Wenn keine Gebuehren erkennbar sind, setze fee=0.
 - Bei Verträgen ohne konkreten Rechnungsbetrag: setze Beträge auf 0.
 - Kategorien für Einnahmen DÜRFEN NICHT für Ausgaben verwendet werden und umgekehrt!`;
 
@@ -764,6 +766,7 @@ WICHTIG:
           description: { type: 'STRING' },
           partner: { type: 'STRING' },
           netto: { type: 'NUMBER' },
+          fee: { type: 'NUMBER' },
           ust: { type: 'NUMBER' },
           brutto: { type: 'NUMBER' },
           currency: { type: 'STRING' },
@@ -773,7 +776,7 @@ WICHTIG:
             enum: ['umsatz_pflichtig', 'umsatz_steuerfrei', 'reverse_charge', 'ust_erstattung', 'privateinlage', 'anlagenverkauf', 'erstattungen', 'sponsoring', 'affiliate', 'donations_tips', 'sachzuwendungen', 'sonstige_einnahmen', 'anlagevermoegen_afa', 'gwg', 'software_abos', 'fremdleistungen', 'buerobedarf', 'reisekosten', 'bewirtungskosten', 'marketing', 'weiterbildung', 'miete', 'versicherungen_betrieb', 'fahrzeugkosten', 'kommunikation', 'vertraege', 'spenden', 'krankenkasse', 'sozialversicherung', 'privat', 'privatentnahme', 'sonstiges'],
           },
         },
-        required: ['is_invoice', 'date', 'description', 'partner', 'netto', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],
+        required: ['is_invoice', 'date', 'description', 'partner', 'netto', 'fee', 'ust', 'brutto', 'currency', 'type', 'suggested_category'],
       },
     },
   };

@@ -50,6 +50,7 @@ const schema = z.object({
   description: z.string().min(1),
   partner: z.string().min(1),
   netto: z.number(),
+  fee: z.number().min(0),
   ust: z.number(),
   brutto: z.number(),
   type: z.enum(['einnahme', 'ausgabe', 'info']),
@@ -68,6 +69,7 @@ export default function InvoiceDetail() {
   const activeAiFix = useAppStore((s) => s.activeAiFix);
   const setActiveAiFix = useAppStore((s) => s.setActiveAiFix);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [pdfUrl, setPdfUrl] = useState('');
   const [saving, setSaving] = useState(false);
@@ -98,6 +100,7 @@ export default function InvoiceDetail() {
         description: inv.description,
         partner: inv.partner,
         netto: inv.netto,
+        fee: inv.fee,
         ust: inv.ust,
         brutto: inv.brutto,
         type: inv.type,
@@ -214,6 +217,19 @@ export default function InvoiceDetail() {
   // ─── Speichern / Löschen ────────────────────────────────────────────────────
   const onSubmit = async (data: FormData) => {
     if (!invoice) return;
+    if (steuerregelung === 'kleinunternehmer' && data.type === 'einnahme' && Math.abs(data.ust) > 0.001) {
+      toast.error('Bei Kleinunternehmer-Einnahmen muss USt 0 sein.');
+      return;
+    }
+    if (data.fee > data.brutto) {
+      toast.error('Gebuehr darf nicht hoeher als der Bruttobetrag sein.');
+      return;
+    }
+    const sumDiff = Math.abs((data.netto + data.ust) - data.brutto);
+    if (sumDiff > 0.01) {
+      toast.error('Netto + USt muss dem Bruttobetrag entsprechen.');
+      return;
+    }
     setSaving(true);
     try {
       const dateObj = new Date(data.date);
@@ -328,10 +344,14 @@ export default function InvoiceDetail() {
             <Label>Beschreibung</Label>
             <Input {...form.register('description')} />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <div className="space-y-1.5">
               <Label>Netto</Label>
               <Input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Gebuehren</Label>
+              <Input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} />
             </div>
             <div className="space-y-1.5">
               <Label>USt</Label>

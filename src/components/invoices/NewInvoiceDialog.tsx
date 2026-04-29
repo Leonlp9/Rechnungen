@@ -43,6 +43,7 @@ const schema = z.object({
   description: z.string().min(1, 'Beschreibung erforderlich'),
   partner: z.string().min(1, 'Partner erforderlich'),
   netto: z.number(),
+  fee: z.number().min(0, 'Gebuehr darf nicht negativ sein'),
   ust: z.number(),
   brutto: z.number(),
   type: z.enum(['einnahme', 'ausgabe', 'info']),
@@ -79,6 +80,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
   const addDraft = useAppStore((s) => s.addDraft);
   const drafts = useAppStore((s) => s.drafts ?? []);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
 
   // If this dialog was opened from a draft, track its id so we can remove it on save/draft-resave
   const currentDraftId = initialPdfPath
@@ -118,6 +120,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       description: '',
       partner: '',
       netto: 0,
+      fee: 0,
       ust: 0,
       brutto: 0,
       type: 'ausgabe',
@@ -246,6 +249,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       form.setValue('description', result.description);
       form.setValue('partner', result.partner);
       form.setValue('netto', result.netto);
+      form.setValue('fee', Number.isFinite(result.fee) ? Math.max(0, result.fee) : 0);
       form.setValue('ust', result.ust);
       form.setValue('brutto', result.brutto);
       form.setValue('currency', result.currency);
@@ -277,6 +281,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
         description: data.description,
         partner: data.partner,
         netto: data.netto,
+        fee: data.fee,
         ust: data.ust,
         brutto: data.brutto,
         type: data.type,
@@ -317,6 +322,19 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
   };
 
   const onSubmit = async (data: FormData) => {
+    if (steuerregelung === 'kleinunternehmer' && data.type === 'einnahme' && Math.abs(data.ust) > 0.001) {
+      toast.error('Bei Kleinunternehmer-Einnahmen muss USt 0 sein. Trage Quellensteuer/Gebuehren separat ein.');
+      return;
+    }
+    if (data.fee > data.brutto) {
+      toast.error('Gebuehr darf nicht hoeher als der Bruttobetrag sein.');
+      return;
+    }
+    const sumDiff = Math.abs((data.netto + data.ust) - data.brutto);
+    if (sumDiff > 0.01) {
+      toast.error('Netto + USt muss dem Bruttobetrag entsprechen.');
+      return;
+    }
     // Duplicate check: same date, partner (case-insensitive), brutto
     const dups = allInvoices.filter(
       (inv) =>
@@ -423,9 +441,18 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                 </div>
 
                 <div className="space-y-1.5">
+                  <Label>Gebuehren (Fee)</Label>
+                  <Input type="number" step="0.01" min="0" {...form.register('fee', { valueAsNumber: true })} />
+                </div>
+
+                <div className="space-y-1.5">
                   <Label>Brutto</Label>
                   <Input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} />
                 </div>
+
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  Gebuehren werden separat gespeichert. Netto/Brutto bleiben der Beleg-Gesamtbetrag.
+                </p>
 
                 <div className="space-y-1.5">
                   <Label>Währung</Label>
@@ -570,6 +597,10 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     </>
   );
 }
+
+
+
+
 
 
 

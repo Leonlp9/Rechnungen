@@ -26,6 +26,8 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
     // Einnahmen nach Kategorie
     const einnahmenInvoices = yearInvoices.filter((i) => i.type === 'einnahme');
     const einnahmenGesamt = einnahmenInvoices.reduce((s, i) => s + i.brutto, 0);
+    // Netto-Einnahmen für EÜR
+    const einnahmenNettoGesamt = einnahmenInvoices.reduce((s, i) => s + i.netto, 0);
 
     const einnahmenByCategory = new Map<Category, number>();
     for (const inv of einnahmenInvoices) {
@@ -64,12 +66,23 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
 
     const betriebsergebnisCashflow = einnahmenGesamt - betriebsausgabenGesamt;
 
-    // Betriebsergebnis nach AfA: Betriebsausgaben OHNE AfA/GWG-Vollkauf + nur zeitanteilige AfA
+    // ── Steuerlicher Gewinn (EÜR) – netto-basiert ─────────────────────────────
+    // GWG = Sofort-Betriebsausgabe (in ausgabenOhneAnlageNetto enthalten)
+    // Nur anlagevermoegen_afa wird über zeitanteilige AfA verteilt
+    const ausgabenOhneAnlageNetto = betriebsausgabenInvoices
+      .filter((i) => i.category !== 'anlagevermoegen_afa')
+      .reduce((s, i) => s + i.netto, 0);
+    const afaOnlyAbschreibung = afaItems
+      .filter((item) => item.invoice.category === 'anlagevermoegen_afa')
+      .reduce((s, item) => s + item.jahresAfa, 0);
+    const betriebsergebnisNachAfa = einnahmenNettoGesamt - ausgabenOhneAnlageNetto - afaOnlyAbschreibung;
+
+    // Für Anzeige: brutto-basierte ausgaben ohne AfA/GWG (Cash-Dialog)
     const ausgabenOhneAfaGwg = betriebsausgabenGesamt - afaVollkaufpreis - gwgVollkaufpreis;
-    const betriebsergebnisNachAfa = einnahmenGesamt - ausgabenOhneAfaGwg - afaJahresAbschreibung;
 
     return {
       einnahmenGesamt,
+      einnahmenNettoGesamt,
       einnahmenByCategory,
       betriebsausgabenGesamt,
       ausgabenByCategory,
@@ -79,6 +92,8 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
       afaVollkaufpreis,
       gwgVollkaufpreis,
       ausgabenOhneAfaGwg,
+      ausgabenOhneAnlageNetto,
+      afaOnlyAbschreibung,
       betriebsergebnisNachAfa,
     };
   }, [yearInvoices, afaItems, afaJahresAbschreibung]);
@@ -191,20 +206,20 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
               </div>
               <div className="text-[11px] space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Einnahmen</span>
-                  <span className="font-medium">{fmt(data.einnahmenGesamt)}</span>
+                  <span className="text-muted-foreground">Betriebseinnahmen (Netto)</span>
+                  <span className="font-medium">{fmt(data.einnahmenNettoGesamt)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">− Betriebsausgaben (ohne AfA/GWG-Käufe)</span>
-                  <span className="font-medium">− {fmt(data.ausgabenOhneAfaGwg)}</span>
+                  <span className="text-muted-foreground">− Betriebsausgaben Netto (ohne Anlagevermögen &gt; 800 €)</span>
+                  <span className="font-medium">− {fmt(data.ausgabenOhneAnlageNetto)}</span>
                 </div>
                 <div className="flex justify-between text-violet-600 dark:text-violet-400">
-                  <span>− Zeitanteilige AfA + GWG-Sofortabzug ({selectedYear})</span>
-                  <span>− {fmt(afaJahresAbschreibung)}</span>
+                  <span>− Zeitanteilige AfA Anlagevermögen ({selectedYear})</span>
+                  <span>− {fmt(data.afaOnlyAbschreibung)}</span>
                 </div>
                 {data.afaVollkaufpreis > 0 && (
                   <div className="flex justify-between text-[10px] text-muted-foreground pl-4">
-                    <span>davon AfA-Anlagen (Kaufpreis: {fmt(data.afaVollkaufpreis)}, nur anteilig absetzbar)</span>
+                    <span>davon AfA-Anlagen (Kaufpreis: {fmt(data.afaVollkaufpreis)}, nur zeitanteilig absetzbar)</span>
                   </div>
                 )}
                 <div className="border-t pt-1 flex justify-between font-bold">
@@ -215,8 +230,7 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
               {data.betriebsergebnisNachAfa !== data.betriebsergebnisCashflow && (
                 <div className="rounded bg-muted/50 p-2 text-[10px] text-muted-foreground">
                   <strong>Vergleich zum Cash-Gewinn:</strong> Der Cash-Gewinn beträgt {fmt(data.betriebsergebnisCashflow)}.
-                  Die Differenz von {fmt(Math.abs(data.betriebsergebnisNachAfa - data.betriebsergebnisCashflow))} entsteht
-                  durch die AfA-Korrektur (voller Kaufpreis vs. zeitanteilige Abschreibung).
+                  Die Differenz entsteht durch netto-Basis (EÜR) sowie AfA-Korrektur (voller Kaufpreis vs. zeitanteilige Abschreibung).
                 </div>
               )}
             </div>

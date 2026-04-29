@@ -442,7 +442,12 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                   <TableCell className="max-w-[200px] truncate">{inv.description}</TableCell>
                   <TableCell>{CATEGORY_LABELS[inv.category]}</TableCell>
                   <TableCell className={inv.type === 'einnahme' ? 'text-green-600' : inv.type === 'ausgabe' ? 'text-red-600' : ''}>
-                    {fmtCurrency(inv.brutto, privacyMode)}
+                    <div>{fmtCurrency(inv.brutto, privacyMode)}</div>
+                    {inv.fee > 0 && (
+                      <div className="text-[11px] text-muted-foreground">
+                        Ausgezahlt: {fmtCurrency(inv.brutto - inv.fee, privacyMode)}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${

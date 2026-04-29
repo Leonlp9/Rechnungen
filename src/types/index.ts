@@ -240,6 +240,8 @@ export interface Invoice {
   description: string;
   partner: string;
   netto: number;
+  /** Nicht steuerbare Gebuehren (z. B. Zahlungsanbieter), separat zum Belegbetrag gespeichert */
+  fee: number;
   ust: number;
   brutto: number;
   type: InvoiceType;
@@ -287,6 +289,8 @@ export interface GeminiResult {
   description: string;
   partner: string;
   netto: number;
+  /** Nicht steuerbare Gebuehren (z. B. Zahlungsanbieter) */
+  fee: number;
   ust: number;
   brutto: number;
   currency: string;

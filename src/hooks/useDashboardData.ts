@@ -170,12 +170,16 @@ export function useDashboardData(): DashboardData {
 
   // ── AfA / GWG-Daten ───────────────────────────────────────────────────────
   const afaData = useMemo((): Pick<DashboardData, 'afaInvoices' | 'gwgInvoices' | 'afaGesamtNetto' | 'gwgGesamtNetto' | 'afaJahresAbschreibung' | 'afaItems'> => {
+    // Neuanschaffungen im gewählten Jahr (für Statistikfelder)
     const afaInvoices = yearInvoices.filter((i) => i.category === 'anlagevermoegen_afa');
     const gwgInvoices = yearInvoices.filter((i) => i.category === 'gwg');
     const afaGesamtNetto = afaInvoices.reduce((s, i) => s + i.netto, 0);
     const gwgGesamtNetto = gwgInvoices.reduce((s, i) => s + i.netto, 0);
 
-    const allAfaGwg = [...afaInvoices, ...gwgInvoices];
+    // Für die Abschreibungsberechnung ALLE Jahre heranziehen (Vorjahres-Anlagen mitberücksichtigen)
+    const allAfaGwg = invoices.filter(
+      (i) => i.category === 'anlagevermoegen_afa' || i.category === 'gwg',
+    );
     const afaItems: DashboardData['afaItems'] = allAfaGwg.map((inv) => {
       const assetType = guessAssetType(inv.description, inv.partner);
       const optionen = berechneAfaOptionen(inv.netto, assetType);
@@ -209,13 +213,36 @@ export function useDashboardData(): DashboardData {
     const afaJahresAbschreibung = afaItems.reduce((s, item) => s + item.jahresAfa, 0);
 
     return { afaInvoices, gwgInvoices, afaGesamtNetto, gwgGesamtNetto, afaJahresAbschreibung, afaItems };
-  }, [yearInvoices, selectedYear]);
+  }, [invoices, yearInvoices, selectedYear]);
 
-  // Betriebsergebnis nach AfA: volle AfA/GWG-Käufe rausrechnen, nur zeitanteilige AfA abziehen
-  const afaVollkaufpreis = yearInvoices
-    .filter((i) => i.type === 'ausgabe' && (i.category === 'anlagevermoegen_afa' || i.category === 'gwg'))
-    .reduce((s, i) => s + i.brutto, 0);
-  const betriebsergebnisNachAfa = betriebsergebnis + afaVollkaufpreis - afaData.afaJahresAbschreibung;
+  // Steuerlicher Gewinn (EÜR) – netto-basiert (wie Steuerbericht.tsx)
+  // GWG = sofor-Betriebsausgabe (netto), nur anlagevermoegen_afa wird über AfA verteilt.
+  // Durch netto-Basis wird bei Regelbesteuerung die durchlaufende USt korrekt herausgerechnet.
+  const einnahmenNetto = useMemo(
+    () => yearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.netto, 0),
+    [yearInvoices],
+  );
+  const betriebsausgabenNettoOhneAnlage = useMemo(
+    () =>
+      yearInvoices
+        .filter(
+          (i) =>
+            i.type === 'ausgabe' &&
+            !nichtBetrieblich.includes(i.category) &&
+            i.category !== 'anlagevermoegen_afa',
+        )
+        .reduce((s, i) => s + i.netto, 0),
+    [yearInvoices],
+  );
+  // Nur anlagevermoegen_afa-Abschreibung (GWG bereits in betriebsausgabenNettoOhneAnlage)
+  const afaOnlyJahresAbschreibung = useMemo(
+    () =>
+      afaData.afaItems
+        .filter((item) => item.invoice.category === 'anlagevermoegen_afa')
+        .reduce((s, item) => s + item.jahresAfa, 0),
+    [afaData.afaItems],
+  );
+  const betriebsergebnisNachAfa = einnahmenNetto - betriebsausgabenNettoOhneAnlage - afaOnlyJahresAbschreibung;
 
   // ── Gesamt-Kennzahlen (alle Jahre) ───────────────────────────────────────
   const gesamtData = useMemo(() => {

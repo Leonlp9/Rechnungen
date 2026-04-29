@@ -3,6 +3,8 @@ import type { Invoice } from '@/types';
 export interface UstVAData {
   year: number;
   quarter: 1 | 2 | 3 | 4;
+  /** Gesetzter Monat (1–12) wenn Monatsvoranmeldung, sonst undefined (Quartalsvoranmeldung). */
+  month?: number;
   steuernummer: string;
   firmenname: string;
   kz_81: number;  // Umsätze 19% (netto)
@@ -43,10 +45,12 @@ export function calculateUstVA(
   const zahllast = ust19 + ust7 - vorsteuer;
 
   const q = period.type === 'quarter' ? period.q : Math.ceil(period.m / 3) as 1|2|3|4;
+  const reportMonth = period.type === 'month' ? period.m : undefined;
 
   return {
     year,
     quarter: q,
+    month: reportMonth,
     steuernummer: '',
     firmenname: '',
     kz_81: umsatz19,
@@ -60,7 +64,11 @@ export function calculateUstVA(
 
 export function generateUstVaXml(data: UstVAData): string {
   const stnr = data.steuernummer.replace(/[/ ]/g, '');
-  const period = String(data.quarter * 3).padStart(2, '0');
+
+  // ELSTER Zeitraum-Kennzeichen: Monate = "01"–"12", Quartale = "41"–"44"
+  const period = data.month !== undefined
+    ? String(data.month).padStart(2, '0')
+    : String(40 + data.quarter);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Elster xmlns="http://www.elster.de/elsterxml/schema/v12">

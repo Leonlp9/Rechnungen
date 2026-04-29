@@ -30,6 +30,7 @@ interface Props {
 export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
   const setInvoices = useAppStore((s) => s.setInvoices);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
 
   const [partner, setPartner] = useState(prefill.partner);
   const [date, setDate] = useState(prefill.date);
@@ -53,8 +54,9 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
       }
       const isoDate = format(parsedDate, 'yyyy-MM-dd');
       const bruttoNum = parseFloat(brutto.replace(',', '.')) || prefill.brutto;
-      const nettoNum = prefill.netto || bruttoNum / 1.19;
-      const ustNum = bruttoNum - nettoNum;
+      const isKleinunternehmerEinnahme = steuerregelung === 'kleinunternehmer' && type === 'einnahme';
+      const nettoNum = isKleinunternehmerEinnahme ? bruttoNum : (prefill.netto || bruttoNum / 1.19);
+      const ustNum = isKleinunternehmerEinnahme ? 0 : (bruttoNum - nettoNum);
 
       const inv = {
         id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -65,6 +67,7 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
         description,
         partner,
         netto: Math.round(nettoNum * 100) / 100,
+        fee: 0,
         ust: Math.round(ustNum * 100) / 100,
         brutto: bruttoNum,
         type,
