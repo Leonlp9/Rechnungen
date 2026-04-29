@@ -3,6 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAppStore } from '@/store';
 import { AlertTriangle, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { fmtCurrency } from '@/lib/utils';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 interface Props {
   einnahmen: number;   // aktuelle Jahreseinnahmen
@@ -72,8 +73,12 @@ export function KleinunternehmerCard({ einnahmen, selectedYear, privacyMode = fa
   return (
     <Card className="rounded-xl shadow-sm h-full flex flex-col">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
           Kleinunternehmergrenze {selectedYear}
+          <InfoTooltip
+            text="§ 19 UStG: Kleinunternehmer müssen keine Umsatzsteuer ausweisen, wenn ihr Brutto-Umsatz im Vorjahr unter 25.000 € (ab 2025) lag. Im laufenden Jahr darf die Grenze 100.000 € nicht überschreiten – sonst sofortiger Wechsel zur Regelbesteuerung."
+            side="top"
+          />
         </CardTitle>
         <StatusIcon className={`h-4 w-4 flex-shrink-0 ${statusColor}`} />
       </CardHeader>

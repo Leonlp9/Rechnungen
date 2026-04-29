@@ -44,6 +44,7 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '@/lib/utils';
 import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
 import { StornoDialog } from './StornoDialog';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 const schema = z.object({
   date: z.string().min(1),
@@ -136,16 +137,16 @@ export default function InvoiceDetail() {
 
       if (result.is_invoice === false) {
         toast.warning(
-          `⚠️ Kein Buchhaltungsdokument erkannt${result.rejection_reason ? `: ${result.rejection_reason}` : '.'}`,
-          { duration: 6000 }
+            `⚠️ Kein Buchhaltungsdokument erkannt${result.rejection_reason ? `: ${result.rejection_reason}` : '.'}`,
+            { duration: 6000 }
         );
         setActiveAiFix(null);
         return;
       }
 
       const fields = activeAiFix?.invoiceId === inv.id
-        ? activeAiFix.fields
-        : (['category'] as Array<'category' | 'type'>);
+          ? activeAiFix.fields
+          : (['category'] as Array<'category' | 'type'>);
 
       const patch: Partial<Invoice> = {};
       if (fields.includes('category')) patch.category = result.suggested_category;
@@ -175,11 +176,11 @@ export default function InvoiceDetail() {
   // Automatisch starten, wenn vom Panel getriggert
   useEffect(() => {
     if (
-      !loading &&
-      invoice &&
-      activeAiFix?.invoiceId === invoice.id &&
-      activeAiFix.loading &&
-      !aiFixLoading
+        !loading &&
+        invoice &&
+        activeAiFix?.invoiceId === invoice.id &&
+        activeAiFix.loading &&
+        !aiFixLoading
     ) {
       runAiFix(invoice);
     }
@@ -189,23 +190,23 @@ export default function InvoiceDetail() {
   const currentIndex = invoices.findIndex((i) => i.id === id);
 
   const goToSibling = useCallback(
-    (dir: -1 | 1) => {
-      const next = currentIndex + dir;
-      if (next >= 0 && next < invoices.length) {
-        navigate(`/invoices/${invoices[next].id}`);
-      }
-    },
-    [currentIndex, invoices, navigate]
+      (dir: -1 | 1) => {
+        const next = currentIndex + dir;
+        if (next >= 0 && next < invoices.length) {
+          navigate(`/invoices/${invoices[next].id}`);
+        }
+      },
+      [currentIndex, invoices, navigate]
   );
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       const isEditable =
-        tag === 'INPUT' ||
-        tag === 'TEXTAREA' ||
-        tag === 'SELECT' ||
-        (e.target as HTMLElement)?.isContentEditable;
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          tag === 'SELECT' ||
+          (e.target as HTMLElement)?.isContentEditable;
       if (isEditable) return;
       if (e.key === 'ArrowLeft') goToSibling(-1);
       if (e.key === 'ArrowRight') goToSibling(1);
@@ -227,7 +228,7 @@ export default function InvoiceDetail() {
     }
     const sumDiff = Math.abs((data.netto + data.ust) - data.brutto);
     if (sumDiff > 0.01) {
-      toast.error('Netto + USt muss dem Bruttobetrag entsprechen.');
+      toast.error('Netto + USt muss dem Bruttobetrag entsprechen. Gebühren fließen hier nicht ein – sie werden separat gespeichert. Beispiel: Brutto 140 €, USt 0 €, Netto 140 € → Fee 22 € separat.');
       return;
     }
     setSaving(true);
@@ -298,8 +299,8 @@ export default function InvoiceDetail() {
   const watchedType = form.watch('type');
   const watchedCategory = form.watch('category');
   const hasCategoryIssue = watchedCategory && watchedType
-    ? !isCategoryValidForType(watchedCategory, watchedType) || (watchedType === 'einnahme' && watchedCategory === 'einnahmen')
-    : false;
+      ? !isCategoryValidForType(watchedCategory, watchedType) || (watchedType === 'einnahme' && watchedCategory === 'einnahmen')
+      : false;
   const hasPdf = !!invoice?.pdf_path;
 
   if (loading) {
@@ -307,248 +308,264 @@ export default function InvoiceDetail() {
   }
 
   return (
-    <div className="flex h-full gap-6">
-      {/* Left: PDF */}
-      <div className="flex-1 rounded-xl border bg-card shadow-sm overflow-hidden min-w-0">
-        {pdfUrl ? (
-          <embed src={pdfUrl} type="application/pdf" className="h-full w-full" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground">Kein PDF vorhanden</div>
-        )}
-      </div>
-
-      {/* Right: Form */}
-      <div className="w-[400px] shrink-0 space-y-4 overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Rechnungsdetails</h1>
-          <div className="flex gap-1">
-            <Button size="icon" variant="ghost" disabled={currentIndex <= 0} onClick={() => goToSibling(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" disabled={currentIndex >= invoices.length - 1} onClick={() => goToSibling(1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="flex h-full gap-6">
+        {/* Left: PDF */}
+        <div className="flex-1 rounded-xl border bg-card shadow-sm overflow-hidden min-w-0">
+          {pdfUrl ? (
+              <embed src={pdfUrl} type="application/pdf" className="h-full w-full" />
+          ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">Kein PDF vorhanden</div>
+          )}
         </div>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Datum</Label>
-            <Input type="date" {...form.register('date')} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Partner</Label>
-            <Input {...form.register('partner')} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Beschreibung</Label>
-            <Input {...form.register('description')} />
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            <div className="space-y-1.5">
-              <Label>Netto</Label>
-              <Input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Gebuehren</Label>
-              <Input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>USt</Label>
-              <Input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Brutto</Label>
-              <Input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Währung</Label>
-            <Input {...form.register('currency')} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Typ</Label>
-            <Select value={watchedType} onValueChange={(v) => {
-              const newType = v as 'einnahme' | 'ausgabe' | 'info';
-              form.setValue('type', newType);
-              const cur = form.getValues('category');
-              if (!(getCategoriesForTypeFiltered(newType) as string[]).includes(cur)) {
-                form.setValue('category', getDefaultCategoryForType(newType));
-              }
-            }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {INVOICE_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Kategorie – mit Fehlerindikator und KI-Fix-Button */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className={cn(hasCategoryIssue && 'text-amber-500 dark:text-amber-400')}>
-                {hasCategoryIssue && <AlertTriangle className="inline h-3.5 w-3.5 mr-1 mb-0.5" />}
-                Kategorie
-              </Label>
-              {hasCategoryIssue && (
-                <button
-                  type="button"
-                  onClick={() => invoice && runAiFix(invoice)}
-                  disabled={aiFixLoading || !hasPdf}
-                  title={hasPdf ? 'KI analysiert das PDF und schlägt die richtige Kategorie vor' : 'Kein PDF – bitte manuell auswählen'}
-                  className={cn(
-                    'flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium border transition-colors',
-                    hasPdf
-                      ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-300/40 hover:bg-violet-500/20'
-                      : 'bg-muted text-muted-foreground border-border cursor-not-allowed opacity-50',
-                  )}
-                >
-                  {aiFixLoading
-                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                    : <Sparkles className="h-3 w-3" />
-                  }
-                  {aiFixLoading ? 'Analysiere…' : 'KI-Fix'}
-                </button>
-              )}
-            </div>
-            <Select
-              value={watchedCategory}
-              onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}
-            >
-              <SelectTrigger className={cn(hasCategoryIssue && 'border-amber-400/60 ring-amber-400/20')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {getCategoriesForBranche(watchedType, branchenprofil, watchedCategory).map((c) => (
-                  <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* AfA / GWG Hinweis – automatisch bei relevanten Kategorien */}
-          {(watchedCategory === 'gwg' || watchedCategory === 'anlagevermoegen_afa') && form.watch('netto') > 0 && (
-            <AfaInfoBox netto={form.watch('netto')} category={watchedCategory} description={form.watch('description') ?? ''} partner={form.watch('partner') ?? ''} date={form.watch('date') ?? ''} />
-          )}
-
-          <div className="space-y-1.5">
-            <Label>Notiz</Label>
-            <Input {...form.register('note')} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Projekt</Label>
-            <ProjectSelector
-              value={projectId}
-              onChange={setProjectId}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2 pt-2">
-            {/* Zeile 1: Primäraktion + PDF */}
-            <div className="flex gap-2">
-              <Button type="submit" disabled={saving || invoice?.is_locked} className="flex-1">
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Speichern
+        {/* Right: Form */}
+        <div className="w-[400px] shrink-0 space-y-4 overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold">Rechnungsdetails</h1>
+            <div className="flex gap-1">
+              <Button size="icon" variant="ghost" disabled={currentIndex <= 0} onClick={() => goToSibling(-1)}>
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="outline" onClick={handleReveal} title="PDF im Explorer anzeigen">
-                <FolderOpen className="h-4 w-4" />
+              <Button size="icon" variant="ghost" disabled={currentIndex >= invoices.length - 1} onClick={() => goToSibling(1)}>
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            {/* Zeile 2: GoBD-Aktionen + Löschen */}
-            <div className="flex gap-2">
-              {!invoice?.is_locked && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setConfirmLock(true)}
-                  title="Beleg festschreiben – danach nur noch per Storno korrigierbar (GoBD)"
-                >
-                  🔒 Festschreiben
-                </Button>
-              )}
-              {!invoice?.storno_of && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30"
-                  onClick={() => setStornoDialogOpen(true)}
-                  title="Gegenbuchung erstellen, die diesen Beleg buchhalterisch aufhebt (GoBD-konform)"
-                >
-                  ↩ Stornieren
-                </Button>
-              )}
-              {!invoice?.is_locked && (
-                <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)} title="Beleg löschen">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
           </div>
-          {invoice?.is_locked && (
-            <p className="text-xs text-amber-600 mt-1">🔒 Dieser Beleg ist festgeschrieben. Änderungen sind nur über eine Stornobuchung möglich.</p>
-          )}
-          {invoice?.storno_of && (
-            <p className="text-xs text-orange-600 mt-1">
-              ↩ Stornobuchung zu{' '}
-              <button
-                type="button"
-                className="underline hover:text-orange-800 dark:hover:text-orange-400 font-medium transition-colors"
-                onClick={() => navigate(`/invoices/${invoice.storno_of}`)}
-                title="Originalbeleg öffnen"
-              >
-                Beleg #{invoice.storno_of.slice(0, 8)}…
-              </button>
-            </p>
-          )}
-        </form>
-      </div>
 
-      {/* Delete confirm dialog */}
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Rechnung löschen?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">Diese Aktion kann nicht rückgängig gemacht werden.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(false)}>Abbrechen</Button>
-            <Button variant="destructive" onClick={handleDelete}>Endgültig löschen</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Festschreiben confirm dialog */}
-      <AlertDialog open={confirmLock} onOpenChange={setConfirmLock}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Beleg festschreiben?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm">
-                <p>Der Beleg wird <strong>dauerhaft gesperrt</strong> und kann danach <strong>nicht mehr bearbeitet oder gelöscht</strong> werden.</p>
-                <p>Das entspricht den <strong>GoBD-Anforderungen</strong> (Grundsätze ordnungsgemäßer Buchführung): Einmal verbuchte Belege dürfen nachträglich nicht verändert werden.</p>
-                <p className="text-amber-600 dark:text-amber-400">Falls du den Beleg später korrigieren musst, ist nur noch eine <strong>Stornobuchung</strong> möglich – eine neue Gegenbuchung mit negativen Beträgen.</p>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Datum</Label>
+              <Input type="date" {...form.register('date')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Partner</Label>
+              <Input {...form.register('partner')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Beschreibung</Label>
+              <Input {...form.register('description')} />
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1">
+                  Netto
+                  <InfoTooltip text="Nettobetrag ohne Umsatzsteuer. Basis für die EÜR (Einnahmen-Überschuss-Rechnung)." side="right" />
+                </Label>
+                <Input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} />
               </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={handleLock}>🔒 Jetzt festschreiben</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1">
+                  Gebuehren
+                  <InfoTooltip text="Plattformgebühren oder Transaktionskosten (z. B. PayPal-Fee). Separat gespeichert, senken aber deinen Nettoerlös." side="right" />
+                </Label>
+                <Input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1">
+                  USt
+                  <InfoTooltip text="Umsatzsteuer (MwSt.): Aufschlag auf den Nettobetrag. Als Kleinunternehmer (§ 19 UStG) 0 eintragen." side="right" />
+                </Label>
+                <Input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1">
+                  Brutto
+                  <InfoTooltip text="Gesamtbetrag inkl. USt (Netto + USt). Relevant für die Kleinunternehmergrenze (§ 19 UStG)." side="right" />
+                </Label>
+                <Input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Währung</Label>
+              <Input {...form.register('currency')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">
+                Typ
+                <InfoTooltip text="Einnahme = Geld erhalten. Ausgabe = Geld bezahlt. Info = neutraler Vermerk ohne Buchungswirkung." side="right" />
+              </Label>
+              <Select value={watchedType} onValueChange={(v) => {
+                const newType = v as 'einnahme' | 'ausgabe' | 'info';
+                form.setValue('type', newType);
+                const cur = form.getValues('category');
+                if (!(getCategoriesForTypeFiltered(newType) as string[]).includes(cur)) {
+                  form.setValue('category', getDefaultCategoryForType(newType));
+                }
+              }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {INVOICE_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-      {/* Storno Dialog */}
-      <StornoDialog
-        open={stornoDialogOpen}
-        invoice={invoice}
-        onClose={() => setStornoDialogOpen(false)}
-        onSuccess={(stornoId) => { setStornoDialogOpen(false); navigate(`/invoices/${stornoId}`); }}
-      />
-    </div>
+            {/* Kategorie – mit Fehlerindikator und KI-Fix-Button */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className={cn('flex items-center gap-1', hasCategoryIssue && 'text-amber-500 dark:text-amber-400')}>
+                  {hasCategoryIssue && <AlertTriangle className="inline h-3.5 w-3.5 mr-1 mb-0.5" />}
+                  Kategorie
+                  <InfoTooltip text="Kategorien helfen bei der steuerlichen Einordnung. Anlagevermögen (AfA) wird über mehrere Jahre abgeschrieben. GWG &lt; 800 € netto kann sofort abgesetzt werden." side="right" />
+                </Label>
+                {hasCategoryIssue && (
+                    <button
+                        type="button"
+                        onClick={() => invoice && runAiFix(invoice)}
+                        disabled={aiFixLoading || !hasPdf}
+                        title={hasPdf ? 'KI analysiert das PDF und schlägt die richtige Kategorie vor' : 'Kein PDF – bitte manuell auswählen'}
+                        className={cn(
+                            'flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium border transition-colors',
+                            hasPdf
+                                ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-300/40 hover:bg-violet-500/20'
+                                : 'bg-muted text-muted-foreground border-border cursor-not-allowed opacity-50',
+                        )}
+                    >
+                      {aiFixLoading
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <Sparkles className="h-3 w-3" />
+                      }
+                      {aiFixLoading ? 'Analysiere…' : 'KI-Fix'}
+                    </button>
+                )}
+              </div>
+              <Select
+                  value={watchedCategory}
+                  onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}
+              >
+                <SelectTrigger className={cn(hasCategoryIssue && 'border-amber-400/60 ring-amber-400/20')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getCategoriesForBranche(watchedType, branchenprofil, watchedCategory).map((c) => (
+                      <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* AfA / GWG Hinweis – automatisch bei relevanten Kategorien */}
+            {(watchedCategory === 'gwg' || watchedCategory === 'anlagevermoegen_afa') && form.watch('netto') > 0 && (
+                <AfaInfoBox netto={form.watch('netto')} category={watchedCategory} description={form.watch('description') ?? ''} partner={form.watch('partner') ?? ''} date={form.watch('date') ?? ''} />
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Notiz</Label>
+              <Input {...form.register('note')} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Projekt</Label>
+              <ProjectSelector
+                  value={projectId}
+                  onChange={setProjectId}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              {/* Zeile 1: Primäraktion + PDF */}
+              <div className="flex gap-2">
+                <Button type="submit" disabled={saving || invoice?.is_locked} className="flex-1">
+                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Speichern
+                </Button>
+                <Button type="button" variant="outline" onClick={handleReveal} title="PDF im Explorer anzeigen">
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+              {/* Zeile 2: GoBD-Aktionen + Löschen */}
+              <div className="flex gap-2">
+                {!invoice?.is_locked && (
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={() => setConfirmLock(true)}
+                        title="Beleg festschreiben – danach nur noch per Storno korrigierbar (GoBD)"
+                    >
+                      🔒 Festschreiben
+                    </Button>
+                )}
+                {!invoice?.storno_of && (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1 text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                        onClick={() => setStornoDialogOpen(true)}
+                        title="Gegenbuchung erstellen, die diesen Beleg buchhalterisch aufhebt (GoBD-konform)"
+                    >
+                      ↩ Stornieren
+                    </Button>
+                )}
+                {!invoice?.is_locked && (
+                    <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)} title="Beleg löschen">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                )}
+              </div>
+            </div>
+            {invoice?.is_locked && (
+                <p className="text-xs text-amber-600 mt-1">🔒 Dieser Beleg ist festgeschrieben. Änderungen sind nur über eine Stornobuchung möglich.</p>
+            )}
+            {invoice?.storno_of && (
+                <p className="text-xs text-orange-600 mt-1">
+                  ↩ Stornobuchung zu{' '}
+                  <button
+                      type="button"
+                      className="underline hover:text-orange-800 dark:hover:text-orange-400 font-medium transition-colors"
+                      onClick={() => navigate(`/invoices/${invoice.storno_of}`)}
+                      title="Originalbeleg öffnen"
+                  >
+                    Beleg #{invoice.storno_of.slice(0, 8)}…
+                  </button>
+                </p>
+            )}
+          </form>
+        </div>
+
+        {/* Delete confirm dialog */}
+        <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Rechnung löschen?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmDelete(false)}>Abbrechen</Button>
+              <Button variant="destructive" onClick={handleDelete}>Endgültig löschen</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Festschreiben confirm dialog */}
+        <AlertDialog open={confirmLock} onOpenChange={setConfirmLock}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Beleg festschreiben?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm">
+                  <p>Der Beleg wird <strong>dauerhaft gesperrt</strong> und kann danach <strong>nicht mehr bearbeitet oder gelöscht</strong> werden.</p>
+                  <p>Das entspricht den <strong>GoBD-Anforderungen</strong> (Grundsätze ordnungsgemäßer Buchführung): Einmal verbuchte Belege dürfen nachträglich nicht verändert werden.</p>
+                  <p className="text-amber-600 dark:text-amber-400">Falls du den Beleg später korrigieren musst, ist nur noch eine <strong>Stornobuchung</strong> möglich – eine neue Gegenbuchung mit negativen Beträgen.</p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogAction onClick={handleLock}>🔒 Jetzt festschreiben</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Storno Dialog */}
+        <StornoDialog
+            open={stornoDialogOpen}
+            invoice={invoice}
+            onClose={() => setStornoDialogOpen(false)}
+            onSuccess={(stornoId) => { setStornoDialogOpen(false); navigate(`/invoices/${stornoId}`); }}
+        />
+      </div>
   );
 }
 
@@ -574,10 +591,10 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
   const currentYear = new Date().getFullYear();
   const isPool = (selectedMethode ?? empfohlen) === 'pool';
   const proRata = nutzungsdauer > 1
-    ? (isPool
-        ? berechnePoolAfaJahresplan(netto, date, currentYear)
-        : berechneProRataAfa(netto, date, nutzungsdauer, currentYear))
-    : null;
+      ? (isPool
+          ? berechnePoolAfaJahresplan(netto, date, currentYear)
+          : berechneProRataAfa(netto, date, nutzungsdauer, currentYear))
+      : null;
 
   const fmtEur = (v: number) => v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 
@@ -587,152 +604,152 @@ function AfaInfoBox({ netto, category, description, partner, date }: { netto: nu
   const falscheKategorie = (category === 'gwg' && sollAfa) || (category === 'anlagevermoegen_afa' && sollGwg);
 
   return (
-    <div className="rounded-lg border border-blue-300/40 bg-blue-500/5 p-3 space-y-2">
-      <div className="flex items-center gap-2">
-        <Calculator className="h-4 w-4 text-blue-500" />
-        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">AfA-Einordnung</span>
-      </div>
-
-      <div className="text-xs space-y-1.5">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Netto-Preis:</span>
-          <span className="font-medium">{fmtEur(netto)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Schwelle:</span>
-          <span className="font-medium">{gwgLabel}</span>
+      <div className="rounded-lg border border-blue-300/40 bg-blue-500/5 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Calculator className="h-4 w-4 text-blue-500" />
+          <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">AfA-Einordnung</span>
         </div>
 
-        {/* Typ-Auswahl */}
-        <div className="flex justify-between items-center">
-          <span className="text-muted-foreground">Wirtschaftsgut-Typ:</span>
-          <Select value={selectedType} onValueChange={(v) => { setSelectedType(v); setSelectedMethode(null); }}>
-            <SelectTrigger className="w-[180px] h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ASSET_TYPES.map((t) => (
-                <SelectItem key={t} value={t} className="text-xs">
-                  {NUTZUNGSDAUER_LABELS[t] ?? t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {selectedType !== detectedType && (
-          <div className="text-[10px] text-muted-foreground italic">
-            Automatisch erkannt: {NUTZUNGSDAUER_LABELS[detectedType] ?? detectedType}
-          </div>
-        )}
-
-        {/* Monatliche AfA */}
-        {proRata && (
+        <div className="text-xs space-y-1.5">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Monatliche AfA ({aktiveOption?.label ?? ''}):</span>
-            <span className="font-medium">{fmtEur(proRata.monatsAfa)}</span>
+            <span className="text-muted-foreground">Netto-Preis:</span>
+            <span className="font-medium">{fmtEur(netto)}</span>
           </div>
-        )}
-        {proRata && (
           <div className="flex justify-between">
-            <span className="text-muted-foreground">AfA in {currentYear}:</span>
-            <span className="font-medium text-violet-600 dark:text-violet-400">
+            <span className="text-muted-foreground">Schwelle:</span>
+            <span className="font-medium">{gwgLabel}</span>
+          </div>
+
+          {/* Typ-Auswahl */}
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Wirtschaftsgut-Typ:</span>
+            <Select value={selectedType} onValueChange={(v) => { setSelectedType(v); setSelectedMethode(null); }}>
+              <SelectTrigger className="w-[180px] h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ASSET_TYPES.map((t) => (
+                    <SelectItem key={t} value={t} className="text-xs">
+                      {NUTZUNGSDAUER_LABELS[t] ?? t}
+                    </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedType !== detectedType && (
+              <div className="text-[10px] text-muted-foreground italic">
+                Automatisch erkannt: {NUTZUNGSDAUER_LABELS[detectedType] ?? detectedType}
+              </div>
+          )}
+
+          {/* Monatliche AfA */}
+          {proRata && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Monatliche AfA ({aktiveOption?.label ?? ''}):</span>
+                <span className="font-medium">{fmtEur(proRata.monatsAfa)}</span>
+              </div>
+          )}
+          {proRata && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">AfA in {currentYear}:</span>
+                <span className="font-medium text-violet-600 dark:text-violet-400">
               {fmtEur(proRata.afaBetragImJahr)}{!isPool && ` (${proRata.monateImJahr}/12 Mon.)`}
-              {isPool && <span className="ml-1 text-[10px] text-muted-foreground">(voller Jahresbetrag)</span>}
+                  {isPool && <span className="ml-1 text-[10px] text-muted-foreground">(voller Jahresbetrag)</span>}
             </span>
-          </div>
-        )}
+              </div>
+          )}
 
-        {falscheKategorie && (
-          <div className="flex items-start gap-1.5 rounded bg-amber-500/10 border border-amber-400/30 p-2 mt-1">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-            <span className="text-amber-700 dark:text-amber-400 text-[11px]">
+          {falscheKategorie && (
+              <div className="flex items-start gap-1.5 rounded bg-amber-500/10 border border-amber-400/30 p-2 mt-1">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <span className="text-amber-700 dark:text-amber-400 text-[11px]">
               {sollGwg
-                ? `Netto ≤ 800 € → sollte als „GWG" kategorisiert werden (Sofortabschreibung).`
-                : `Netto > 800 € → sollte als „Anlagevermögen / AfA" kategorisiert werden (lineare Abschreibung).`
+                  ? `Netto ≤ 800 € → sollte als „GWG" kategorisiert werden (Sofortabschreibung).`
+                  : `Netto > 800 € → sollte als „Anlagevermögen / AfA" kategorisiert werden (lineare Abschreibung).`
               }
             </span>
-          </div>
-        )}
+              </div>
+          )}
 
-        <div className="border-t border-blue-200/30 pt-1.5 mt-1.5 space-y-1">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Abschreibungsoptionen:</span>
-          {optionen.map((opt) => {
-            const isActive = opt.methode === (selectedMethode ?? empfohlen);
-            return (
-              <button
-                key={opt.methode}
-                type="button"
-                onClick={() => { setSelectedMethode(opt.methode); setShowPlan(false); }}
-                className={cn(
-                  'w-full text-left rounded p-1.5 text-[11px] border transition-colors',
-                  isActive
-                    ? 'bg-emerald-500/10 border-emerald-400/30 ring-1 ring-emerald-400/40'
-                    : 'bg-muted/50 border-transparent hover:bg-muted',
-                )}
-              >
-                <div className="flex justify-between items-center">
+          <div className="border-t border-blue-200/30 pt-1.5 mt-1.5 space-y-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Abschreibungsoptionen:</span>
+            {optionen.map((opt) => {
+              const isActive = opt.methode === (selectedMethode ?? empfohlen);
+              return (
+                  <button
+                      key={opt.methode}
+                      type="button"
+                      onClick={() => { setSelectedMethode(opt.methode); setShowPlan(false); }}
+                      className={cn(
+                          'w-full text-left rounded p-1.5 text-[11px] border transition-colors',
+                          isActive
+                              ? 'bg-emerald-500/10 border-emerald-400/30 ring-1 ring-emerald-400/40'
+                              : 'bg-muted/50 border-transparent hover:bg-muted',
+                      )}
+                  >
+                    <div className="flex justify-between items-center">
                   <span className="font-medium">
                     {isActive && <span className="text-emerald-600 mr-1">✓</span>}
                     {opt.label}
                     {opt.methode === empfohlen && opt.methode !== (selectedMethode ?? empfohlen) && (
-                      <span className="ml-1 text-[9px] text-muted-foreground">(empfohlen)</span>
+                        <span className="ml-1 text-[9px] text-muted-foreground">(empfohlen)</span>
                     )}
                     {opt.methode === empfohlen && isActive && selectedMethode == null && (
-                      <span className="ml-1 text-[9px] text-muted-foreground">(empfohlen)</span>
+                        <span className="ml-1 text-[9px] text-muted-foreground">(empfohlen)</span>
                     )}
                   </span>
-                  <span className="font-mono">{fmtEur(opt.jahresAbschreibung)}/Jahr</span>
-                </div>
-                {opt.nutzungsdauer > 1 && (
-                  <span className="text-muted-foreground">Restwert nach 1 Jahr: {fmtEur(opt.restwert)}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Abschreibungsplan */}
-        {proRata && proRata.jahresplan.length > 0 && (
-          <div className="border-t border-blue-200/30 pt-1.5 mt-1.5">
-            <button
-              type="button"
-              onClick={() => setShowPlan(!showPlan)}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            >
-              {showPlan ? '▾' : '▸'} Abschreibungsplan ({proRata.jahresplan.length} Jahre)
-            </button>
-            {showPlan && (
-              <div className="mt-1.5 rounded border overflow-hidden">
-                <table className="w-full text-[10px]">
-                  <thead>
-                    <tr className="bg-muted/50">
-                      <th className="text-left px-2 py-1 font-medium">Jahr</th>
-                      {!isPool && <th className="text-center px-2 py-1 font-medium">Monate</th>}
-                      <th className="text-right px-2 py-1 font-medium">AfA</th>
-                      <th className="text-right px-2 py-1 font-medium">Restwert</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {proRata.jahresplan.map((row) => (
-                      <tr key={row.jahr} className={cn(
-                        'border-t',
-                        row.jahr === currentYear && 'bg-violet-500/5 font-semibold',
-                      )}>
-                        <td className="px-2 py-1">{row.jahr}{row.jahr === currentYear ? ' ◄' : ''}</td>
-                        {!isPool && <td className="px-2 py-1 text-center">{row.monate}/12</td>}
-                        <td className="px-2 py-1 text-right">{fmtEur(row.betrag)}</td>
-                        <td className="px-2 py-1 text-right">{fmtEur(row.restwert)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                      <span className="font-mono">{fmtEur(opt.jahresAbschreibung)}/Jahr</span>
+                    </div>
+                    {opt.nutzungsdauer > 1 && (
+                        <span className="text-muted-foreground">Restwert nach 1 Jahr: {fmtEur(opt.restwert)}</span>
+                    )}
+                  </button>
+              );
+            })}
           </div>
-        )}
+
+          {/* Abschreibungsplan */}
+          {proRata && proRata.jahresplan.length > 0 && (
+              <div className="border-t border-blue-200/30 pt-1.5 mt-1.5">
+                <button
+                    type="button"
+                    onClick={() => setShowPlan(!showPlan)}
+                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  {showPlan ? '▾' : '▸'} Abschreibungsplan ({proRata.jahresplan.length} Jahre)
+                </button>
+                {showPlan && (
+                    <div className="mt-1.5 rounded border overflow-hidden">
+                      <table className="w-full text-[10px]">
+                        <thead>
+                        <tr className="bg-muted/50">
+                          <th className="text-left px-2 py-1 font-medium">Jahr</th>
+                          {!isPool && <th className="text-center px-2 py-1 font-medium">Monate</th>}
+                          <th className="text-right px-2 py-1 font-medium">AfA</th>
+                          <th className="text-right px-2 py-1 font-medium">Restwert</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {proRata.jahresplan.map((row) => (
+                            <tr key={row.jahr} className={cn(
+                                'border-t',
+                                row.jahr === currentYear && 'bg-violet-500/5 font-semibold',
+                            )}>
+                              <td className="px-2 py-1">{row.jahr}{row.jahr === currentYear ? ' ◄' : ''}</td>
+                              {!isPool && <td className="px-2 py-1 text-center">{row.monate}/12</td>}
+                              <td className="px-2 py-1 text-right">{fmtEur(row.betrag)}</td>
+                              <td className="px-2 py-1 text-right">{fmtEur(row.restwert)}</td>
+                            </tr>
+                        ))}
+                        </tbody>
+                      </table>
+                    </div>
+                )}
+              </div>
+          )}
+        </div>
       </div>
-    </div>
   );
 }
 

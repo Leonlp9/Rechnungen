@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useAppStore } from '@/store';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 interface KPICardProps {
   title: string;
@@ -82,11 +83,7 @@ export function KPICard({ title, value, rawValue, formatValue, delta, icon, tool
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
           {title}
-          {tooltip && (
-            <span title={tooltip} className="cursor-help text-muted-foreground/60 hover:text-muted-foreground">
-              <Info className="h-3 w-3" />
-            </span>
-          )}
+          {tooltip && <InfoTooltip text={tooltip} side="top" />}
         </CardTitle>
         {icon}
       </CardHeader>

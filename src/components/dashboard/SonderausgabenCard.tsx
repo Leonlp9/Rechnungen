@@ -5,6 +5,7 @@ import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@
 import { fmtCurrency } from '@/lib/utils';
 import { Heart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 interface Props {
   invoices: Invoice[];
@@ -62,6 +63,7 @@ export function SonderausgabenCard({ invoices, privacyMode, loading }: Props) {
         <CardTitle className="text-base flex items-center gap-2">
           <Heart className="h-4 w-4 text-rose-500" />
           Sonderausgaben & Privat
+          <InfoTooltip text="Sonderausgaben (z. B. Krankenkasse, Spenden) können ggf. in der Einkommensteuererklärung geltend gemacht werden. Private Ausgaben sind steuerlich nicht absetzbar. Beide Kategorien senken das Saldo, aber nicht das steuerliche Betriebsergebnis." side="right" />
         </CardTitle>
         <p className="text-xs text-muted-foreground mt-0.5">
           Kein regulärer Betriebsaufwand – senken das Saldo, nicht das Betriebsergebnis

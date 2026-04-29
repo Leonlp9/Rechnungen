@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { fmtCurrency } from '@/lib/utils';
 import { TrendingUp, TrendingDown, CalendarClock, ExternalLink } from 'lucide-react';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 interface Props {
   invoices: Invoice[];
@@ -110,6 +111,7 @@ export function ForecastList({ invoices, privacyMode, loading, selectedMonth, se
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarClock className="h-4 w-4 text-muted-foreground" />
             Prognose – {monthLabel}
+            <InfoTooltip text="Prognostizierte Einnahmen und Ausgaben basierend auf erkannten wiederkehrenden Mustern (Abos, regelmäßige Zahlungen). Confidence = Zuverlässigkeit der Vorhersage." side="right" />
           </CardTitle>
           {forecasts.length > 0 && (
             <div className="flex gap-3 text-sm">

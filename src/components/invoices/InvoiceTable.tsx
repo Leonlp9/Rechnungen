@@ -21,6 +21,7 @@ import { useAppStore } from '@/store';
 import { fmtCurrency, saveCsvFile } from '@/lib/utils';
 import { InvoiceContextMenu } from './InvoiceContextMenu';
 import { useState } from 'react';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 type SortKey = 'date' | 'partner' | 'category' | 'brutto' | 'type';
 type SortDir = 'asc' | 'desc';
@@ -144,7 +145,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
     }
   }, [filterMonth, filterYears.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const SortHeader = ({ label, field }: { label: string; field: SortKey }) => {
+  const SortHeader = ({ label, field, tooltip }: { label: string; field: SortKey; tooltip?: string }) => {
     const active = sortKey === field;
     const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
     return (
@@ -152,6 +153,11 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
         <div className="flex items-center gap-1">
           {label}
           <Icon className={`h-3 w-3 ${active ? 'text-foreground' : 'text-muted-foreground'}`} />
+          {tooltip && (
+            <span onClick={(e) => e.stopPropagation()}>
+              <InfoTooltip text={tooltip} side="top" />
+            </span>
+          )}
         </div>
       </TableHead>
     );
@@ -392,9 +398,9 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
               <SortHeader label="Datum" field="date" />
               <SortHeader label="Partner" field="partner" />
               <TableHead>Beschreibung</TableHead>
-              <SortHeader label="Kategorie" field="category" />
-              <SortHeader label="Brutto" field="brutto" />
-              <SortHeader label="Typ" field="type" />
+              <SortHeader label="Kategorie" field="category" tooltip="Steuerliche Kategorie des Belegs (z. B. Honorar, Software/Abos, Bürobedarf)" />
+              <SortHeader label="Brutto" field="brutto" tooltip="Gesamtbetrag inkl. Umsatzsteuer (Netto + USt). Relevant für die Kleinunternehmergrenze." />
+              <SortHeader label="Typ" field="type" tooltip="Einnahme = Geld erhalten · Ausgabe = Geld bezahlt · Info = neutraler Vermerk" />
             </TableRow>
           </TableHeader>
           <TableBody>

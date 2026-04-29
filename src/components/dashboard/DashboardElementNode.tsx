@@ -102,6 +102,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaEin}
           icon={<TrendingUp className="h-4 w-4 text-green-600" />}
+          tooltip="YTD = Year to Date: Gesamte Brutto-Einnahmen vom 1. Januar bis heute im gewählten Jahr"
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=einnahme`)} />
       );
     case 'kpi-ausgaben-ytd':
@@ -112,6 +113,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaAus}
           icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+          tooltip="YTD = Year to Date: Gesamte Brutto-Ausgaben vom 1. Januar bis heute im gewählten Jahr"
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=ausgabe`)} />
       );
     case 'kpi-saldo-ytd':
@@ -155,7 +157,8 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KPICard loading={loading} title="Belege (30 Tage)"
           value={String(recentCount)}
-          icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
+          icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+          tooltip="Anzahl der erfassten Belege (Einnahmen + Ausgaben) in den letzten 30 Tagen" />
       );
     case 'kpi-einnahmen-monat':
       return (
@@ -165,6 +168,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaMonatEin}
           icon={<TrendingUp className="h-4 w-4 text-green-600" />}
+          tooltip="Gesamte Brutto-Einnahmen im aktuell gewählten Monat"
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}&type=einnahme`)} />
       );
     case 'kpi-ausgaben-monat':
@@ -175,6 +179,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaMonatAus}
           icon={<TrendingDown className="h-4 w-4 text-red-600" />}
+          tooltip="Gesamte Brutto-Ausgaben im aktuell gewählten Monat"
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}&type=ausgabe`)} />
       );
     case 'kpi-saldo-monat':

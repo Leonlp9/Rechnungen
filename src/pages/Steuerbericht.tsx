@@ -10,13 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { FileText, TrendingUp, TrendingDown, Download, Calculator, PiggyBank, Receipt, Info } from 'lucide-react';
+import { FileText, TrendingUp, TrendingDown, Download, Calculator, PiggyBank, Receipt } from 'lucide-react';
 import { exportToDatev, exportToXlsx } from '@/lib/export';
 import {
   berechneAfaOptionen, empfohlenAfaMethode, guessAssetType,
   berechneProRataAfa, getNutzungsdauer, NUTZUNGSDAUER_LABELS,
 } from '@/lib/afa';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -179,7 +179,6 @@ export default function SteuerbrichtPage() {
   }
 
   return (
-    <TooltipProvider>
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -216,7 +215,11 @@ export default function SteuerbrichtPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-5 space-y-1">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs"><TrendingUp className="h-3.5 w-3.5 text-green-600" /> Betriebseinnahmen (Netto)</div>
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <TrendingUp className="h-3.5 w-3.5 text-green-600" />
+              Betriebseinnahmen (Netto)
+              <InfoTooltip text="Nettobetrag aller Einnahmen (ohne Umsatzsteuer). Die Basis der EÜR." side="top" />
+            </div>
             <p className="text-xl font-bold text-green-600">{fmtCurrency(einnahmen, privacyMode)}</p>
           </CardContent>
         </Card>
@@ -224,10 +227,7 @@ export default function SteuerbrichtPage() {
           <CardContent className="pt-5 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <TrendingDown className="h-3.5 w-3.5 text-red-600" /> Betriebsausgaben (steuerlich)
-              <Tooltip>
-                <TooltipTrigger><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                <TooltipContent className="max-w-xs">Inkl. zeitanteiliger AfA statt vollem Kaufpreis. Reguläre Ausgaben: {fmtCurrency(betriebsausgabenOhneAfa, privacyMode)} + Jahres-AfA: {fmtCurrency(afaJahresgesamt, privacyMode)}</TooltipContent>
-              </Tooltip>
+              <InfoTooltip text={`Inkl. zeitanteiliger AfA statt vollem Kaufpreis. Reguläre Ausgaben: ${fmtCurrency(betriebsausgabenOhneAfa, privacyMode)} + Jahres-AfA: ${fmtCurrency(afaJahresgesamt, privacyMode)}`} side="top" />
             </div>
             <p className="text-xl font-bold text-red-600">{fmtCurrency(betriebsausgabenSteuerlich, privacyMode)}</p>
             {anlagevermoegen_kaufpreis > 0 && (
@@ -239,10 +239,7 @@ export default function SteuerbrichtPage() {
           <CardContent className="pt-5 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <Calculator className="h-3.5 w-3.5 text-violet-600" /> Steuerlicher Gewinn (EÜR)
-              <Tooltip>
-                <TooltipTrigger><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                <TooltipContent className="max-w-xs">Einnahmen minus steuerliche Betriebsausgaben (mit AfA). Dies ist die Basis für die Einkommensteuer. Cash-Gewinn: {fmtCurrency(gewinnCash, privacyMode)}</TooltipContent>
-              </Tooltip>
+              <InfoTooltip text={`EÜR = Einnahmen-Überschuss-Rechnung: Einnahmen minus steuerliche Betriebsausgaben (mit AfA). Dies ist die Basis für die Einkommensteuer. Cash-Gewinn: ${fmtCurrency(gewinnCash, privacyMode)}`} side="top" />
             </div>
             <p className={`text-xl font-bold ${gewinnSteuerlich >= 0 ? 'text-violet-600' : 'text-red-600'}`}>{fmtCurrency(gewinnSteuerlich, privacyMode)}</p>
             {anlagevermoegen_kaufpreis > 0 && (
@@ -252,7 +249,10 @@ export default function SteuerbrichtPage() {
         </Card>
         <Card>
           <CardContent className="pt-5 space-y-1">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs"><PiggyBank className="h-3.5 w-3.5 text-amber-500" /> Steuerrücklage (30 %)</div>
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <PiggyBank className="h-3.5 w-3.5 text-amber-500" /> Steuerrücklage (30 %)
+              <InfoTooltip text="Empfohlene Rücklage für die Einkommensteuer: 30 % des steuerlichen Gewinns über dem Grundfreibetrag. Kein amtlicher Steuersatz – nur eine Faustregel für Selbstständige." side="top" />
+            </div>
             <p className="text-xl font-bold text-amber-600">{fmtCurrency(steuerruecklage, privacyMode)}</p>
             <p className="text-[10px] text-muted-foreground">nach GFB {fmtCurrency(grundfreibetrag, privacyMode)}</p>
           </CardContent>
@@ -265,6 +265,7 @@ export default function SteuerbrichtPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Calculator className="h-4 w-4 text-violet-600" /> AfA-Plan {selectedYear}
+              <InfoTooltip text="AfA = Absetzung für Abnutzung: Wirtschaftsgüter über 800 € Netto werden nicht sofort, sondern über mehrere Jahre (Nutzungsdauer) steuerlich abgesetzt. GWG unter 800 € können im Kaufjahr voll abgesetzt werden." side="right" />
               <Badge variant="outline" className="text-[10px]">
                 Jahres-AfA gesamt: {fmtCurrency(afaJahresgesamt, privacyMode)}
               </Badge>
@@ -281,10 +282,30 @@ export default function SteuerbrichtPage() {
                 <TableRow>
                   <TableHead>Wirtschaftsgut</TableHead>
                   <TableHead>Typ</TableHead>
-                  <TableHead className="text-right">Kaufpreis</TableHead>
-                  <TableHead>Methode</TableHead>
-                  <TableHead className="text-right">ND (Jahre)</TableHead>
-                  <TableHead className="text-right">AfA {selectedYear}</TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      Kaufpreis
+                      <InfoTooltip text="Nettokaufpreis des Wirtschaftsguts (ohne USt)." side="top" />
+                    </span>
+                  </TableHead>
+                  <TableHead>
+                    <span className="flex items-center gap-1">
+                      Methode
+                      <InfoTooltip text="Lineare AfA: gleichmäßige Abschreibung. Degressive AfA: höhere Abschreibung in frühen Jahren. Sofortabschreibung: GWG unter 800 € netto im Kaufjahr vollständig absetzen." side="top" />
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      ND (Jahre)
+                      <InfoTooltip text="Nutzungsdauer in Jahren, über die das Wirtschaftsgut abgeschrieben wird (laut AfA-Tabelle des BMF)." side="top" />
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      AfA {selectedYear}
+                      <InfoTooltip text="Zeitanteilig berechneter Abschreibungsbetrag im gewählten Jahr. Dieser Betrag ist als Betriebsausgabe steuerlich absetzbar." side="top" />
+                    </span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -325,15 +346,24 @@ export default function SteuerbrichtPage() {
           <CardContent>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground text-xs">USt aus Einnahmen</p>
+                <p className="text-muted-foreground text-xs flex items-center gap-1">
+                  USt aus Einnahmen
+                  <InfoTooltip text="Umsatzsteuer, die du von deinen Kunden eingenommen und ans Finanzamt weiterzuleiten hast." side="top" />
+                </p>
                 <p className="font-semibold text-green-600">{fmtCurrency(ustEinnahmen, privacyMode)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground text-xs">Vorsteuer aus Ausgaben</p>
+                <p className="text-muted-foreground text-xs flex items-center gap-1">
+                  Vorsteuer aus Ausgaben
+                  <InfoTooltip text="Vorsteuer: Die USt, die du in deinen eigenen Einkäufen bezahlt hast. Als Regelbesteuerer kannst du diese vom Finanzamt zurückfordern (Vorsteuerabzug)." side="top" />
+                </p>
                 <p className="font-semibold text-red-600">{fmtCurrency(vorsteuer, privacyMode)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground text-xs">USt-Zahllast ans Finanzamt</p>
+                <p className="text-muted-foreground text-xs flex items-center gap-1">
+                  USt-Zahllast ans Finanzamt
+                  <InfoTooltip text="USt-Zahllast = Eingenommene USt − Vorsteuer. Dieser Betrag wird per UVA (Umsatzsteuervoranmeldung) ans Finanzamt abgeführt." side="top" />
+                </p>
                 <p className={`font-bold ${ustZahllast >= 0 ? 'text-orange-600' : 'text-green-600'}`}>{fmtCurrency(ustZahllast, privacyMode)}</p>
               </div>
             </div>
@@ -483,6 +513,5 @@ export default function SteuerbrichtPage() {
         </CardContent>
       </Card>
     </div>
-    </TooltipProvider>
   );
 }

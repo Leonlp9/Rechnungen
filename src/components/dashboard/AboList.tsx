@@ -11,6 +11,7 @@ import { fmtCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { ExternalLink, RefreshCw, XCircle } from 'lucide-react';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 interface Props {
   invoices: Invoice[];
@@ -176,6 +177,7 @@ export function AboList({ invoices, privacyMode, loading }: Props) {
           <CardTitle className="text-base flex items-center gap-2">
             <RefreshCw className="h-4 w-4 text-muted-foreground" />
             Aktive Abos
+            <InfoTooltip text="Automatisch erkannte wiederkehrende Ausgaben (z. B. monatliche Software-Abos). Die Erkennung basiert auf gleichen Partnern und regelmäßigen Beträgen." side="right" />
           </CardTitle>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="text-green-700 dark:text-green-400 font-medium">{activeCount} aktiv</span>
@@ -183,8 +185,9 @@ export function AboList({ invoices, privacyMode, loading }: Props) {
               <span className="text-red-600 dark:text-red-400">{cancelledCount} gekündigt</span>
             )}
             <span className="text-muted-foreground/60">·</span>
-            <span title="Hochgerechnete monatliche Kosten aller aktiven Abos">
+            <span className="flex items-center gap-1 text-muted-foreground/60">
               ~{fmtCurrency(monthlyTotal, privacyMode ?? false)}/Monat
+              <InfoTooltip text="Hochgerechnete monatliche Kosten aller aktiven Abos" side="top" />
             </span>
           </div>
         </div>

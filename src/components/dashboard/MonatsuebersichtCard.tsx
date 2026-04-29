@@ -5,6 +5,7 @@ import type { Invoice } from '@/types';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -45,7 +46,12 @@ export function MonatsuebersichtCard({ loading, invoices, selectedYear, privacyM
                 <TableHead>Monat</TableHead>
                 <TableHead className="text-right">Einnahmen</TableHead>
                 <TableHead className="text-right">Ausgaben</TableHead>
-                <TableHead className="text-right">Saldo</TableHead>
+                <TableHead className="text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    Saldo
+                    <InfoTooltip text="Saldo = Einnahmen − Ausgaben dieses Monats (Brutto). Positiv = Gewinn, negativ = Verlust im Monat." side="top" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

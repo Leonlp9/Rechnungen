@@ -72,6 +72,9 @@ interface AppState {
   /** KI-Chat Float ein-/ausblenden */
   showAiChat: boolean;
   setShowAiChat: (v: boolean) => void;
+  /** Erklärungssymbole (ⓘ) für Fachbegriffe ein-/ausblenden */
+  showGlossarTooltips: boolean;
+  setShowGlossarTooltips: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -128,10 +131,12 @@ export const useAppStore = create<AppState>()(
       setKmPauschale: (kmPauschale) => set({ kmPauschale }),
       showAiChat: true,
       setShowAiChat: (showAiChat) => set({ showAiChat }),
+      showGlossarTooltips: true,
+      setShowGlossarTooltips: (showGlossarTooltips) => set({ showGlossarTooltips }),
     }),
     {
       name: 'Klevr-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips }),
       merge: (persisted, current) => ({ ...current, ...(persisted as object), drafts: [] }),
     }
   )

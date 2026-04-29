@@ -52,6 +52,8 @@ export function ErscheinungsbildTab({ toggleDark }: ErscheinungsbildTabProps) {
   const setAnimations = useAppStore((s) => s.setAnimations);
   const hiddenNavItems = useAppStore((s) => s.hiddenNavItems);
   const toggleNavItem = useAppStore((s) => s.toggleNavItem);
+  const showGlossarTooltips = useAppStore((s) => s.showGlossarTooltips);
+  const setShowGlossarTooltips = useAppStore((s) => s.setShowGlossarTooltips);
 
   return (
     <>
@@ -65,6 +67,13 @@ export function ErscheinungsbildTab({ toggleDark }: ErscheinungsbildTabProps) {
           <div className="flex items-center justify-between">
             <div><Label>UI Animationen</Label><p className="text-xs text-muted-foreground">Hover-Effekte, Karten-Lift, Seiten-Übergänge u.v.m.</p></div>
             <Button variant="outline" onClick={() => setAnimations(!animations)} className="min-w-25">{animations ? 'Deaktivieren' : 'Aktivieren'}</Button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Erklärungssymbole (ⓘ)</Label>
+              <p className="text-xs text-muted-foreground">Info-Icons mit Begriffserklärungen für Fachbegriffe ein-/ausblenden</p>
+            </div>
+            <Button variant="outline" onClick={() => setShowGlossarTooltips(!showGlossarTooltips)} className="min-w-25">{showGlossarTooltips ? 'Ausblenden' : 'Einblenden'}</Button>
           </div>
           <div className="space-y-3">
             <div><Label>Theme</Label><p className="text-xs text-muted-foreground">Wähle das visuelle Design der App</p></div>
