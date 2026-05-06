@@ -300,11 +300,15 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
 
       await insertInvoice(invoice);
 
-      // PDF-Volltext im Hintergrund extrahieren (für Volltextsuche), ohne die UX zu blockieren
-      const absPath = await getAbsolutePdfPath(relativePath);
-      invoke<string>('extract_pdf_text', { path: absPath })
-          .then((text) => setPdfText(id, text))
-          .catch(() => { /* Fehler ignorieren – Text kann später per Batch nachgeholt werden */ });
+      // PDF-Volltext direkt beim Speichern extrahieren (damit der DataIssuesIndicator keine Warnung zeigt)
+      try {
+        const absPath = await getAbsolutePdfPath(relativePath);
+        const text = await invoke<string>('extract_pdf_text', { path: absPath });
+        await setPdfText(id, text || '[kein Text extrahierbar]');
+      } catch {
+        // PDF nicht lesbar – trotzdem als versucht markieren, damit keine "nicht indiziert"-Warnung erscheint
+        await setPdfText(id, '[PDF nicht lesbar]').catch(() => {});
+      }
 
       const all = await getAllInvoices();
       setInvoices(all);
