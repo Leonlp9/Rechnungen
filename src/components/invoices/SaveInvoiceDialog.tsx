@@ -12,6 +12,7 @@ import { CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForBranche, g
 import type { Category, InvoiceType } from '@/types';
 import { ProjectSelector } from '@/components/projects/ProjectSelector';
 import { format, parse, isValid } from 'date-fns';
+import { FileCode2 } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -24,6 +25,12 @@ interface Props {
     netto: number;
     ust: number;
     brutto: number;
+    /** Relativer Pfad zur archivierten XRechnung-XML (optional) */
+    xrechnungPath?: string;
+    /** Pfad zur archivierten PDF-Datei (optional) */
+    pdfPath?: string;
+    /** Leistungsdatum ISO (optional) */
+    deliveryDate?: string;
   };
 }
 
@@ -72,15 +79,16 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
         brutto: bruttoNum,
         type,
         currency: 'EUR',
-        pdf_path: '',
+        pdf_path: prefill.pdfPath ?? '',
         note: '',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         is_locked: false,
         pdf_sha256: '',
-        delivery_date: '',
+        delivery_date: prefill.deliveryDate ?? '',
         storno_of: '',
         project_id: projectId,
+        xrechnung_path: prefill.xrechnungPath ?? '',
       };
 
       await insertInvoice(inv);
@@ -104,6 +112,15 @@ export function SaveInvoiceDialog({ open, onClose, prefill }: Props) {
             Soll diese Rechnung auch unter „Alle Rechnungen" gespeichert werden?
           </p>
         </DialogHeader>
+
+        {prefill.xrechnungPath && (
+          <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/5 px-3 py-2 text-xs text-green-700 dark:text-green-400">
+            <FileCode2 className="h-4 w-4 shrink-0" />
+            <span>
+              <strong>E-Rechnung archiviert</strong> – XRechnung (UBL 2.1) automatisch als revisionssicheres Original gespeichert.
+            </span>
+          </div>
+        )}
 
         <div className="space-y-3 py-1">
           <div className="grid grid-cols-2 gap-3">

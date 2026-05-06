@@ -11,7 +11,7 @@ import {
   Percent, PiggyBank, Table2,
   PanelLeft, LayoutGrid, LayoutDashboard, AlignJustify,
   User, Search, ShieldCheck, Package, Eye, HardDrive,
-  GripHorizontal,
+  GripHorizontal, Users, RefreshCw, Layers,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -232,6 +232,11 @@ const ALL_ITEMS: SidebarItemDef[] = [
     { section: '🏗️ AfA & Vermögen', type: 'card-afa-uebersicht', label: 'AfA & GWG Übersicht', icon: <Calculator className="h-4 w-4 text-violet-500" />, description: 'Wirtschaftsgüter mit Abschreibung', tooltip: 'Alle Belege mit Kategorie „AfA" oder „GWG" inkl. Abschreibungsmethode und Jahressumme.' },
     { section: '🏗️ AfA & Vermögen', type: 'card-vermoegenscheck', label: 'Vermögens-Check', icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />, description: 'Aktiva vs. Passiva', tooltip: 'Vereinfachte Unternehmer-Bilanz: Liquide Mittel + Sachanlagen minus Rückstellungen.' },
     { section: '🏗️ AfA & Vermögen', type: 'card-investitionsspiegel', label: 'Investitions-Spiegel', icon: <Package className="h-4 w-4 text-violet-500" />, description: 'Anlagevermögen mit Restwerten', tooltip: 'Alle Anlagegüter mit Anschaffungskosten, kumulierter Abschreibung und Restwert.' },
+    { section: '🏗️ AfA & Vermögen', type: 'kpi-stille-reserven', label: 'Stille Reserven', icon: <Layers className="h-4 w-4 text-violet-400" />, description: 'Gesamt-Restwert aller Anlagen', tooltip: 'Summe der noch nicht abgeschriebenen Buchwerte aller Anlagegüter. Dein unsichtbares Kapital.' },
+
+    // ── Risiko & Analyse ──
+    { section: '🔍 Risiko & Analyse', type: 'kpi-kundenkonzentration', label: 'Kunden-Konzentration', icon: <Users className="h-4 w-4 text-blue-500" />, description: 'Klumpenrisiko: Top-Kunden-Anteil', tooltip: 'Anteil des umsatzstärksten Kunden an den Gesamteinnahmen. Über 50% ist ein Klumpenrisiko.' },
+    { section: '🔍 Risiko & Analyse', type: 'kpi-mrc', label: 'Monthly Recurring Costs', icon: <RefreshCw className="h-4 w-4 text-cyan-500" />, description: 'Monatlich wiederkehrende Ausgaben', tooltip: 'Summe aller automatisch erkannten monatlichen Abo-Ausgaben. Zeigt deine fixen monatlichen Kosten.' },
 
     // ── System ──
     { section: '⚙️ System', type: 'card-system-stats', label: 'System & Speicher', icon: <HardDrive className="h-4 w-4 text-slate-500" />, description: 'Speicherplatz, RAM, CPU-Auslastung', tooltip: 'Zeigt Datenbankgröße, Größe der gespeicherten Rechnungsdateien, genutzten Arbeitsspeicher und CPU-Auslastung.' },

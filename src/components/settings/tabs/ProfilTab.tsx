@@ -7,10 +7,14 @@ import { useAppStore } from '@/store';
 
 export const PROFILE_FIELDS = [
   { key: 'profile_name', label: 'Name / Firma' },
-  { key: 'profile_address', label: 'Adresse' },
-  { key: 'profile_tax_number', label: 'Steuernummer' },
+  { key: 'profile_address', label: 'Adresse (einzeilig – für Rechnungsvorlagen)' },
+  { key: 'profile_street', label: 'Straße & Hausnummer (für XRechnung / E-Rechnung)' },
+  { key: 'profile_zip', label: 'Postleitzahl (für XRechnung)' },
+  { key: 'profile_city', label: 'Stadt (für XRechnung)' },
+  { key: 'profile_country', label: 'Land-Code (ISO 3166, z.B. DE)' },
+  { key: 'profile_tax_number', label: 'Steuernummer (z.B. 123/456/78901)' },
   { key: 'profile_w_idnr', label: 'W-IdNr. – Wirtschafts-Identifikationsnummer' },
-  { key: 'profile_vat_id', label: 'USt-IdNr. (nur bei Regelbesteuerung)' },
+  { key: 'profile_vat_id', label: 'USt-IdNr. (z.B. DE123456789 – für XRechnung & Regelbesteuerung)' },
   { key: 'profile_finanzamt', label: 'Finanzamt' },
   { key: 'profile_iban', label: 'IBAN' },
   { key: 'profile_bic', label: 'BIC' },
@@ -44,6 +48,7 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Diese Daten helfen der KI zu verstehen, ob eine Rechnung eine Einnahme oder Ausgabe ist.
+            Straße, PLZ, Stadt und USt-IdNr. werden für den <strong>XRechnung-Export</strong> (E-Rechnungspflicht 2025/2026) benötigt.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">

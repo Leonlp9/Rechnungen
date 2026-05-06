@@ -53,7 +53,10 @@ export type ElementType =
   | 'chart-afa-timeline'
   | 'card-vermoegenscheck'
   | 'card-investitionsspiegel'
-  | 'card-system-stats';
+  | 'card-system-stats'
+  | 'kpi-stille-reserven'
+  | 'kpi-kundenkonzentration'
+  | 'kpi-mrc';
 
 export type GridType =
   | 'grid-vertical'

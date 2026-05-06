@@ -262,6 +262,12 @@ export interface Invoice {
   pdf_text?: string;
   /** Verknüpftes Projekt (optional) */
   project_id?: string;
+  /**
+   * Pfad zur archivierten XRechnung-XML-Datei (relativ zu app_data_dir).
+   * Gemäß E-Rechnungspflicht (§ 14 UStG ab 2025) ist der XML-Teil das Originaldokument.
+   * Pflichtfeld für alle ausgehenden B2B-Rechnungen ab 01.01.2025.
+   */
+  xrechnung_path?: string;
 }
 
 export interface ProjectLink {

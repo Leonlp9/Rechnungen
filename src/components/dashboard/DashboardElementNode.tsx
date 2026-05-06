@@ -44,7 +44,7 @@ function WidgetSkeleton() {
 
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
-  Star, BarChart3,
+  Star, BarChart3, Users, RefreshCw, Layers,
 } from 'lucide-react';
 import { fmtCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -91,6 +91,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
     gesamtEinnahmen, gesamtAusgaben, gesamtSaldo, gesamtBelege,
     gesamtBestesJahr, gesamtAvgYearlyEinnahmen, gesamtAvgYearlyAusgaben,
     gesamtMarge, gesamtByYear,
+    stilleReserven, topKunde, mrc,
   } = ctx;
 
   switch (type) {
@@ -112,6 +113,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           rawValue={privacyMode ? undefined : ausgaben}
           formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaAus}
+          invertDelta
           icon={<TrendingDown className="h-4 w-4 text-red-600" />}
           tooltip="YTD = Year to Date: Gesamte Brutto-Ausgaben vom 1. Januar bis heute im gewählten Jahr"
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=ausgabe`)} />
@@ -178,6 +180,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           rawValue={privacyMode ? undefined : monatAus}
           formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
           delta={privacyMode ? undefined : deltaMonatAus}
+          invertDelta
           icon={<TrendingDown className="h-4 w-4 text-red-600" />}
           tooltip="Gesamte Brutto-Ausgaben im aktuell gewählten Monat"
           onClick={() => navigate(`/invoices?fyear=${selectedYear}&fmonth=${selectedMonth}&type=ausgabe`)} />
@@ -248,6 +251,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
         <KPICard loading={loading} title="Ø Ausgaben / Monat"
           value={fmtCurrency(avg, privacyMode)}
           delta={privacyMode ? undefined : delta}
+          invertDelta
           icon={<TrendingDown className="h-4 w-4 text-red-600" />}
           tooltip="Durchschnittliche monatliche Ausgaben (Ausgaben / 12)" />
       );
@@ -487,6 +491,45 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
     case 'card-system-stats':
       return <SystemStatsCard loading={loading} />;
 
+    // ── Neue Metriken ─────────────────────────────────────────────────────────
+    case 'kpi-stille-reserven':
+      return (
+        <KPICard loading={loading} title="Stille Reserven"
+          value={fmtCurrency(stilleReserven, privacyMode)}
+          icon={<Layers className="h-4 w-4 text-violet-500" />}
+          tooltip={`Summe der Restbuchwerte aller nicht vollständig abgeschriebenen Anlagegüter (Ende ${selectedYear}). Das ist dein „unsichtbares Kapital" – Wirtschaftsgüter, die bilanziell noch Wert haben, aber im täglichen Cash nicht sichtbar sind. Formel: Anschaffungskosten − kumulierte AfA aller Vorjahre.`} />
+      );
+    case 'kpi-kundenkonzentration': {
+      if (!topKunde) {
+        return (
+          <KPICard loading={loading} title="Kunden-Konzentration"
+            value="–"
+            icon={<Users className="h-4 w-4 text-blue-500" />}
+            tooltip="Anteil des umsatzstärksten Kunden an den Gesamteinnahmen. Ein hoher Wert (>50%) ist ein Klumpenrisiko." />
+        );
+      }
+      const isRisk = topKunde.anteil >= 50;
+      return (
+        <KPICard loading={loading} title="Kunden-Konzentration"
+          value={privacyMode ? '••••' : `${topKunde.anteil.toFixed(1)} %`}
+          icon={<Users className={`h-4 w-4 ${isRisk ? 'text-red-500' : 'text-blue-500'}`} />}
+          tooltip={privacyMode
+            ? 'Kunden-Konzentration (Privacy Mode aktiv)'
+            : `Top-Kunde: ${topKunde.partner} · ${fmtCurrency(topKunde.betrag, false)} (${topKunde.anteil.toFixed(1)} % der Einnahmen)${isRisk ? ' ⚠️ Klumpenrisiko: Mehr als die Hälfte deiner Einnahmen kommt von einem Kunden.' : ''}`
+          }
+          onClick={() => navigate(`/invoices?fyear=${selectedYear}&type=einnahme`)} />
+      );
+    }
+    case 'kpi-mrc':
+      return (
+        <KPICard loading={loading} title="Monthly Recurring Costs"
+          value={fmtCurrency(mrc, privacyMode)}
+          rawValue={privacyMode ? undefined : mrc}
+          formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
+          icon={<RefreshCw className="h-4 w-4 text-cyan-500" />}
+          tooltip="Monatlich wiederkehrende Ausgaben – erkannt durch den Muster-Algorithmus (monatliche Intervalle, mind. 2 Buchungen). Zeigt, wie viel jeden Monat fix rausgeht, ohne dass du etwas tust." />
+      );
+
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
   }
@@ -546,5 +589,8 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'card-vermoegenscheck': 'Vermögens-Check',
   'card-investitionsspiegel': 'Investitions-Spiegel',
   'card-system-stats': 'System & Speicher',
+  'kpi-stille-reserven': 'Stille Reserven',
+  'kpi-kundenkonzentration': 'Kunden-Konzentration',
+  'kpi-mrc': 'Monthly Recurring Costs',
 };
 

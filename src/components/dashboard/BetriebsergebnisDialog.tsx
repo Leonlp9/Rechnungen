@@ -3,13 +3,19 @@ import { useDashboardContext } from './DashboardContext';
 import { fmtCurrency } from '@/lib/utils';
 import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
 import type { Category } from '@/types';
-import { Calculator, TrendingUp, TrendingDown } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, Info } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface Props {
   open: boolean;
@@ -111,6 +117,62 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
         </DialogHeader>
 
         <div className="space-y-5 text-sm">
+          {/* ── Drei Gewinne im Vergleich ─── */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="bg-muted/50 px-4 py-2 flex items-center gap-1.5 border-b">
+              <span className="text-xs font-semibold">Die drei Gewinne im Vergleich</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    Die drei Werte unterscheiden sich in der Behandlung von Privatausgaben und Abschreibungen (AfA).
+                    Der Saldo zeigt Cash-Positionen; der steuerliche Gewinn ist die Basis fürs Finanzamt.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="grid grid-cols-3 divide-x text-center">
+              {[
+                {
+                  label: 'Saldo YTD',
+                  value: data.einnahmenGesamt - data.betriebsausgabenGesamt - data.sonderausgaben - data.privatAusgaben,
+                  color: 'text-primary',
+                  formula: 'Einnahmen − alle Ausgaben inkl. Privat/Sonder',
+                  detail: 'Wie viel Geld ist wirklich geflossen?',
+                },
+                {
+                  label: 'Cash-Gewinn',
+                  value: data.betriebsergebnisCashflow,
+                  color: 'text-violet-600 dark:text-violet-400',
+                  formula: 'Einnahmen − Betriebsausgaben (voller Kaufpreis)',
+                  detail: 'Ohne Privat & Sonderausgaben, mit vollem Investitionsabzug',
+                },
+                {
+                  label: 'Steuerlicher Gewinn',
+                  value: data.betriebsergebnisNachAfa,
+                  color: 'text-amber-600 dark:text-amber-400',
+                  formula: 'Netto-Einnahmen − Netto-BA − zeitanteilige AfA',
+                  detail: 'Basis für Einkommensteuer (EÜR)',
+                },
+              ].map(({ label, value, color, formula, detail }) => (
+                <div key={label} className="px-3 py-3">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">{label}</div>
+                  <div className={`text-base font-bold ${color}`}>{fmt(value)}</div>
+                  <div className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">{formula}</div>
+                  <div className="text-[10px] italic text-muted-foreground/70 mt-0.5">{detail}</div>
+                </div>
+              ))}
+            </div>
+            {data.privatAusgaben > 0 && (
+              <div className="px-4 py-2 bg-muted/30 border-t text-[10px] text-muted-foreground">
+                <strong>Warum ist Saldo kleiner als Cash-Gewinn?</strong>&nbsp;
+                Weil {fmt(data.privatAusgaben)} an Privat-/Sonderausgaben den Saldo senken, aber <em>nicht</em> den betrieblichen Gewinn mindern.
+              </div>
+            )}
+          </div>
+
           {/* Erklärung */}
           <div className="rounded-lg border border-blue-300/30 bg-blue-500/5 p-4 space-y-2">
             <p className="font-semibold text-blue-700 dark:text-blue-400">

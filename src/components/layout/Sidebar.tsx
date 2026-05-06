@@ -18,6 +18,7 @@ import {
   Landmark,
   Receipt,
   FolderKanban,
+  ScrollText,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -68,6 +69,7 @@ const NAV_ITEMS = [
   { to: '/fahrtenbuch', label: 'Fahrtenbuch', icon: Car, tutorialId: 'nav-fahrtenbuch' },
   { to: '/bank-import', label: 'Bankimport', icon: Landmark, tutorialId: 'nav-bank-import' },
   { to: '/steuerbericht', label: 'Steuerbericht', icon: Receipt, tutorialId: 'nav-steuerbericht' },
+  { to: '/revisionsprotokoll', label: 'Revisionsprotokoll', icon: ScrollText, tutorialId: 'nav-revisionsprotokoll' },
   { to: '/settings', label: 'Einstellungen', icon: Settings, tutorialId: 'nav-settings' },
   { to: '/help', label: 'Hilfe', icon: HelpCircle, tutorialId: 'nav-help' },
 ];

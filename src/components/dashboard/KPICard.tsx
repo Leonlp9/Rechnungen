@@ -14,6 +14,11 @@ interface KPICardProps {
   /** Formatter used for animated display (falls back to `value` when not animating) */
   formatValue?: (v: number) => string;
   delta?: number;
+  /**
+   * Invertiert die Delta-Farblogik: Bei Ausgaben ist ein sinkender Wert positiv (grün)
+   * und ein steigender Wert negativ (rot).
+   */
+  invertDelta?: boolean;
   icon?: React.ReactNode;
   tooltip?: string;
   loading?: boolean;
@@ -55,7 +60,7 @@ function useCountUp(target: number, enabled: boolean, duration = 600) {
   return display;
 }
 
-export function KPICard({ title, value, rawValue, formatValue, delta, icon, tooltip, loading, onClick }: KPICardProps) {
+export function KPICard({ title, value, rawValue, formatValue, delta, invertDelta, icon, tooltip, loading, onClick }: KPICardProps) {
   const animations = useAppStore((s) => s.animations);
   const animEnabled = animations && rawValue !== undefined && formatValue !== undefined;
   const animated = useCountUp(rawValue ?? 0, animEnabled);
@@ -91,9 +96,14 @@ export function KPICard({ title, value, rawValue, formatValue, delta, icon, tool
         <div className="text-2xl font-bold tabular-nums">{displayValue}</div>
         {delta !== undefined && (
           <div className={cn('mt-1 flex items-center gap-1 text-xs',
-            delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-muted-foreground'
+            invertDelta
+              ? (delta < 0 ? 'text-green-600' : delta > 0 ? 'text-red-600' : 'text-muted-foreground')
+              : (delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-muted-foreground')
           )}>
-            {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+            {invertDelta
+              ? (delta < 0 ? <TrendingDown className="h-3 w-3" /> : delta > 0 ? <TrendingUp className="h-3 w-3" /> : <Minus className="h-3 w-3" />)
+              : (delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />)
+            }
             <span>{delta > 0 ? '+' : ''}{delta.toFixed(1)}% zur Vorperiode</span>
           </div>
         )}

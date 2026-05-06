@@ -62,6 +62,10 @@ export interface DashboardData {
   gwgGesamtNetto: number;
   afaJahresAbschreibung: number;
   afaItems: AfaItem[];
+  // Neue Metriken
+  stilleReserven: number;
+  topKunde: { partner: string; betrag: number; anteil: number } | null;
+  mrc: number; // Monthly Recurring Costs (erkannte monatliche ausgaben)
 }
 
 export interface AfaItem {
@@ -280,6 +284,36 @@ export function useDashboardData(): DashboardData {
     };
   }, [invoices]);
 
+  // ── Stille Reserven (Restwert aller AfA-Anlagen) ─────────────────────────
+  const stilleReserven = useMemo(
+    () =>
+      afaData.afaItems
+        .filter((item) => item.nutzungsdauer > 1 && item.proRata)
+        .reduce((sum, item) => sum + (item.proRata?.restwertEndeJahr ?? 0), 0),
+    [afaData.afaItems],
+  );
+
+  // ── Top-Kunde (Klumpenrisiko) ─────────────────────────────────────────────
+  const topKunde = useMemo(() => {
+    if (einnahmen === 0) return null;
+    const map = new Map<string, number>();
+    for (const inv of yearInvoices.filter((i) => i.type === 'einnahme')) {
+      map.set(inv.partner, (map.get(inv.partner) ?? 0) + inv.brutto);
+    }
+    if (map.size === 0) return null;
+    const [partner, betrag] = [...map.entries()].reduce((a, b) => (b[1] > a[1] ? b : a));
+    return { partner, betrag, anteil: (betrag / einnahmen) * 100 };
+  }, [yearInvoices, einnahmen]);
+
+  // ── MRC – Monthly Recurring Costs ────────────────────────────────────────
+  const mrc = useMemo(() => {
+    if (loading) return 0;
+    const patterns = detectPatterns(invoices);
+    return patterns
+      .filter((p) => p.type === 'ausgabe' && p.interval === 'monthly')
+      .reduce((s, p) => s + p.avgBrutto, 0);
+  }, [invoices, loading]);
+
   return {
     loading,
     invoices,
@@ -316,6 +350,9 @@ export function useDashboardData(): DashboardData {
     lastTen,
     ...gesamtData,
     ...afaData,
+    stilleReserven,
+    topKunde,
+    mrc,
   };
 }
 

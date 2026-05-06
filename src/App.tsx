@@ -18,6 +18,7 @@ import BankImportPage from "@/pages/BankImport";
 import SteuerbrichtPage from "@/pages/Steuerbericht";
 import ProjectsPage from "@/pages/Projects";
 import ProjectDetailPage from "@/pages/ProjectDetail";
+import RevisionsprotokollPage from "@/pages/Revisionsprotokoll";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/UpdateDialog";
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
       { path: "/steuerbericht", element: <SteuerbrichtPage /> },
       { path: "/projects", element: <ProjectsPage /> },
       { path: "/projects/:id", element: <ProjectDetailPage /> },
+      { path: "/revisionsprotokoll", element: <RevisionsprotokollPage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/help", element: <HelpPage /> },
     ],

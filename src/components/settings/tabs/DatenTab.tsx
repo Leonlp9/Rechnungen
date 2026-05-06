@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { DatabaseBackup, Download, FileDown, ScrollText, Upload, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { DatabaseBackup, Download, FileDown, ScrollText, Upload, AlertTriangle, CheckCircle2, ExternalLink, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { exportBackup, importBackup } from '@/lib/backup';
-import { getFullAuditLog, verifyAuditIntegrity } from '@/lib/db';
+import { getFullAuditLog, getAllInvoices, verifyAuditIntegrity } from '@/lib/db';
 import type { AuditLogEntry, AuditIntegrityBrokenEntry } from '@/lib/db';
 import { VerfahrensdokuButton } from '@/components/settings/VerfahrensdokuButton';
 import { saveCsvFile } from '@/lib/utils';
+import { downloadGobdCsv, getAvailableYears } from '@/lib/gobd-export';
 
 interface DatenTabProps {
   exportingBackup: boolean;
@@ -28,16 +31,20 @@ interface DatenTabProps {
 export function DatenTab({
   exportingBackup, setExportingBackup,
   importingBackup, setImportingBackup,
-  auditLog, setAuditLog,
+  auditLog, setAuditLog: _setAuditLog,
   auditOpen, setAuditOpen,
-  auditLoading, setAuditLoading,
+  auditLoading: _auditLoading, setAuditLoading: _setAuditLoading,
 }: DatenTabProps) {
+  const navigate = useNavigate();
   const [integrityLoading, setIntegrityLoading] = useState(false);
   const [integrityResult, setIntegrityResult] = useState<{
     ok: boolean; brokenEntries: number; total: number;
     details: AuditIntegrityBrokenEntry[];
   } | null>(null);
   const [integrityOpen, setIntegrityOpen] = useState(false);
+  const [gobdExporting, setGobdExporting] = useState(false);
+  const [gobdYear, setGobdYear] = useState<string>('all');
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
 
   const handleCheckIntegrity = async () => {
     setIntegrityLoading(true);
@@ -108,13 +115,8 @@ export function DatenTab({
             Jede Erstellung, Änderung und Löschung eines Belegs wird unveränderlich protokolliert (GoBD-konform).
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={async () => {
-              setAuditLoading(true);
-              try { const log = await getFullAuditLog(500); setAuditLog(log); setAuditOpen(true); }
-              catch (e) { toast.error('Fehler beim Laden: ' + String(e)); }
-              finally { setAuditLoading(false); }
-            }} disabled={auditLoading}>
-              <ScrollText className="mr-2 h-4 w-4" />{auditLoading ? 'Lade…' : 'Audit-Log anzeigen'}
+            <Button variant="outline" onClick={() => navigate('/revisionsprotokoll')}>
+              <ExternalLink className="mr-2 h-4 w-4" />Revisionsprotokoll öffnen
             </Button>
             <Button variant="outline" onClick={async () => {
               try {
@@ -133,6 +135,69 @@ export function DatenTab({
               🔒 {integrityLoading ? 'Prüfe…' : 'Integrität prüfen'}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* GoBD-Buchungsexport */}
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <LayoutGrid className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">GoBD-Buchungsexport (Betriebsprüfung)</CardTitle>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Exportiert alle Buchungen als CSV mit allen steuerrelevanten Feldern (§ 147 AO) –
+            geeignet für die Vorlage bei einer Betriebsprüfung.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Jahr filtern</label>
+              <Select
+                value={gobdYear}
+                onValueChange={setGobdYear}
+                onOpenChange={async (open) => {
+                  if (open && availableYears.length === 0) {
+                    const invoices = await getAllInvoices();
+                    setAvailableYears(getAvailableYears(invoices));
+                  }
+                }}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Alle Jahre" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Jahre</SelectItem>
+                  {availableYears.map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={async () => {
+                setGobdExporting(true);
+                try {
+                  const invoices = await getAllInvoices();
+                  const year = gobdYear !== 'all' ? parseInt(gobdYear) : undefined;
+                  await downloadGobdCsv(invoices, year);
+                  toast.success('GoBD-Export erfolgreich erstellt');
+                } catch (e) {
+                  toast.error('Export fehlgeschlagen: ' + String(e));
+                } finally {
+                  setGobdExporting(false);
+                }
+              }}
+              disabled={gobdExporting}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {gobdExporting ? 'Exportiere…' : 'CSV exportieren'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Die CSV enthält: Belegnummer, Datum, Leistungsdatum, Partner, Netto, USt, Brutto, Währung, Status, Festgeschrieben-Kennzeichen und Beleg-ID.
+          </p>
         </CardContent>
       </Card>
 

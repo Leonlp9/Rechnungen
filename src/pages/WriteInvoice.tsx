@@ -14,13 +14,15 @@ import { generateTemplatePdf } from '@/lib/pdfExport';
 import { getSetting, customers } from '@/lib/db';
 import type { Customer } from '@/lib/db';
 import { generateInvoiceNumber } from '@/lib/db';
-import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { saveXRechnungToAppData, importXRechnungFromFile } from '@/lib/xrechnung';
+import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
+import { copyPdfToAppData } from '@/lib/pdf';
 import { toast } from 'sonner';
 import {
   FileDown, Eye, EyeOff, FileText, ArrowLeftRight,
   Maximize2, Users, Check, ChevronsUpDown, Sparkles, AlertCircle,
-  AlertTriangle, Lightbulb, Wand2, QrCode, ChevronRight,
+  AlertTriangle, Lightbulb, Wand2, QrCode, ChevronRight, Upload,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { LineItem, ItemsElement, QrCodeElement } from '@/types/template';
@@ -34,9 +36,9 @@ import type { ComplianceIssue } from '@/lib/gemini';
 import { generateEpcQrDataUrl } from '@/lib/epcQrCode';
 
 const SETTINGS_KEYS = [
-  'profile_name', 'profile_address', 'profile_email', 'profile_phone',
-  'profile_tax_number', 'profile_w_idnr', 'profile_vat_id', 'profile_finanzamt',
-  'profile_iban', 'profile_bic', 'profile_business_type',
+  'profile_name', 'profile_address', 'profile_street', 'profile_zip', 'profile_city', 'profile_country',
+  'profile_email', 'profile_phone', 'profile_tax_number', 'profile_w_idnr', 'profile_vat_id',
+  'profile_finanzamt', 'profile_iban', 'profile_bic', 'profile_business_type',
 ];
 
 function effectiveItemTotal(item: LineItem): number {
@@ -57,7 +59,11 @@ export default function WriteInvoice() {
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [saveDialogPrefill, setSaveDialogPrefill] = useState<{ partner: string; date: string; description: string; netto: number; ust: number; brutto: number } | null>(null);
+  const [saveDialogPrefill, setSaveDialogPrefill] = useState<{
+    partner: string; date: string; description: string;
+    netto: number; ust: number; brutto: number;
+    xrechnungPath?: string; pdfPath?: string; deliveryDate?: string;
+  } | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(360);
   const isResizing = useRef(false);
   const startX = useRef(0);
@@ -224,6 +230,40 @@ export default function WriteInvoice() {
     }
   }, []);
 
+  // XRechnung Import (eingehende E-Rechnung)
+  const importXRechnung = useCallback(async () => {
+    try {
+      const filePath = await openDialog({
+        multiple: false,
+        filters: [{ name: 'E-Rechnung XML', extensions: ['xml'] }],
+      });
+      if (!filePath) return;
+      const parsed = await importXRechnungFromFile(filePath as string);
+      if (!parsed) {
+        toast.error('Datei konnte nicht als XRechnung / ZUGFeRD erkannt werden.');
+        return;
+      }
+      // Formular vorausfüllen
+      if (parsed.sellerName) setValue('receiver_name', parsed.sellerName);
+      if (parsed.invoiceNumber) setValue('doc_number', parsed.invoiceNumber);
+      if (parsed.note) setValue('notes', parsed.note);
+      // Datum formatieren: YYYY-MM-DD → DD.MM.YYYY für das Formular
+      if (parsed.issueDate) {
+        const [y, m, d] = parsed.issueDate.split('-');
+        setValue('doc_date', `${d}.${m}.${y}`);
+      }
+      if (parsed.deliveryDate) {
+        const [y, m, d] = parsed.deliveryDate.split('-');
+        setValue('delivery_date', `${d}.${m}.${y}`);
+      }
+      toast.success(
+        `E-Rechnung eingelesen: ${parsed.sellerName || 'Unbekannter Aussteller'} – ${parsed.bruttoAmount.toLocaleString('de-DE', { style: 'currency', currency: parsed.currency || 'EUR' })}`
+      );
+    } catch (e) {
+      toast.error('Import fehlgeschlagen: ' + String(e));
+    }
+  }, []);
+
   // AI Compliance Check
   const runComplianceCheck = useCallback(async () => {
     setComplianceLoading(true);
@@ -302,11 +342,81 @@ export default function WriteInvoice() {
       if (!path) return;
       await writeFile(path, new Uint8Array(ab));
       toast.success('PDF gespeichert!');
+
+      // ── E-Rechnungspflicht: XRechnung automatisch als Original archivieren ──
+      const today = new Date().toISOString().slice(0, 10);
+      const docDate = values['doc_date']
+        ? (() => {
+            const parts = values['doc_date'].split('.');
+            if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            return today;
+          })()
+        : today;
+
+      let xrechnungPath = '';
+      // Nur für ausgehende Rechnungen (Einnahmen) die XRechnung erzeugen
+      const sellerName = settingsValues['profile_name'] || values['sender_name'] || '';
+      if (sellerName) {
+        try {
+          // Temporäres Invoice-Objekt für den XML-Builder
+          const tmpId = `inv-${Date.now()}`;
+          const tmpInvoice = {
+            id: tmpId,
+            date: docDate,
+            year: parseInt(docDate.split('-')[0]),
+            month: parseInt(docDate.split('-')[1]),
+            category: 'umsatz_pflichtig' as const,
+            description: values['doc_number'] || suggested,
+            partner: values['receiver_name'] || '',
+            netto: nettoFinal,
+            fee: 0,
+            ust: mwstAmt,
+            brutto,
+            type: 'einnahme' as const,
+            currency: 'EUR',
+            pdf_path: '',
+            note: values['notes'] || '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_locked: false,
+            pdf_sha256: '',
+            delivery_date: values['delivery_date'] || docDate,
+            storno_of: '',
+            xrechnung_path: '',
+          };
+          xrechnungPath = await saveXRechnungToAppData(tmpInvoice, {
+            sellerName,
+            sellerStreet: settingsValues['profile_street'] || '',
+            sellerZip: settingsValues['profile_zip'] || '',
+            sellerCity: settingsValues['profile_city'] || '',
+            sellerCountry: settingsValues['profile_country'] || 'DE',
+            taxNumber: settingsValues['profile_tax_number'] || '',
+            vatId: settingsValues['profile_vat_id'] || '',
+            sellerEmail: settingsValues['profile_email'] || '',
+          });
+          toast.success('✅ E-Rechnung (XRechnung UBL 2.1) automatisch archiviert');
+        } catch (xmlErr) {
+          toast.warning('XRechnung-Archivierung fehlgeschlagen (Profil unvollständig?): ' + String(xmlErr));
+        }
+      } else {
+        toast.info('ℹ️ Kein Profil-Name → XRechnung nicht archiviert. Bitte Einstellungen → Profil ausfüllen.');
+      }
+
+      // ── PDF auch in app_data_dir archivieren (für Backup-Vollständigkeit) ──
+      let pdfPath = '';
+      try {
+        const pdfFileName = `${suggested}-${Date.now()}.pdf`;
+        pdfPath = await copyPdfToAppData(path, pdfFileName);
+      } catch { /* nicht kritisch */ }
+
       setSaveDialogPrefill({
         partner: values['receiver_name'] ?? '',
         date: values['doc_date'] ?? format(new Date(), 'dd.MM.yyyy'),
         description: values['doc_number'] ?? suggested,
         netto: nettoFinal, ust: mwstAmt, brutto,
+        xrechnungPath,
+        pdfPath,
+        deliveryDate: values['delivery_date'] || docDate,
       });
       setSaveDialogOpen(true);
     } catch (e) {
@@ -325,10 +435,22 @@ export default function WriteInvoice() {
     <div className="flex h-full overflow-hidden">
       <div style={{ width: sidebarWidth, minWidth: 220, maxWidth: 600 }} data-tutorial="write-invoice-sidebar" className="border-r border-border bg-background overflow-y-auto flex flex-col shrink-0">
         <div className="p-4 border-b border-border">
-          <h2 className="font-bold text-base flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            Rechnung schreiben
-          </h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold text-base flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Rechnung schreiben
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px] gap-1 text-violet-600 border-violet-300/60 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+              onClick={importXRechnung}
+              title="Eingehende E-Rechnung (XRechnung / ZUGFeRD XML) importieren und Formular vorausfüllen"
+            >
+              <Upload className="h-3 w-3" />
+              XML importieren
+            </Button>
+          </div>
         </div>
         <div className="p-4 space-y-4 flex-1">
           <div className="space-y-1.5">

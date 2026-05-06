@@ -37,14 +37,16 @@ import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
 import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getCategoriesForBranche, getDefaultCategoryForType, isCategoryValidForType } from '@/types';
 import type { Invoice } from '@/types';
-import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator } from 'lucide-react';
-import { ProjectSelector } from '@/components/projects/ProjectSelector';
+import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator, FileCode2, Lock } from 'lucide-react';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '@/lib/utils';
 import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
 import { StornoDialog } from './StornoDialog';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { saveXRechnungFile, saveXRechnungToAppData, getAbsoluteXRechnungPath } from '@/lib/xrechnung';
+import { getSetting } from '@/lib/db';
+import { ProjectSelector } from '@/components/projects/ProjectSelector';
 
 const schema = z.object({
   date: z.string().min(1),
@@ -80,6 +82,8 @@ export default function InvoiceDetail() {
   const [loading, setLoading] = useState(true);
   const [aiFixLoading, setAiFixLoading] = useState(false);
   const [projectId, setProjectId] = useState('');
+  const [xrechnungExporting, setXrechnungExporting] = useState(false);
+  const [xrechnungArchiving, setXrechnungArchiving] = useState(false);
 
   const form = useForm<FormData>({ resolver: zodResolver(schema) });
 
@@ -295,6 +299,107 @@ export default function InvoiceDetail() {
     }
   };
 
+  const handleXRechnungExport = async () => {
+    if (!invoice) return;
+    setXrechnungExporting(true);
+    try {
+      const [name, street, zip, city, country, taxNumber, vatId, email] = await Promise.all([
+        getSetting('profile_name'),
+        getSetting('profile_street'),
+        getSetting('profile_zip'),
+        getSetting('profile_city'),
+        getSetting('profile_country'),
+        getSetting('profile_tax_number'),
+        getSetting('profile_vat_id'),
+        getSetting('profile_email'),
+      ]);
+      if (!name) {
+        toast.warning('Bitte fülle zuerst dein Profil (Name, Steuernummer) in den Einstellungen aus.');
+        return;
+      }
+      if (!taxNumber && !vatId) {
+        toast.warning('Für XRechnung wird eine Steuernummer oder USt-ID benötigt. Bitte in Einstellungen → Profil eintragen.');
+        return;
+      }
+      if (!invoice.delivery_date) {
+        toast.warning('Das Leistungsdatum (§ 14 Abs. 4 UStG) fehlt. Bitte vor dem Export eintragen.');
+        return;
+      }
+      await saveXRechnungFile(invoice, {
+        sellerName: name ?? '',
+        sellerStreet: street ?? '',
+        sellerZip: zip ?? '',
+        sellerCity: city ?? '',
+        sellerCountry: country ?? 'DE',
+        taxNumber: taxNumber ?? '',
+        vatId: vatId ?? '',
+        sellerEmail: email ?? '',
+      });
+      toast.success('XRechnung (UBL 2.1) erfolgreich exportiert!');
+    } catch (e) {
+      toast.error('XRechnung-Export fehlgeschlagen: ' + String(e));
+    } finally {
+      setXrechnungExporting(false);
+    }
+  };
+
+  /** Archiviert nachträglich eine XRechnung für diesen Beleg */
+  const handleXRechnungArchive = async () => {
+    if (!invoice) return;
+    setXrechnungArchiving(true);
+    try {
+      const [name, street, zip, city, country, taxNumber, vatId, email] = await Promise.all([
+        getSetting('profile_name'),
+        getSetting('profile_street'),
+        getSetting('profile_zip'),
+        getSetting('profile_city'),
+        getSetting('profile_country'),
+        getSetting('profile_tax_number'),
+        getSetting('profile_vat_id'),
+        getSetting('profile_email'),
+      ]);
+      if (!name) {
+        toast.warning('Kein Profil-Name gefunden. Bitte Einstellungen → Profil ausfüllen.');
+        return;
+      }
+      if (!invoice.delivery_date) {
+        toast.warning('Leistungsdatum fehlt – bitte zuerst eintragen und speichern.');
+        return;
+      }
+      const relPath = await saveXRechnungToAppData(invoice, {
+        sellerName: name ?? '',
+        sellerStreet: street ?? '',
+        sellerZip: zip ?? '',
+        sellerCity: city ?? '',
+        sellerCountry: country ?? 'DE',
+        taxNumber: taxNumber ?? '',
+        vatId: vatId ?? '',
+        sellerEmail: email ?? '',
+      });
+      const updated = { ...invoice, xrechnung_path: relPath, updated_at: new Date().toISOString() };
+      await updateInvoice(updated);
+      setInvoice(updated);
+      const all = await getAllInvoices();
+      setInvoices(all);
+      toast.success('✅ XRechnung revisionssicher archiviert!');
+    } catch (e) {
+      toast.error('Archivierung fehlgeschlagen: ' + String(e));
+    } finally {
+      setXrechnungArchiving(false);
+    }
+  };
+
+  /** Öffnet das archivierte XML im Datei-Explorer */
+  const handleRevealXml = async () => {
+    if (!invoice?.xrechnung_path) return;
+    try {
+      const absPath = await getAbsoluteXRechnungPath(invoice.xrechnung_path);
+      await revealItemInDir(absPath);
+    } catch (e) {
+      toast.error('Fehler: ' + String(e));
+    }
+  };
+
   // ─── Hilfs-Werte ────────────────────────────────────────────────────────────
   const watchedType = form.watch('type');
   const watchedCategory = form.watch('category');
@@ -321,7 +426,40 @@ export default function InvoiceDetail() {
         {/* Right: Form */}
         <div className="w-[400px] shrink-0 space-y-4 overflow-y-auto">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Rechnungsdetails</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold">Rechnungsdetails</h1>
+              {/* Status-Badge */}
+              {invoice?.storno_of ? (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-300/40">
+                  ↩ Storno
+                </span>
+              ) : invoice?.is_locked ? (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-300/40">
+                  <Lock className="h-2.5 w-2.5 mr-1" />Festgeschrieben
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground border border-border">
+                  Entwurf
+                </span>
+              )}
+              {/* E-Rechnung Badge */}
+              {invoice?.xrechnung_path ? (
+                <button
+                  type="button"
+                  onClick={handleRevealXml}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-300/40 hover:bg-violet-500/20 transition-colors"
+                  title={`E-Rechnung archiviert: ${invoice.xrechnung_path} – klicken zum Anzeigen`}
+                >
+                  <FileCode2 className="h-2.5 w-2.5" />
+                  E-Rechnung ✓
+                </button>
+              ) : invoice?.type === 'einnahme' ? (
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-300/40" title="E-Rechnung noch nicht archiviert – Pflicht ab 01.01.2025 für B2B">
+                  <FileCode2 className="h-2.5 w-2.5" />
+                  Kein XML
+                </span>
+              ) : null}
+            </div>
             <div className="flex gap-1">
               <Button size="icon" variant="ghost" disabled={currentIndex <= 0} onClick={() => goToSibling(-1)}>
                 <ChevronLeft className="h-4 w-4" />
@@ -464,7 +602,7 @@ export default function InvoiceDetail() {
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
-              {/* Zeile 1: Primäraktion + PDF */}
+              {/* Zeile 1: Primäraktion + PDF + XRechnung */}
               <div className="flex gap-2">
                 <Button type="submit" disabled={saving || invoice?.is_locked} className="flex-1">
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -473,7 +611,32 @@ export default function InvoiceDetail() {
                 <Button type="button" variant="outline" onClick={handleReveal} title="PDF im Explorer anzeigen">
                   <FolderOpen className="h-4 w-4" />
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleXRechnungExport}
+                  disabled={xrechnungExporting || invoice?.type !== 'einnahme'}
+                  title={invoice?.type !== 'einnahme' ? 'XRechnung nur für Einnahme-Belege' : 'Als XRechnung (UBL 2.1 XML) exportieren – E-Rechnungspflicht ab 2025'}
+                  className="text-violet-600 border-violet-300/60 hover:bg-violet-50 dark:hover:bg-violet-950/30 disabled:opacity-40"
+                >
+                  {xrechnungExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}
+                </Button>
               </div>
+              {/* E-Rechnung Nacharchivierung (falls noch kein XML hinterlegt) */}
+              {invoice?.type === 'einnahme' && !invoice?.xrechnung_path && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs text-violet-600 border-violet-300/60 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                  onClick={handleXRechnungArchive}
+                  disabled={xrechnungArchiving}
+                  title="XRechnung (UBL 2.1 XML) revisionssicher im Archiv speichern – Pflicht ab 01.01.2025"
+                >
+                  {xrechnungArchiving ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <FileCode2 className="mr-1.5 h-3 w-3" />}
+                  {xrechnungArchiving ? 'Archiviere…' : '⚠️ E-Rechnung nachträglich archivieren'}
+                </Button>
+              )}
               {/* Zeile 2: GoBD-Aktionen + Löschen */}
               <div className="flex gap-2">
                 {!invoice?.is_locked && (

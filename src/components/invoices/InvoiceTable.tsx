@@ -401,12 +401,13 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
               <SortHeader label="Kategorie" field="category" tooltip="Steuerliche Kategorie des Belegs (z. B. Honorar, Software/Abos, Bürobedarf)" />
               <SortHeader label="Brutto" field="brutto" tooltip="Gesamtbetrag inkl. Umsatzsteuer (Netto + USt). Relevant für die Kleinunternehmergrenze." />
               <SortHeader label="Typ" field="type" tooltip="Einnahme = Geld erhalten · Ausgabe = Geld bezahlt · Info = neutraler Vermerk" />
+              <TableHead className="w-[100px]" title="GoBD-Status: Entwurf / Festgeschrieben / Storno">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   Keine Rechnungen gefunden.
                 </TableCell>
               </TableRow>
@@ -463,6 +464,21 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                     }`}>
                       {TYPE_LABELS[inv.type]}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    {inv.storno_of ? (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-300/30" title={`Stornobuchung zu ${inv.storno_of}`}>
+                        ↩ Storno
+                      </span>
+                    ) : inv.is_locked ? (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-300/30" title="Festgeschrieben – GoBD-konform">
+                        🔒 Fest
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border/50">
+                        Entwurf
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

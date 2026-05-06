@@ -152,6 +152,10 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
   async (db) => {
     try { await db.execute("ALTER TABLE invoices ADD COLUMN fee REAL NOT NULL DEFAULT 0"); } catch { /* exists */ }
   },
+  // v7 → v8: XRechnung-Archivpfad (E-Rechnungspflicht § 14 UStG ab 2025)
+  async (db) => {
+    try { await db.execute("ALTER TABLE invoices ADD COLUMN xrechnung_path TEXT NOT NULL DEFAULT ''"); } catch { /* exists */ }
+  },
 ];
 
 async function migrate(db: Database) {
@@ -282,6 +286,7 @@ interface InvoiceRow {
   customer_id?: string;
   pdf_text?: string;
   project_id?: string;
+  xrechnung_path?: string;
 }
 
 export async function getAllInvoices(): Promise<import('@/types').Invoice[]> {
@@ -322,15 +327,16 @@ function mapInvoiceRow(row: InvoiceRow): import('@/types').Invoice {
     storno_of: row.storno_of ?? '',
     pdf_text: row.pdf_text ?? '',
     project_id: row.project_id ?? '',
+    xrechnung_path: row.xrechnung_path ?? '',
   };
 }
 
 export async function insertInvoice(inv: import('@/types').Invoice): Promise<void> {
   const db = await getDb();
   await db.execute(
-    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, fee, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of, pdf_text, project_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
-    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '', inv.pdf_text ?? '', inv.project_id ?? '']
+    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, fee, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of, pdf_text, project_id, xrechnung_path)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '', inv.pdf_text ?? '', inv.project_id ?? '', inv.xrechnung_path ?? '']
   );
   await addAuditLog(inv.id, 'created');
 }
@@ -345,8 +351,8 @@ export async function updateInvoice(inv: import('@/types').Invoice): Promise<voi
   if (old) await logInvoiceChanges(old, inv);
 
   await db.execute(
-    `UPDATE invoices SET date=$1, year=$2, month=$3, category=$4, description=$5, partner=$6, netto=$7, fee=$8, ust=$9, brutto=$10, type=$11, currency=$12, pdf_path=$13, note=$14, updated_at=$15, delivery_date=$16, project_id=$17 WHERE id=$18`,
-    [inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, new Date().toISOString(), inv.delivery_date ?? '', inv.project_id ?? '', inv.id]
+    `UPDATE invoices SET date=$1, year=$2, month=$3, category=$4, description=$5, partner=$6, netto=$7, fee=$8, ust=$9, brutto=$10, type=$11, currency=$12, pdf_path=$13, note=$14, updated_at=$15, delivery_date=$16, project_id=$17, xrechnung_path=$18 WHERE id=$19`,
+    [inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, new Date().toISOString(), inv.delivery_date ?? '', inv.project_id ?? '', inv.xrechnung_path ?? '', inv.id]
   );
 }
 
