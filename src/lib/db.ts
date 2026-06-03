@@ -167,6 +167,33 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
       try { await db.execute(col); } catch { /* Spalte existiert bereits */ }
     }
   },
+  // v9 → v10: Kranken- & Pflegeversicherung – Beitragssätze & Zahlungen
+  async (db) => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS krankenkasse_saetze (
+        id TEXT PRIMARY KEY,
+        gueltig_ab TEXT NOT NULL,
+        kv_grundbeitrag_prozent REAL NOT NULL DEFAULT 14.0,
+        kv_zusatzbeitrag_prozent REAL NOT NULL DEFAULT 3.65,
+        pv_prozent REAL NOT NULL DEFAULT 3.6,
+        bemessungsgrundlage_monat REAL NOT NULL DEFAULT 0,
+        notiz TEXT NOT NULL DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_kk_saetze_datum ON krankenkasse_saetze(gueltig_ab)`);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS krankenkasse_zahlungen (
+        id TEXT PRIMARY KEY,
+        monat TEXT NOT NULL UNIQUE,
+        kv_betrag REAL NOT NULL DEFAULT 0,
+        pv_betrag REAL NOT NULL DEFAULT 0,
+        notiz TEXT NOT NULL DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_kk_zahlungen_monat ON krankenkasse_zahlungen(monat)`);
+  },
 ];
 
 async function migrate(db: Database) {
@@ -1074,3 +1101,95 @@ export const productCatalog = {
     await db.execute('DELETE FROM product_catalog WHERE id=$1', [id]);
   },
 };
+
+// ─── Kranken- & Pflegeversicherung ───────────────────────────────────────────
+
+export interface KKSatz {
+  id: string;
+  /** ISO-Datum ab dem dieser Satz gilt, z. B. "2026-01-01" */
+  gueltig_ab: string;
+  kv_grundbeitrag_prozent: number;
+  kv_zusatzbeitrag_prozent: number;
+  pv_prozent: number;
+  /** Monatliches Arbeitseinkommen als Bemessungsgrundlage */
+  bemessungsgrundlage_monat: number;
+  notiz: string;
+  created_at: string;
+}
+
+export interface KKZahlung {
+  id: string;
+  /** Format "YYYY-MM", z. B. "2026-03" */
+  monat: string;
+  kv_betrag: number;
+  pv_betrag: number;
+  notiz: string;
+  created_at: string;
+}
+
+export const krankenkasse = {
+  // ── Beitragssätze ────────────────────────────────────────────────────────
+
+  async getAllSaetze(): Promise<KKSatz[]> {
+    const db = await getDb();
+    return db.select<KKSatz[]>('SELECT * FROM krankenkasse_saetze ORDER BY gueltig_ab ASC');
+  },
+
+  async saveSatz(satz: Omit<KKSatz, 'id' | 'created_at'>): Promise<string> {
+    const db = await getDb();
+    const id = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO krankenkasse_saetze
+         (id, gueltig_ab, kv_grundbeitrag_prozent, kv_zusatzbeitrag_prozent, pv_prozent, bemessungsgrundlage_monat, notiz)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, satz.gueltig_ab, satz.kv_grundbeitrag_prozent, satz.kv_zusatzbeitrag_prozent, satz.pv_prozent, satz.bemessungsgrundlage_monat, satz.notiz]
+    );
+    return id;
+  },
+
+  async updateSatz(id: string, satz: Partial<Omit<KKSatz, 'id' | 'created_at'>>): Promise<void> {
+    const db = await getDb();
+    const entries = Object.entries(satz).filter(([, v]) => v !== undefined);
+    if (entries.length === 0) return;
+    const sets = entries.map(([k], i) => `${k}=$${i + 2}`).join(', ');
+    await db.execute(
+      `UPDATE krankenkasse_saetze SET ${sets} WHERE id=$1`,
+      [id, ...entries.map(([, v]) => v)]
+    );
+  },
+
+  async deleteSatz(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute('DELETE FROM krankenkasse_saetze WHERE id=$1', [id]);
+  },
+
+  // ── Monatliche Zahlungen ─────────────────────────────────────────────────
+
+  async getZahlungenForYear(year: number): Promise<KKZahlung[]> {
+    const db = await getDb();
+    return db.select<KKZahlung[]>(
+      "SELECT * FROM krankenkasse_zahlungen WHERE monat LIKE $1 ORDER BY monat ASC",
+      [`${year}-%`]
+    );
+  },
+
+  async upsertZahlung(zahlung: Omit<KKZahlung, 'id' | 'created_at'>): Promise<void> {
+    const db = await getDb();
+    const id = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO krankenkasse_zahlungen (id, monat, kv_betrag, pv_betrag, notiz)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT(monat) DO UPDATE SET
+         kv_betrag = excluded.kv_betrag,
+         pv_betrag = excluded.pv_betrag,
+         notiz     = excluded.notiz`,
+      [id, zahlung.monat, zahlung.kv_betrag, zahlung.pv_betrag, zahlung.notiz]
+    );
+  },
+
+  async deleteZahlung(monat: string): Promise<void> {
+    const db = await getDb();
+    await db.execute('DELETE FROM krankenkasse_zahlungen WHERE monat=$1', [monat]);
+  },
+};
+
