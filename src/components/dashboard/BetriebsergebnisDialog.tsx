@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
-  const { privacyMode, yearInvoices, selectedYear, afaItems, afaJahresAbschreibung } = useDashboardContext();
+  const { privacyMode, yearInvoices, selectedYear, afaItems, afaJahresAbschreibung, fahrtAbsetzbar, fahrtKmDienst } = useDashboardContext();
 
   const data = useMemo(() => {
     const nichtBetrieblich: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
@@ -81,7 +81,7 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
     const afaOnlyAbschreibung = afaItems
       .filter((item) => item.invoice.category === 'anlagevermoegen_afa')
       .reduce((s, item) => s + item.jahresAfa, 0);
-    const betriebsergebnisNachAfa = einnahmenNettoGesamt - ausgabenOhneAnlageNetto - afaOnlyAbschreibung;
+    const betriebsergebnisNachAfa = einnahmenNettoGesamt - ausgabenOhneAnlageNetto - afaOnlyAbschreibung - fahrtAbsetzbar;
 
     // Für Anzeige: brutto-basierte ausgaben ohne AfA/GWG (Cash-Dialog)
     const ausgabenOhneAfaGwg = betriebsausgabenGesamt - afaVollkaufpreis - gwgVollkaufpreis;
@@ -102,7 +102,7 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
       afaOnlyAbschreibung,
       betriebsergebnisNachAfa,
     };
-  }, [yearInvoices, afaItems, afaJahresAbschreibung]);
+  }, [yearInvoices, afaItems, afaJahresAbschreibung, fahrtAbsetzbar]);
 
   const fmt = (v: number) => fmtCurrency(v, privacyMode);
 
@@ -279,6 +279,12 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
                   <span>− Zeitanteilige AfA Anlagevermögen ({selectedYear})</span>
                   <span>− {fmt(data.afaOnlyAbschreibung)}</span>
                 </div>
+                {fahrtAbsetzbar > 0 && (
+                  <div className="flex justify-between text-blue-600 dark:text-blue-400">
+                    <span>− km-Pauschale Fahrtenbuch ({fahrtKmDienst.toFixed(0)} km)</span>
+                    <span>− {fmt(fahrtAbsetzbar)}</span>
+                  </div>
+                )}
                 {data.afaVollkaufpreis > 0 && (
                   <div className="flex justify-between text-[10px] text-muted-foreground pl-4">
                     <span>davon AfA-Anlagen (Kaufpreis: {fmt(data.afaVollkaufpreis)}, nur zeitanteilig absetzbar)</span>

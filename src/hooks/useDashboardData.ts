@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
-import { getAllInvoices } from '@/lib/db';
+import { getAllInvoices, fahrtenbuch } from '@/lib/db';
 import { detectPatterns, forecastCurrentMonth } from '@/lib/patternDetection';
 import { SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
 import type { Category, Invoice } from '@/types';
@@ -66,6 +66,20 @@ export interface DashboardData {
   stilleReserven: number;
   topKunde: { partner: string; betrag: number; anteil: number } | null;
   mrc: number; // Monthly Recurring Costs (erkannte monatliche ausgaben)
+  // Fahrtenbuch (Jahr)
+  fahrtKmDienst: number;
+  fahrtKmPrivat: number;
+  fahrtKmGesamt: number;
+  fahrtAbsetzbar: number;
+  fahrtAnzahl: number;
+  fahrtFahrten: import('@/lib/db').Fahrt[];
+  // Fahrtenbuch (Monat)
+  fahrtKmDienstMonat: number;
+  fahrtKmPrivatMonat: number;
+  fahrtKmGesamtMonat: number;
+  fahrtAbsetzbarMonat: number;
+  fahrtAnzahlMonat: number;
+  fahrtFahrtenMonat: import('@/lib/db').Fahrt[];
 }
 
 export interface AfaItem {
@@ -86,7 +100,27 @@ export function useDashboardData(): DashboardData {
   const selectedMonth = useAppStore((s) => s.selectedMonth);
   const setSelectedMonth = useAppStore((s) => s.setSelectedMonth);
   const privacyMode = useAppStore((s) => s.privacyMode);
+  const kmPauschale = useAppStore((s) => s.kmPauschale);
   const [loading, setLoading] = useState(invoices.length === 0);
+
+  // Fahrtenbuch-Daten für das gewählte Jahr
+  const [fahrtStats, setFahrtStats] = useState({ kmDienst: 0, kmPrivat: 0, kmGesamt: 0, absetzbar: 0, fahrten: [] as import('@/lib/db').Fahrt[] });
+  useEffect(() => {
+    fahrtenbuch.getJahresauswertung(selectedYear, kmPauschale)
+      .then((d) => setFahrtStats({ ...d }))
+      .catch(console.error);
+  }, [selectedYear, kmPauschale]);
+
+  // Fahrtenbuch-Daten für den gewählten Monat
+  const fahrtMonat = useMemo(() => {
+    const monatFahrten = fahrtStats.fahrten.filter(f => {
+      const d = new Date(f.datum);
+      return d.getMonth() + 1 === selectedMonth;
+    });
+    const kmDienst = monatFahrten.filter(f => f.art === 'dienst').reduce((s, f) => s + f.km, 0);
+    const kmPrivat = monatFahrten.filter(f => f.art === 'privat').reduce((s, f) => s + f.km, 0);
+    return { kmDienst, kmPrivat, kmGesamt: kmDienst + kmPrivat, absetzbar: kmDienst * kmPauschale, fahrten: monatFahrten };
+  }, [fahrtStats.fahrten, selectedMonth, kmPauschale]);
 
   useEffect(() => {
     // Daten nur laden wenn der Store noch leer ist (erster Mount oder nach Reset)
@@ -246,7 +280,8 @@ export function useDashboardData(): DashboardData {
         .reduce((s, item) => s + item.jahresAfa, 0),
     [afaData.afaItems],
   );
-  const betriebsergebnisNachAfa = einnahmenNetto - betriebsausgabenNettoOhneAnlage - afaOnlyJahresAbschreibung;
+  // km-Pauschale aus Fahrtenbuch als steuerliche Betriebsausgabe
+  const betriebsergebnisNachAfa = einnahmenNetto - betriebsausgabenNettoOhneAnlage - afaOnlyJahresAbschreibung - fahrtStats.absetzbar;
 
   // ── Gesamt-Kennzahlen (alle Jahre) ───────────────────────────────────────
   const gesamtData = useMemo(() => {
@@ -353,6 +388,18 @@ export function useDashboardData(): DashboardData {
     stilleReserven,
     topKunde,
     mrc,
+    fahrtKmDienst: fahrtStats.kmDienst,
+    fahrtKmPrivat: fahrtStats.kmPrivat,
+    fahrtKmGesamt: fahrtStats.kmGesamt,
+    fahrtAbsetzbar: fahrtStats.absetzbar,
+    fahrtAnzahl: fahrtStats.fahrten.length,
+    fahrtFahrten: fahrtStats.fahrten,
+    fahrtKmDienstMonat: fahrtMonat.kmDienst,
+    fahrtKmPrivatMonat: fahrtMonat.kmPrivat,
+    fahrtKmGesamtMonat: fahrtMonat.kmGesamt,
+    fahrtAbsetzbarMonat: fahrtMonat.absetzbar,
+    fahrtAnzahlMonat: fahrtMonat.fahrten.length,
+    fahrtFahrtenMonat: fahrtMonat.fahrten,
   };
 }
 

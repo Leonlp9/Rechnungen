@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { getAllInvoices } from '@/lib/db';
+import { getAllInvoices, fahrtenbuch } from '@/lib/db';
 import type { Invoice } from '@/types';
 import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES } from '@/types';
 import { useAppStore } from '@/store';
@@ -75,6 +75,11 @@ export default function SteuerbrichtPage() {
   const privacyMode = useAppStore((s) => s.privacyMode);
   const steuerregelung = useAppStore((s) => s.steuerregelung);
   const grundfreibetrag = useAppStore((s) => s.grundfreibetrag);
+  const kmPauschale = useAppStore((s) => s.kmPauschale);
+
+  // Fahrtenbuch km-Pauschale für das gewählte Jahr
+  const [fahrtAbsetzbar, setFahrtAbsetzbar] = useState(0);
+  const [fahrtKmDienst, setFahrtKmDienst] = useState(0);
 
   useEffect(() => {
     getAllInvoices()
@@ -82,6 +87,12 @@ export default function SteuerbrichtPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fahrtenbuch.getJahresauswertung(selectedYear, kmPauschale)
+      .then((d) => { setFahrtAbsetzbar(d.absetzbar); setFahrtKmDienst(d.kmDienst); })
+      .catch(console.error);
+  }, [selectedYear, kmPauschale]);
 
   const invoices = useMemo(
     () => allInvoices.filter((i) => i.year === selectedYear && i.type !== 'info'),
@@ -119,9 +130,9 @@ export default function SteuerbrichtPage() {
 
   const afaJahresgesamt = useMemo(() => afaItems.reduce((s, a) => s + a.jahresAfa, 0), [afaItems]);
 
-  // Steuerliche Betriebsausgaben: reguläre + AfA statt vollem Kaufpreis
-  const betriebsausgabenSteuerlich = betriebsausgabenOhneAfa + afaJahresgesamt;
-  // Cash-Betriebsausgaben: reguläre + voller Kaufpreis
+  // Steuerliche Betriebsausgaben: reguläre + AfA statt vollem Kaufpreis + km-Pauschale Fahrtenbuch
+  const betriebsausgabenSteuerlich = betriebsausgabenOhneAfa + afaJahresgesamt + fahrtAbsetzbar;
+  // Cash-Betriebsausgaben: reguläre + voller Kaufpreis (ohne km-Pauschale – kein echtes Cash)
   const betriebsausgabenCash = betriebsausgabenOhneAfa + anlagevermoegen_kaufpreis;
 
   const sonderausgaben = useMemo(() =>
@@ -227,11 +238,14 @@ export default function SteuerbrichtPage() {
           <CardContent className="pt-5 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <TrendingDown className="h-3.5 w-3.5 text-red-600" /> Betriebsausgaben (steuerlich)
-              <InfoTooltip text={`Inkl. zeitanteiliger AfA statt vollem Kaufpreis. Reguläre Ausgaben: ${fmtCurrency(betriebsausgabenOhneAfa, privacyMode)} + Jahres-AfA: ${fmtCurrency(afaJahresgesamt, privacyMode)}`} side="top" />
+              <InfoTooltip text={`Inkl. zeitanteiliger AfA statt vollem Kaufpreis. Reguläre Ausgaben: ${fmtCurrency(betriebsausgabenOhneAfa, privacyMode)} + Jahres-AfA: ${fmtCurrency(afaJahresgesamt, privacyMode)}${fahrtAbsetzbar > 0 ? ` + km-Pauschale Fahrtenbuch: ${fmtCurrency(fahrtAbsetzbar, privacyMode)}` : ''}`} side="top" />
             </div>
             <p className="text-xl font-bold text-red-600">{fmtCurrency(betriebsausgabenSteuerlich, privacyMode)}</p>
             {anlagevermoegen_kaufpreis > 0 && (
               <p className="text-[10px] text-muted-foreground">Cash-Basis: {fmtCurrency(betriebsausgabenCash, privacyMode)}</p>
+            )}
+            {fahrtAbsetzbar > 0 && (
+              <p className="text-[10px] text-blue-600 dark:text-blue-400">🚗 inkl. {fmtCurrency(fahrtAbsetzbar, privacyMode)} km-Pauschale ({fahrtKmDienst.toFixed(0)} km)</p>
             )}
           </CardContent>
         </Card>
@@ -239,7 +253,7 @@ export default function SteuerbrichtPage() {
           <CardContent className="pt-5 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <Calculator className="h-3.5 w-3.5 text-violet-600" /> Steuerlicher Gewinn (EÜR)
-              <InfoTooltip text={`EÜR = Einnahmen-Überschuss-Rechnung: Einnahmen minus steuerliche Betriebsausgaben (mit AfA). Dies ist die Basis für die Einkommensteuer. Cash-Gewinn: ${fmtCurrency(gewinnCash, privacyMode)}`} side="top" />
+              <InfoTooltip text={`EÜR = Einnahmen-Überschuss-Rechnung: Einnahmen minus steuerliche Betriebsausgaben (mit AfA${fahrtAbsetzbar > 0 ? ' + km-Pauschale Fahrtenbuch' : ''}). Dies ist die Basis für die Einkommensteuer. Cash-Gewinn: ${fmtCurrency(gewinnCash, privacyMode)}`} side="top" />
             </div>
             <p className={`text-xl font-bold ${gewinnSteuerlich >= 0 ? 'text-violet-600' : 'text-red-600'}`}>{fmtCurrency(gewinnSteuerlich, privacyMode)}</p>
             {anlagevermoegen_kaufpreis > 0 && (
@@ -448,6 +462,17 @@ export default function SteuerbrichtPage() {
                 })}
                 {ausgabenByKat.length === 0 && (
                   <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground text-xs py-4">Keine Ausgaben</TableCell></TableRow>
+                )}
+                {/* km-Pauschale aus Fahrtenbuch als eigene Zeile */}
+                {fahrtAbsetzbar > 0 && (
+                  <TableRow className="border-t-2">
+                    <TableCell className="text-xs">
+                      🚗 km-Pauschale Fahrtenbuch ({fahrtKmDienst.toFixed(0)} km × {kmPauschale.toFixed(2).replace('.', ',')} €)
+                      <Badge variant="outline" className="ml-1 text-[9px] text-blue-600 border-blue-300">Fahrtenbuch</Badge>
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono text-muted-foreground">—</TableCell>
+                    <TableCell className="text-right text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">{fmtCurrency(fahrtAbsetzbar, privacyMode)}</TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>

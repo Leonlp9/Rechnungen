@@ -156,6 +156,17 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
   async (db) => {
     try { await db.execute("ALTER TABLE invoices ADD COLUMN xrechnung_path TEXT NOT NULL DEFAULT ''"); } catch { /* exists */ }
   },
+  // v8 → v9: Koordinaten für Fahrtenbuch (für Kartenansicht)
+  async (db) => {
+    for (const col of [
+      'ALTER TABLE fahrtenbuch ADD COLUMN abfahrt_lat REAL',
+      'ALTER TABLE fahrtenbuch ADD COLUMN abfahrt_lon REAL',
+      'ALTER TABLE fahrtenbuch ADD COLUMN ziel_lat REAL',
+      'ALTER TABLE fahrtenbuch ADD COLUMN ziel_lon REAL',
+    ]) {
+      try { await db.execute(col); } catch { /* Spalte existiert bereits */ }
+    }
+  },
 ];
 
 async function migrate(db: Database) {
@@ -747,6 +758,10 @@ export interface Fahrt {
   zweck: string;
   art: 'dienst' | 'privat';
   kfz_kennz: string;
+  abfahrt_lat?: number | null;
+  abfahrt_lon?: number | null;
+  ziel_lat?: number | null;
+  ziel_lon?: number | null;
   created_at?: string;
 }
 
@@ -759,9 +774,10 @@ export const fahrtenbuch = {
   async add(fahrt: Omit<Fahrt, 'id' | 'created_at'>): Promise<void> {
     const db = await getDb();
     await db.execute(
-      `INSERT INTO fahrtenbuch (datum, abfahrt, ziel, km, zweck, art, kfz_kennz)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [fahrt.datum, fahrt.abfahrt, fahrt.ziel, fahrt.km, fahrt.zweck, fahrt.art, fahrt.kfz_kennz]
+      `INSERT INTO fahrtenbuch (datum, abfahrt, ziel, km, zweck, art, kfz_kennz, abfahrt_lat, abfahrt_lon, ziel_lat, ziel_lon)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [fahrt.datum, fahrt.abfahrt, fahrt.ziel, fahrt.km, fahrt.zweck, fahrt.art, fahrt.kfz_kennz,
+       fahrt.abfahrt_lat ?? null, fahrt.abfahrt_lon ?? null, fahrt.ziel_lat ?? null, fahrt.ziel_lon ?? null]
     );
   },
 

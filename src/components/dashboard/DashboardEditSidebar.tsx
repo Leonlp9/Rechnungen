@@ -11,7 +11,7 @@ import {
   Percent, PiggyBank, Table2,
   PanelLeft, LayoutGrid, LayoutDashboard, AlignJustify,
   User, Search, ShieldCheck, Package, Eye, HardDrive,
-  GripHorizontal, Users, RefreshCw, Layers,
+  GripHorizontal, Users, RefreshCw, Layers, Car,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -240,6 +240,14 @@ const ALL_ITEMS: SidebarItemDef[] = [
 
     // ── System ──
     { section: '⚙️ System', type: 'card-system-stats', label: 'System & Speicher', icon: <HardDrive className="h-4 w-4 text-slate-500" />, description: 'Speicherplatz, RAM, CPU-Auslastung', tooltip: 'Zeigt Datenbankgröße, Größe der gespeicherten Rechnungsdateien, genutzten Arbeitsspeicher und CPU-Auslastung.' },
+
+    // ── Fahrtenbuch ──
+    { section: '🚗 Fahrtenbuch', type: 'kpi-fahrt-km', label: 'Dienstfahrten (km)', icon: <Car className="h-4 w-4 text-blue-500" />, description: 'Gefahrene Dienstkilometer im Jahr', tooltip: 'Gesamtkilometer aller Dienstfahrten im ausgewählten Jahr laut Fahrtenbuch.' },
+    { section: '🚗 Fahrtenbuch', type: 'kpi-fahrt-absetzbar', label: 'km-Pauschale (absetzbar)', icon: <Car className="h-4 w-4 text-green-600" />, description: 'Steuerlich absetzbarer km-Betrag (Jahr)', tooltip: 'Dienstkilometer × km-Pauschale. Fließt automatisch in den steuerlichen Gewinn (EÜR) ein.' },
+    { section: '🚗 Fahrtenbuch', type: 'kpi-fahrt-km-monat', label: 'Dienstfahrten (km, Monat)', icon: <Car className="h-4 w-4 text-blue-400" />, description: 'Dienstkilometer im gewählten Monat', tooltip: 'Gesamtkilometer aller Dienstfahrten im ausgewählten Monat.' },
+    { section: '🚗 Fahrtenbuch', type: 'kpi-fahrt-absetzbar-monat', label: 'km-Pauschale (Monat)', icon: <Car className="h-4 w-4 text-green-500" />, description: 'Steuerlich absetzbarer km-Betrag (Monat)', tooltip: 'Monatliche Dienstkilometer × km-Pauschale.' },
+    { section: '🚗 Fahrtenbuch', type: 'chart-fahrt-map', label: 'Fahrten-Karte', icon: <Car className="h-4 w-4 text-violet-500" />, description: 'Alle Fahrten auf der Karte (Monat/Jahr)', tooltip: 'Zeigt alle Dienst- und Privatfahrten des gewählten Monats oder Jahres auf einer interaktiven Karte. Blau = Dienst, Grau = Privat.' },
+    { section: '🚗 Fahrtenbuch', type: 'card-fahrtenbuch', label: 'Fahrtenbuch-Übersicht', icon: <Car className="h-4 w-4 text-violet-400" />, description: 'km Dienst/Privat + absetzbarer Betrag', tooltip: 'Kompakte Übersicht: Dienstkilometer, Privatkilometer, absetzbare km-Pauschale und Anzahl der Fahrteneinträge.' },
 ];
 
 export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarProps) {

@@ -56,7 +56,14 @@ export type ElementType =
   | 'card-system-stats'
   | 'kpi-stille-reserven'
   | 'kpi-kundenkonzentration'
-  | 'kpi-mrc';
+  | 'kpi-mrc'
+  // ── Fahrtenbuch ──
+  | 'kpi-fahrt-km'
+  | 'kpi-fahrt-absetzbar'
+  | 'card-fahrtenbuch'
+  | 'kpi-fahrt-km-monat'
+  | 'kpi-fahrt-absetzbar-monat'
+  | 'chart-fahrt-map';
 
 export type GridType =
   | 'grid-vertical'
@@ -487,6 +494,27 @@ export const DEFAULT_LAYOUT: DashboardNode = {
             { id: 'g10', type: 'kpi-gesamt-marge',                 props: { colSpan: 2 } },
             { id: 'g11', type: 'card-vermoegenscheck',               props: { colSpan: 2 } },
             { id: 'g12', type: 'card-investitionsspiegel',            props: { colSpan: 2 } },
+          ],
+        },
+      ],
+    },
+
+    // ── Seite 8: Fahrtenbuch ─────────────────────────────────────────────────
+    {
+      id: 'page8',
+      label: '🚗 Fahrtenbuch',
+      children: [
+        {
+          id: 'b8',
+          type: 'grid-bento',
+          props: { columns: 4 },
+          children: [
+            { id: 'f1', type: 'kpi-fahrt-km',              props: { colSpan: 1 } },
+            { id: 'f2', type: 'kpi-fahrt-absetzbar',       props: { colSpan: 1 } },
+            { id: 'f3', type: 'kpi-fahrt-km-monat',        props: { colSpan: 1 } },
+            { id: 'f4', type: 'kpi-fahrt-absetzbar-monat', props: { colSpan: 1 } },
+            { id: 'f5', type: 'chart-fahrt-map',           props: { colSpan: 3 } },
+            { id: 'f6', type: 'card-fahrtenbuch',          props: { colSpan: 1 } },
           ],
         },
       ],

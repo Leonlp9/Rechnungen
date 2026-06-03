@@ -37,6 +37,7 @@ const AfaTimelineChart = lazy(() => import('./AfaChart').then((m) => ({ default:
 const VermoegenCheckCard = lazy(() => import('./VermoegenCards').then((m) => ({ default: m.VermoegenCheckCard })));
 const InvestitionsSpiegelCard = lazy(() => import('./VermoegenCards').then((m) => ({ default: m.InvestitionsSpiegelCard })));
 const SystemStatsCard = lazy(() => import('./SystemStatsCard').then((m) => ({ default: m.SystemStatsCard })));
+const FahrtenbuchMapWidget = lazy(() => import('./FahrtenbuchMapWidget').then((m) => ({ default: m.FahrtenbuchMapWidget })));
 
 function WidgetSkeleton() {
   return <Skeleton className="h-full w-full rounded-xl min-h-[120px]" />;
@@ -44,7 +45,7 @@ function WidgetSkeleton() {
 
 import {
   Euro, TrendingUp, TrendingDown, FileText, Calculator, Sparkles, Percent, PiggyBank,
-  Star, BarChart3, Users, RefreshCw, Layers,
+  Star, BarChart3, Users, RefreshCw, Layers, Car,
 } from 'lucide-react';
 import { fmtCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -75,11 +76,12 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
   const navigate = useNavigate();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
   const grundfreibetrag = useAppStore((s) => s.grundfreibetrag);
+  const kmPauschale = useAppStore((s) => s.kmPauschale);
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
   const [beOpen, setBeOpen] = useState(false);
   const [beAfaOpen, setBeAfaOpen] = useState(false);
 
-  const {
+    const {
     loading, privacyMode,
     einnahmen, ausgaben, saldo, betriebsergebnis, betriebsergebnisNachAfa, recentCount,
     deltaEin, deltaAus, deltaSaldo,
@@ -92,6 +94,9 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
     gesamtBestesJahr, gesamtAvgYearlyEinnahmen, gesamtAvgYearlyAusgaben,
     gesamtMarge, gesamtByYear,
     stilleReserven, topKunde, mrc,
+    fahrtKmDienst, fahrtKmPrivat, fahrtKmGesamt, fahrtAbsetzbar, fahrtAnzahl,
+    fahrtFahrten, fahrtFahrtenMonat,
+    fahrtKmDienstMonat, fahrtKmPrivatMonat, fahrtKmGesamtMonat, fahrtAbsetzbarMonat, fahrtAnzahlMonat,
   } = ctx;
 
   switch (type) {
@@ -530,6 +535,96 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           tooltip="Monatlich wiederkehrende Ausgaben – erkannt durch den Muster-Algorithmus (monatliche Intervalle, mind. 2 Buchungen). Zeigt, wie viel jeden Monat fix rausgeht, ohne dass du etwas tust." />
       );
 
+    // ── Fahrtenbuch ───────────────────────────────────────────────────────────
+    case 'kpi-fahrt-km':
+      return (
+        <KPICard loading={loading} title={`Dienstfahrten ${selectedYear}`}
+          value={`${fahrtKmDienst.toFixed(0)} km`}
+          icon={<Car className="h-4 w-4 text-blue-500" />}
+          tooltip={`Gesamte Dienstkilometer im Jahr ${selectedYear} laut Fahrtenbuch. Privatfahrten: ${fahrtKmPrivat.toFixed(0)} km. Gesamtkilometer: ${fahrtKmGesamt.toFixed(0)} km.`}
+          onClick={() => navigate('/fahrtenbuch')} />
+      );
+    case 'kpi-fahrt-absetzbar':
+      return (
+        <KPICard loading={loading} title={`km-Pauschale ${selectedYear}`}
+          value={fmtCurrency(fahrtAbsetzbar, privacyMode)}
+          icon={<Car className="h-4 w-4 text-green-600" />}
+          tooltip={`Steuerlich absetzbarer Betrag aus Dienstfahrten: ${fahrtKmDienst.toFixed(0)} km × ${kmPauschale.toFixed(2).replace('.', ',')} €/km = ${fmtCurrency(fahrtAbsetzbar, false)}. Dieser Betrag fließt bereits in den steuerlichen Gewinn (EÜR) ein.`}
+          onClick={() => navigate('/fahrtenbuch')} />
+      );
+    case 'kpi-fahrt-km-monat': {
+      const { thisMonthLabel } = ctx;
+      return (
+        <KPICard loading={loading} title={`Dienstfahrten ${thisMonthLabel}`}
+          value={`${fahrtKmDienstMonat.toFixed(0)} km`}
+          icon={<Car className="h-4 w-4 text-blue-400" />}
+          tooltip={`Dienstkilometer im gewählten Monat (${thisMonthLabel}). Privatfahrten: ${fahrtKmPrivatMonat.toFixed(0)} km. Gesamt: ${fahrtKmGesamtMonat.toFixed(0)} km. Einträge: ${fahrtAnzahlMonat}.`}
+          onClick={() => navigate('/fahrtenbuch')} />
+      );
+    }
+    case 'kpi-fahrt-absetzbar-monat': {
+      const { thisMonthLabel } = ctx;
+      return (
+        <KPICard loading={loading} title={`km-Pauschale ${thisMonthLabel}`}
+          value={fmtCurrency(fahrtAbsetzbarMonat, privacyMode)}
+          icon={<Car className="h-4 w-4 text-green-500" />}
+          tooltip={`Steuerlich absetzbarer Betrag aus Dienstfahrten im Monat ${thisMonthLabel}: ${fahrtKmDienstMonat.toFixed(0)} km × ${kmPauschale.toFixed(2).replace('.', ',')} €/km = ${fmtCurrency(fahrtAbsetzbarMonat, false)}.`}
+          onClick={() => navigate('/fahrtenbuch')} />
+      );
+    }
+    case 'chart-fahrt-map':
+      return (
+        <FahrtenbuchMapWidget
+          fahrtFahrten={fahrtFahrten}
+          fahrtFahrtenMonat={fahrtFahrtenMonat}
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+        />
+      );
+    case 'card-fahrtenbuch':
+      return (
+        <div className="rounded-xl border bg-card p-5 shadow-sm h-full flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Car className="h-4 w-4 text-blue-500" />
+            <span className="font-semibold text-sm">Fahrtenbuch {selectedYear}</span>
+          </div>
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-full" />
+            </div>
+          ) : fahrtAnzahl === 0 ? (
+            <p className="text-xs text-muted-foreground flex-1 flex items-center justify-center">
+              Keine Fahrten im Fahrtenbuch für {selectedYear}.
+            </p>
+          ) : (
+            <div className="space-y-2 text-sm flex-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Dienstfahrten</span>
+                <span className="font-medium">{fahrtKmDienst.toFixed(0)} km</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Privatfahrten</span>
+                <span className="font-medium">{fahrtKmPrivat.toFixed(0)} km</span>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="text-muted-foreground">Gesamt km</span>
+                <span className="font-medium">{fahrtKmGesamt.toFixed(0)} km</span>
+              </div>
+              <div className="flex justify-between text-green-700 dark:text-green-400 font-semibold border-t pt-2">
+                <span>Absetzbar (EÜR)</span>
+                <span>{fmtCurrency(fahrtAbsetzbar, privacyMode)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Einträge gesamt</span>
+                <span>{fahrtAnzahl}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
     default:
       return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Unbekanntes Element</div>;
   }
@@ -592,5 +687,12 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'kpi-stille-reserven': 'Stille Reserven',
   'kpi-kundenkonzentration': 'Kunden-Konzentration',
   'kpi-mrc': 'Monthly Recurring Costs',
+  // Fahrtenbuch
+  'kpi-fahrt-km': 'Dienstfahrten (km)',
+  'kpi-fahrt-absetzbar': 'km-Pauschale (absetzbar)',
+  'card-fahrtenbuch': 'Fahrtenbuch-Übersicht',
+  'kpi-fahrt-km-monat': 'Dienstfahrten (km, Monat)',
+  'kpi-fahrt-absetzbar-monat': 'km-Pauschale (Monat)',
+  'chart-fahrt-map': 'Fahrten-Karte',
 };
 
