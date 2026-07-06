@@ -20,6 +20,7 @@ import ProjectsPage from "@/pages/Projects";
 import ProjectDetailPage from "@/pages/ProjectDetail";
 import RevisionsprotokollPage from "@/pages/Revisionsprotokoll";
 import KrankenkassePage from "@/pages/Krankenkasse";
+import MobileScanPage from "@/pages/MobileScan";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/UpdateDialog";
@@ -55,6 +56,7 @@ const router = createBrowserRouter([
       { path: "/projects/:id", element: <ProjectDetailPage /> },
       { path: "/revisionsprotokoll", element: <RevisionsprotokollPage /> },
       { path: "/krankenkasse", element: <KrankenkassePage /> },
+      { path: "/scan", element: <MobileScanPage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/help", element: <HelpPage /> },
     ],

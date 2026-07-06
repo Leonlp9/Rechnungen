@@ -115,3 +115,143 @@ jobs:
             src-tauri/target/*/release/bundle/**/*.dmg
             src-tauri/target/*/release/bundle/**/*.app
           if-no-files-found: warn
+
+  # ── Android-APK ─────────────────────────────────────────────────────────────
+  # Baut die Handy-App und hängt das signierte APK an dasselbe Release an.
+  # Optionale Secrets für stabile Signatur (sonst wird ein CI-Wegwerf-Key
+  # erzeugt und Updates erfordern eine Neuinstallation):
+  #   ANDROID_KEYSTORE_B64      – base64-kodierte .jks-Datei
+  #   ANDROID_KEYSTORE_PASSWORD – Keystore-Passwort
+  #   ANDROID_KEY_ALIAS         – Key-Alias
+  #   ANDROID_KEY_PASSWORD      – Key-Passwort
+  android:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env from secrets
+        shell: bash
+        run: |
+          echo "VITE_GMAIL_CLIENT_ID=${{ secrets.VITE_GMAIL_CLIENT_ID }}" >> .env
+          echo "VITE_GMAIL_CLIENT_SECRET=${{ secrets.VITE_GMAIL_CLIENT_SECRET }}" >> .env
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Rust stable (Android-Targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          key: android
+
+      - name: Setup Android NDK
+        shell: bash
+        run: |
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Inject version from tag into tauri.conf.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json
+          mv tmp.json src-tauri/tauri.conf.json
+
+      - name: Initialize Android project
+        run: npx tauri android init
+
+      - name: Add camera permission to AndroidManifest
+        shell: bash
+        run: |
+          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          perl -0pi -e 's|<application|<uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <application|' "$MANIFEST"
+          cat "$MANIFEST"
+
+      - name: Build APK
+        run: npx tauri android build --apk --target aarch64 --target armv7
+
+      - name: Sign APK
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          APK=$(find src-tauri/gen/android -name "*release-unsigned.apk" | head -1)
+          if [ -z "$APK" ]; then
+            APK=$(find src-tauri/gen/android -path "*release*" -name "*.apk" | head -1)
+          fi
+          echo "Gefundenes APK: $APK"
+
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > klevr.jks
+            ALIAS="${KEY_ALIAS:-klevr}"
+            STOREPASS="$KEYSTORE_PASSWORD"
+            KEYPASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+          else
+            echo "::warning::Kein ANDROID_KEYSTORE_B64-Secret gesetzt – erzeuge CI-Wegwerf-Key. Updates erfordern dann eine Neuinstallation der App!"
+            keytool -genkeypair -keystore klevr.jks -alias klevr -storepass klevr-ci -keypass klevr-ci \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Klevr CI"
+            ALIAS="klevr"; STOREPASS="klevr-ci"; KEYPASS="klevr-ci"
+          fi
+
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          OUT="Klevr_${VERSION}_android.apk"
+
+          "$BUILD_TOOLS/zipalign" -f 4 "$APK" aligned.apk
+          "$BUILD_TOOLS/apksigner" sign --ks klevr.jks --ks-key-alias "$ALIAS" \
+            --ks-pass "pass:$STOREPASS" --key-pass "pass:$KEYPASS" \
+            --out "$OUT" aligned.apk
+          "$BUILD_TOOLS/apksigner" verify "$OUT"
+          echo "APK_PATH=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-android
+          path: ${{ env.APK_PATH }}
+
+      - name: Attach APK to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Das (Draft-)Release wird vom Desktop-Job erstellt – kurz warten, falls nötig
+          for i in $(seq 1 30); do
+            if gh release upload "${{ github.ref_name }}" "$APK_PATH" --clobber -R "${{ github.repository }}"; then
+              echo "APK ans Release angehängt."
+              exit 0
+            fi
+            echo "Release noch nicht da – warte 30 s ($i/30) …"
+            sleep 30
+          done
+          echo "::error::Release für ${{ github.ref_name }} nicht gefunden."
+          exit 1

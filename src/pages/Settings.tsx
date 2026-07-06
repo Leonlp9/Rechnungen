@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useAppStore } from '@/store';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
-import { User, Bot, Palette, DatabaseBackup, Info, Bug } from 'lucide-react';
+import { User, Bot, Palette, DatabaseBackup, Info, Bug, Cloud } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { BackupProgressOverlay } from '@/components/BackupProgressOverlay';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ import { PROFILE_FIELDS } from '@/components/settings/tabs/ProfilTab';
 import { KiTab } from '@/components/settings/tabs/KiTab';
 import { ErscheinungsbildTab } from '@/components/settings/tabs/ErscheinungsbildTab';
 import { DatenTab } from '@/components/settings/tabs/DatenTab';
+import { SyncTab } from '@/components/settings/tabs/SyncTab';
 import { UeberTab } from '@/components/settings/tabs/UeberTab';
 import { DevTab } from '@/components/settings/tabs/DevTab';
 
@@ -25,7 +26,7 @@ import { DevTab } from '@/components/settings/tabs/DevTab';
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type { };
 
-type TabId = 'profil' | 'ki' | 'erscheinungsbild' | 'daten' | 'ueber' | 'dev';
+type TabId = 'profil' | 'ki' | 'erscheinungsbild' | 'daten' | 'sync' | 'ueber' | 'dev';
 
 interface SettingsTab {
   id: TabId;
@@ -39,6 +40,7 @@ const TABS: SettingsTab[] = [
   { id: 'ki', label: 'KI & API', icon: Bot },
   { id: 'erscheinungsbild', label: 'Erscheinungsbild', icon: Palette },
   { id: 'daten', label: 'Daten & Backup', icon: DatabaseBackup },
+  { id: 'sync', label: 'Cloud-Sync', icon: Cloud },
   { id: 'ueber', label: 'Über', icon: Info },
   { id: 'dev', label: 'Dev Debug', icon: Bug, devOnly: true },
 ];
@@ -231,6 +233,8 @@ export default function SettingsPage() {
               auditLoading={auditLoading} setAuditLoading={setAuditLoading}
             />
           )}
+
+          {activeTab === 'sync' && <SyncTab />}
 
           {activeTab === 'ueber' && (
             <UeberTab

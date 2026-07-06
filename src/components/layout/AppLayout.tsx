@@ -14,6 +14,9 @@ import { WelcomeScreen } from '@/components/tutorial/WelcomeScreen';
 import { TutorialOverlay } from '@/components/tutorial/TutorialOverlay';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { ShortcutsModal } from '@/components/ShortcutsModal';
+import { initAutoSync } from '@/lib/sync';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { MobileNav } from './MobileNav';
 
 const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail', '/calendar', '/settings'];
 
@@ -24,11 +27,17 @@ export function AppLayout() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { pathname } = useLocation();
   const fullHeight = FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r));
+  const isMobile = useIsMobile();
   const searchOpen = useAppStore((s) => s.searchOpen);
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setDrafts = useAppStore((s) => s.setDrafts);
 
   useKeyboardShortcuts(() => setShortcutsOpen(true));
+
+  // Cloud-Sync (falls konfiguriert) im Hintergrund starten
+  useEffect(() => {
+    void initAutoSync();
+  }, []);
 
   // Entwürfe aus DB laden
   useEffect(() => {
@@ -55,17 +64,28 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      {!isMobile && <Sidebar />}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar
-          onNewInvoice={() => setNewInvoiceOpen(true)}
-          onExport={() => setExportOpen(true)}
-          onDrafts={() => setDraftsOpen(true)}
-        />
-        <main className={fullHeight ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto p-6'}>
+        {!isMobile && (
+          <Topbar
+            onNewInvoice={() => setNewInvoiceOpen(true)}
+            onExport={() => setExportOpen(true)}
+            onDrafts={() => setDraftsOpen(true)}
+          />
+        )}
+        <main
+          className={
+            fullHeight && !isMobile
+              ? 'flex-1 overflow-hidden'
+              : isMobile
+                ? 'flex-1 overflow-y-auto p-3 pb-20'
+                : 'flex-1 overflow-y-auto p-6'
+          }
+        >
           <Outlet />
         </main>
       </div>
+      {isMobile && <MobileNav />}
       <NewInvoiceDialog open={newInvoiceOpen} onClose={() => setNewInvoiceOpen(false)} />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
       <DraftsPanel open={draftsOpen} onClose={() => setDraftsOpen(false)} />
