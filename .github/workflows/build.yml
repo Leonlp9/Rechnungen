@@ -182,7 +182,22 @@ jobs:
           mv tmp.json src-tauri/tauri.conf.json
 
       - name: Initialize Android project
-        run: npx tauri android init
+        shell: bash
+        run: |
+          # Im Repo liegt nur ein Teil von gen/android (die von `tauri icon`
+          # erzeugten App-Icons). `tauri android init` verweigert bei einem
+          # unvollständigen Ordner – daher: Icons sichern, frisch generieren,
+          # Icons zurückkopieren.
+          if [ -d src-tauri/gen/android ]; then
+            if [ -d src-tauri/gen/android/app/src/main/res ]; then
+              cp -r src-tauri/gen/android/app/src/main/res /tmp/klevr-res
+            fi
+            rm -rf src-tauri/gen/android
+          fi
+          npx tauri android init
+          if [ -d /tmp/klevr-res ]; then
+            cp -r /tmp/klevr-res/. src-tauri/gen/android/app/src/main/res/
+          fi
 
       - name: Add camera permission to AndroidManifest
         shell: bash
