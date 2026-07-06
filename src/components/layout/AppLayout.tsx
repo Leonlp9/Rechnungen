@@ -78,8 +78,19 @@ export function AppLayout() {
             fullHeight && !isMobile
               ? 'flex-1 overflow-hidden'
               : isMobile
-                ? 'flex-1 overflow-y-auto p-3 pb-20'
+                ? 'flex-1 overflow-y-auto overflow-x-hidden p-3'
                 : 'flex-1 overflow-y-auto p-6'
+          }
+          style={
+            isMobile
+              ? {
+                  // Safe-Areas: nichts unter Notch/Kamera oder der Bottom-Nav rendern
+                  paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)',
+                  paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 5rem)',
+                  paddingLeft: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
+                  paddingRight: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
+                }
+              : undefined
           }
         >
           <Outlet />
@@ -91,9 +102,10 @@ export function AppLayout() {
       <DraftsPanel open={draftsOpen} onClose={() => setDraftsOpen(false)} />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-      <AIChatFloat />
-      <WelcomeScreen />
-      <TutorialOverlay />
+      {/* Desktop-only: schwebender KI-Chat und Tutorial passen nicht aufs Handy */}
+      {!isMobile && <AIChatFloat />}
+      {!isMobile && <WelcomeScreen />}
+      {!isMobile && <TutorialOverlay />}
     </div>
   );
 }

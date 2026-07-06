@@ -43,6 +43,8 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '@/lib/utils';
 import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
 import { StornoDialog } from './StornoDialog';
+import { PdfCanvasViewer } from './PdfCanvasViewer';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { saveXRechnungFile, saveXRechnungToAppData, getAbsoluteXRechnungPath } from '@/lib/xrechnung';
 import { getSetting } from '@/lib/db';
@@ -75,6 +77,9 @@ export default function InvoiceDetail() {
   const steuerregelung = useAppStore((s) => s.steuerregelung);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [pdfUrl, setPdfUrl] = useState('');
+  const isMobile = useIsMobile();
+  // Mobile: PDF und Formular passen nicht nebeneinander → Umschalter
+  const [mobileTab, setMobileTab] = useState<'details' | 'pdf'>('details');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLock, setConfirmLock] = useState(false);
@@ -413,18 +418,54 @@ export default function InvoiceDetail() {
   }
 
   return (
-      <div className="flex h-full gap-6">
-        {/* Left: PDF */}
-        <div className="flex-1 rounded-xl border bg-card shadow-sm overflow-hidden min-w-0">
+      <div className={cn('h-full', isMobile ? 'flex flex-col gap-3' : 'flex gap-6')}>
+        {/* Mobile: Umschalter Details ↔ Dokument */}
+        {isMobile && (
+          <div className="flex shrink-0 gap-1 rounded-lg border bg-muted/40 p-1">
+            {([
+              ['details', 'Details'],
+              ['pdf', 'Dokument'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setMobileTab(key)}
+                className={cn(
+                  'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  mobileTab === key ? 'bg-background shadow-sm' : 'text-muted-foreground',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* PDF-Ansicht (Desktop: links, Mobile: eigener Tab mit pdf.js-Renderer) */}
+        <div
+          className={cn(
+            'rounded-xl border bg-card shadow-sm overflow-hidden min-w-0',
+            isMobile ? (mobileTab === 'pdf' ? 'flex-1' : 'hidden') : 'flex-1',
+          )}
+        >
           {pdfUrl ? (
-              <embed src={pdfUrl} type="application/pdf" className="h-full w-full" />
+              isMobile ? (
+                <PdfCanvasViewer url={pdfUrl} />
+              ) : (
+                <embed src={pdfUrl} type="application/pdf" className="h-full w-full" />
+              )
           ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">Kein PDF vorhanden</div>
           )}
         </div>
 
-        {/* Right: Form */}
-        <div className="w-[400px] shrink-0 space-y-4 overflow-y-auto">
+        {/* Formular (Desktop: rechts, Mobile: eigener Tab in voller Breite) */}
+        <div
+          className={cn(
+            'space-y-4 overflow-y-auto',
+            isMobile ? (mobileTab === 'details' ? 'flex-1 min-h-0' : 'hidden') : 'w-[400px] shrink-0',
+          )}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold">Rechnungsdetails</h1>
@@ -483,7 +524,7 @@ export default function InvoiceDetail() {
               <Label>Beschreibung</Label>
               <Input {...form.register('description')} />
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
                   Netto

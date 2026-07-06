@@ -283,6 +283,69 @@ export function isAncestor(root: DashboardNode, ancestorId: string, nodeId: stri
 
 // ─── Default Layout ──────────────────────────────────────────────────────────
 
+/**
+ * Standard-Layout für Handys: schmale, einspaltige Stapel mit den wichtigsten
+ * Kennzahlen. Wird auf Mobilgeräten immer verwendet (nicht editierbar) –
+ * unabhängig vom individuell angepassten Desktop-Layout.
+ */
+export const DEFAULT_MOBILE_LAYOUT: DashboardNode = {
+  id: 'mroot',
+  type: 'grid-pages',
+  pages: [
+    {
+      id: 'mpage1',
+      label: '📊 Übersicht',
+      children: [
+        {
+          id: 'mb1',
+          type: 'grid-bento',
+          props: { columns: 2 },
+          children: [
+            { id: 'me1', type: 'kpi-einnahmen-monat',   props: { colSpan: 1 } },
+            { id: 'me2', type: 'kpi-ausgaben-monat',    props: { colSpan: 1 } },
+            { id: 'me3', type: 'kpi-betriebsergebnis',  props: { colSpan: 2 } },
+            { id: 'me4', type: 'chart-last28days',      props: { colSpan: 2 } },
+            { id: 'me5', type: 'list-recent-invoices',  props: { colSpan: 2 } },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'mpage2',
+      label: '📅 Monat',
+      children: [
+        {
+          id: 'mb2',
+          type: 'grid-bento',
+          props: { columns: 2 },
+          children: [
+            { id: 'mm1', type: 'kpi-saldo-monat',      props: { colSpan: 2 } },
+            { id: 'mm2', type: 'chart-month',          props: { colSpan: 2 } },
+            { id: 'mm3', type: 'list-top-ausgaben',    props: { colSpan: 2 } },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'mpage3',
+      label: '📈 Jahr',
+      children: [
+        {
+          id: 'mb3',
+          type: 'grid-bento',
+          props: { columns: 2 },
+          children: [
+            { id: 'mj1', type: 'kpi-einnahmen-ytd',    props: { colSpan: 1 } },
+            { id: 'mj2', type: 'kpi-ausgaben-ytd',     props: { colSpan: 1 } },
+            { id: 'mj3', type: 'chart-revenue',        props: { colSpan: 2 } },
+            { id: 'mj4', type: 'list-forecast',        props: { colSpan: 2 } },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 export const DEFAULT_LAYOUT: DashboardNode = {
   id: 'root',
   type: 'grid-pages',

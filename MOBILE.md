@@ -97,7 +97,10 @@ npm run tauri ios build      # IPA für TestFlight/App Store
 
 In Xcode (einmal `gen/apple` öffnen) das Signing-Team auswählen. Für die
 Kamera in `Info.plist` den Schlüssel `NSCameraUsageDescription` mit einer
-Begründung ergänzen.
+Begründung ergänzen. Für den Portrait-Lock in `Info.plist` unter
+`UISupportedInterfaceOrientations` nur `UIInterfaceOrientationPortrait`
+eintragen (Android macht das der CI-Workflow automatisch über
+`android:screenOrientation="portrait"`).
 
 ## Was auf dem Handy anders ist
 

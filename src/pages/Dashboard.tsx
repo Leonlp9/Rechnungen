@@ -35,8 +35,10 @@ import {
   genId,
 } from '@/types/dashboard';
 import type { DashboardNode, NodeType } from '@/types/dashboard';
+import { DEFAULT_MOBILE_LAYOUT } from '@/types/dashboard';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ─── Drag overlay preview ────────────────────────────────────────────────────
 
@@ -57,7 +59,11 @@ function DragPreview({ type }: { type: NodeType }) {
 
 export default function Dashboard() {
   const data = useDashboardData();
-  const { layout, setLayout, resetLayout } = useDashboardStore();
+  const { layout: desktopLayout, setLayout, resetLayout } = useDashboardStore();
+  const isMobile = useIsMobile();
+  // Auf dem Handy immer das feste Mobile-Standard-Layout (einspaltig, nicht
+  // editierbar) – das Desktop-Layout bleibt davon unberührt.
+  const layout = isMobile ? DEFAULT_MOBILE_LAYOUT : desktopLayout;
   const [editMode, setEditMode] = useState(false);
   const [activeDrag, setActiveDrag] = useState<{ type: NodeType; id: string } | null>(null);
   const [overContainerId, setOverContainerId] = useState<string | null>(null);
@@ -276,9 +282,15 @@ export default function Dashboard() {
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
       >
-        <div className="flex -m-6 h-[calc(100%+3rem)]">
+        <div className={cn('flex', isMobile ? 'flex-col' : '-m-6 h-[calc(100%+3rem)]')}>
           {/* ── Main scrollable content ── */}
-          <div data-tutorial="dashboard-kpis" className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6">
+          <div
+            data-tutorial="dashboard-kpis"
+            className={cn(
+              'flex-1 min-w-0',
+              isMobile ? 'space-y-4' : 'overflow-y-auto p-6 space-y-6',
+            )}
+          >
             {/* Header */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -320,22 +332,24 @@ export default function Dashboard() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button
-                  variant={editMode ? 'default' : 'outline'}
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => setEditMode((v) => !v)}
-                >
-                  <Settings2 className="h-4 w-4" />
-                  {editMode ? 'Fertig' : 'Anpassen'}
-                </Button>
+                {!isMobile && (
+                  <Button
+                    variant={editMode ? 'default' : 'outline'}
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setEditMode((v) => !v)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    {editMode ? 'Fertig' : 'Anpassen'}
+                  </Button>
+                )}
               </div>
             </div>
 
             {/* Grid */}
             <DashboardGridNode
               node={layout}
-              editMode={editMode}
+              editMode={editMode && !isMobile}
               overContainerId={overContainerId}
               overItemId={overItemId}
               activeDragId={activeDrag?.id ?? null}
@@ -351,7 +365,7 @@ export default function Dashboard() {
           {/* ── Edit sidebar – flex panel, no overlay ── */}
           <div className={cn(
             'flex-shrink-0 border-l bg-background transition-all duration-300 overflow-hidden',
-            editMode ? 'w-72' : 'w-0',
+            editMode && !isMobile ? 'w-72' : 'w-0',
           )}>
             {/* inner div keeps w-72 even when outer collapses to w-0 */}
             <DashboardEditSidebar

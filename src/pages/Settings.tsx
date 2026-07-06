@@ -167,10 +167,10 @@ export default function SettingsPage() {
   }, [tutorialActive, tutorialStep]);
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Left tab nav */}
-      <nav className="w-52 shrink-0 space-y-1 overflow-y-auto px-3 py-6">
-        <h1 className="text-xl font-bold mb-4 px-2">Einstellungen</h1>
+    <div className="flex h-full flex-col overflow-hidden md:flex-row">
+      {/* Tab-Navigation: Desktop links als Spalte, Mobile oben als scrollbare Leiste */}
+      <nav className="flex shrink-0 gap-1 overflow-x-auto px-2 py-2 md:w-52 md:flex-col md:space-y-1 md:gap-0 md:overflow-y-auto md:overflow-x-visible md:px-3 md:py-6">
+        <h1 className="hidden md:block text-xl font-bold mb-4 px-2">Einstellungen</h1>
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isDev = tab.devOnly;
@@ -181,7 +181,7 @@ export default function SettingsPage() {
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'w-full flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all text-left',
+                'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all text-left whitespace-nowrap md:w-full md:py-2.5',
                 isActive && !isDev && 'bg-primary/10 text-primary',
                 isActive && isDev && 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
                 !isActive && !isDev && 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -199,11 +199,11 @@ export default function SettingsPage() {
       </nav>
 
       {/* Divider */}
-      <div className="w-px bg-border shrink-0 mr-6" />
+      <div className="h-px w-full bg-border shrink-0 md:h-auto md:w-px md:mr-6" />
 
       {/* Content – scrollable */}
       <div ref={contentRef} className="flex-1 min-w-0 overflow-y-auto">
-        <div className="space-y-6 pb-2 max-w-2xl pt-6 pr-6">
+        <div className="space-y-6 pb-6 max-w-2xl px-3 pt-4 md:px-0 md:pt-6 md:pr-6 md:pb-2">
 
           {activeTab === 'profil' && (
             <ProfilTab profile={profile} setProfile={setProfile} profileSaving={profileSaving} saveProfile={saveProfile} />

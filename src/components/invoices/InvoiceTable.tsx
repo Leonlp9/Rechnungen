@@ -145,11 +145,11 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
     }
   }, [filterMonth, filterYears.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const SortHeader = ({ label, field, tooltip }: { label: string; field: SortKey; tooltip?: string }) => {
+  const SortHeader = ({ label, field, tooltip, className }: { label: string; field: SortKey; tooltip?: string; className?: string }) => {
     const active = sortKey === field;
     const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
     return (
-      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort(field)}>
+      <TableHead className={`cursor-pointer select-none ${className ?? ''}`} onClick={() => toggleSort(field)}>
         <div className="flex items-center gap-1">
           {label}
           <Icon className={`h-3 w-3 ${active ? 'text-foreground' : 'text-muted-foreground'}`} />
@@ -387,7 +387,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">
+              <TableHead className="w-10 hidden md:table-cell">
                 <Checkbox
                   checked={allPageSelected}
                   onCheckedChange={toggleSelectAll}
@@ -397,11 +397,11 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
               </TableHead>
               <SortHeader label="Datum" field="date" />
               <SortHeader label="Partner" field="partner" />
-              <TableHead>Beschreibung</TableHead>
-              <SortHeader label="Kategorie" field="category" tooltip="Steuerliche Kategorie des Belegs (z. B. Honorar, Software/Abos, Bürobedarf)" />
+              <TableHead className="hidden md:table-cell">Beschreibung</TableHead>
+              <SortHeader label="Kategorie" field="category" className="hidden md:table-cell" tooltip="Steuerliche Kategorie des Belegs (z. B. Honorar, Software/Abos, Bürobedarf)" />
               <SortHeader label="Brutto" field="brutto" tooltip="Gesamtbetrag inkl. Umsatzsteuer (Netto + USt). Relevant für die Kleinunternehmergrenze." />
-              <SortHeader label="Typ" field="type" tooltip="Einnahme = Geld erhalten · Ausgabe = Geld bezahlt · Info = neutraler Vermerk" />
-              <TableHead className="w-[100px]" title="GoBD-Status: Entwurf / Festgeschrieben / Storno">Status</TableHead>
+              <SortHeader label="Typ" field="type" className="hidden md:table-cell" tooltip="Einnahme = Geld erhalten · Ausgabe = Geld bezahlt · Info = neutraler Vermerk" />
+              <TableHead className="w-[100px] hidden md:table-cell" title="GoBD-Status: Entwurf / Festgeschrieben / Storno">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -424,7 +424,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                   }}
                   onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ invoice: inv, x: e.clientX, y: e.clientY }); }}
                 >
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(inv.id)}
                       onCheckedChange={() => toggleSelect(inv.id)}
@@ -446,8 +446,8 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                       <span>{inv.partner}</span>
                     )}
                   </TableCell>
-                  <TableCell className="max-w-[200px] truncate">{inv.description}</TableCell>
-                  <TableCell>{CATEGORY_LABELS[inv.category]}</TableCell>
+                  <TableCell className="max-w-[200px] truncate hidden md:table-cell">{inv.description}</TableCell>
+                  <TableCell className="hidden md:table-cell">{CATEGORY_LABELS[inv.category]}</TableCell>
                   <TableCell className={inv.type === 'einnahme' ? 'text-green-600' : inv.type === 'ausgabe' ? 'text-red-600' : ''}>
                     <div>{fmtCurrency(inv.brutto, privacyMode)}</div>
                     {inv.fee > 0 && (
@@ -456,7 +456,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                       inv.type === 'einnahme' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
                       inv.type === 'ausgabe' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
@@ -465,7 +465,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                       {TYPE_LABELS[inv.type]}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {inv.storno_of ? (
                       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-300/30" title={`Stornobuchung zu ${inv.storno_of}`}>
                         ↩ Storno
@@ -488,8 +488,8 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground flex-wrap">
+        <div className="hidden md:flex items-center gap-2">
           <span>Zeilen pro Seite:</span>
           <Select value={String(pageSize)} onValueChange={(v) => { setParam('size', v); }}>
             <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
