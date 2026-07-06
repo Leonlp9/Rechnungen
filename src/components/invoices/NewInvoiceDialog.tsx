@@ -36,8 +36,10 @@ import { ProjectSelector } from '@/components/projects/ProjectSelector';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { fmtCurrency } from '@/lib/utils';
+import { fmtCurrency, cn } from '@/lib/utils';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { PdfCanvasViewer } from './PdfCanvasViewer';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const schema = z.object({
   date: z.string().min(1, 'Datum erforderlich'),
@@ -68,7 +70,22 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
   const [step, setStep] = useState<1 | 2>(1);
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState('');
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
+  // Blob-URL für die Vorschau. Bewusst KEINE data:-URL – die rendert der
+  // Desktop-WebView im iframe/embed unzuverlässig (besonders bei großen PDFs).
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+  // Mobile: Formular und Vorschau passen nicht nebeneinander → Umschalter
+  const [mobileView, setMobileView] = useState<'form' | 'pdf'>('form');
+
+  /** Erzeugt aus Base64 eine Blob-URL für die Vorschau (alte URL wird freigegeben). */
+  const setPreviewFromBase64 = (b64: string | null) => {
+    setPdfPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      if (!b64) return null;
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    });
+  };
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
@@ -136,7 +153,8 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     setStep(1);
     setPdfPath(null);
     setPdfName('');
-    setPdfDataUrl(null);
+    setPreviewFromBase64(null);
+    setMobileView('form');
     setAiLoading(false);
     setSaving(false);
     setDuplicates([]);
@@ -172,9 +190,9 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       setPdfName(filePath.split(/[\\/]/).pop() ?? 'document.pdf');
       try {
         const base64 = await readPdfAsBase64(filePath);
-        setPdfDataUrl(`data:application/pdf;base64,${base64}`);
+        setPreviewFromBase64(base64);
       } catch {
-        setPdfDataUrl(null);
+        setPreviewFromBase64(null);
       }
       setStep(2);
     } else {
@@ -208,8 +226,8 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       setPdfPath(initialPdfPath);
       setPdfName(initialPdfName ?? initialPdfPath.split(/[\\/]/).pop() ?? 'document.pdf');
       readPdfAsBase64(initialPdfPath)
-          .then((b64) => setPdfDataUrl(`data:application/pdf;base64,${b64}`))
-          .catch(() => setPdfDataUrl(null));
+          .then((b64) => setPreviewFromBase64(b64))
+          .catch(() => setPreviewFromBase64(null));
       setStep(2);
     }
   }, [isOpen, initialPdfPath]);
@@ -392,9 +410,32 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
             )}
 
             {step === 2 && (
-                <div className="flex gap-4 h-[78vh]">
+                <div className="flex flex-col md:flex-row gap-3 md:gap-4 h-[78vh]">
+                  {/* Mobile: Umschalter Erfassen ↔ Vorschau */}
+                  <div className="flex md:hidden shrink-0 gap-1 rounded-lg border bg-muted/40 p-1">
+                    {([
+                      ['form', 'Erfassen'],
+                      ['pdf', 'Vorschau'],
+                    ] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setMobileView(key)}
+                        className={cn(
+                          'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                          mobileView === key ? 'bg-background shadow-sm' : 'text-muted-foreground',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Left: form */}
-                  <div className="flex-1 min-w-0 overflow-y-auto pr-1 space-y-4">
+                  <div className={cn(
+                    'flex-1 min-w-0 overflow-y-auto pr-1 space-y-4',
+                    isMobile && mobileView === 'pdf' && 'hidden',
+                  )}>
                     {/* PDF info + AI button */}
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/50 p-3">
                       <div className="flex items-center gap-2 text-sm">
@@ -537,16 +578,28 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                     </form>
                   </div>
 
-                  {/* Right: PDF preview – auf dem Handy ausgeblendet (kein Platz,
-                      Android-WebView kann PDFs ohnehin nicht via iframe rendern) */}
-                  <div className="hidden md:flex w-[45%] shrink-0 rounded-lg border overflow-hidden bg-muted/30 flex-col">
-                    <div className="text-xs text-muted-foreground px-3 py-1.5 border-b font-medium">Vorschau</div>
-                    {pdfDataUrl ? (
-                        <iframe
-                            src={pdfDataUrl}
-                            className="flex-1 w-full"
-                            title="PDF Vorschau"
-                        />
+                  {/* Right: PDF preview – Desktop: <embed> mit Blob-URL (zuverlässig),
+                      Mobile: eigener Tab mit pdf.js-Renderer (Android kann kein embed) */}
+                  <div className={cn(
+                    'rounded-lg border overflow-hidden bg-muted/30 flex-col',
+                    isMobile
+                      ? (mobileView === 'pdf' ? 'flex flex-1 min-h-0' : 'hidden')
+                      : 'flex w-[45%] shrink-0',
+                  )}>
+                    <div className="text-xs text-muted-foreground px-3 py-1.5 border-b font-medium shrink-0">Vorschau</div>
+                    {pdfPreviewUrl ? (
+                        isMobile ? (
+                            <div className="flex-1 min-h-0">
+                              <PdfCanvasViewer url={pdfPreviewUrl} />
+                            </div>
+                        ) : (
+                            <embed
+                                src={pdfPreviewUrl}
+                                type="application/pdf"
+                                className="flex-1 w-full"
+                                title="PDF Vorschau"
+                            />
+                        )
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
                           Keine Vorschau verfügbar
