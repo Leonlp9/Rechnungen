@@ -396,7 +396,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                   {/* Left: form */}
                   <div className="flex-1 min-w-0 overflow-y-auto pr-1 space-y-4">
                     {/* PDF info + AI button */}
-                    <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/50 p-3">
                       <div className="flex items-center gap-2 text-sm">
                         <FileText className="h-4 w-4" />
                         <span className="truncate max-w-[200px]">{pdfName}</span>
@@ -416,7 +416,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                     </div>
 
                     {/* Form */}
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 sm:grid-cols-2 [&_input]:min-w-0">
                       <div className="space-y-1.5">
                         <Label>Datum</Label>
                         <Input type="date" {...form.register('date')} />
@@ -429,7 +429,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                         {form.formState.errors.partner && <p className="text-xs text-destructive">{form.formState.errors.partner.message}</p>}
                       </div>
 
-                      <div className="col-span-2 space-y-1.5">
+                      <div className="sm:col-span-2 space-y-1.5">
                         <Label>Beschreibung</Label>
                         <Input {...form.register('description')} />
                         {form.formState.errors.description && <p className="text-xs text-destructive">{form.formState.errors.description.message}</p>}
@@ -467,7 +467,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                         <Input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} />
                       </div>
 
-                      <p className="col-span-2 text-xs text-muted-foreground">
+                      <p className="sm:col-span-2 text-xs text-muted-foreground">
                         Gebuehren werden separat gespeichert. Netto/Brutto bleiben der Beleg-Gesamtbetrag.
                       </p>
 
@@ -510,12 +510,12 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                         </Select>
                       </div>
 
-                      <div className="col-span-2 space-y-1.5">
+                      <div className="sm:col-span-2 space-y-1.5">
                         <Label>Notiz</Label>
                         <Input {...form.register('note')} />
                       </div>
 
-                      <div className="col-span-2 space-y-1.5">
+                      <div className="sm:col-span-2 space-y-1.5">
                         <Label>Projekt</Label>
                         <ProjectSelector
                             value={form.watch('project_id')}
@@ -523,7 +523,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                         />
                       </div>
 
-                      <div className="col-span-2 flex justify-end gap-2 pt-2">
+                      <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
                         <Button type="button" variant="outline" onClick={handleClose}>Abbrechen</Button>
                         <Button type="button" variant="outline" onClick={saveAsDraft}>
                           <BookmarkPlus className="mr-2 h-4 w-4" />
@@ -537,8 +537,9 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                     </form>
                   </div>
 
-                  {/* Right: PDF preview */}
-                  <div className="w-[45%] shrink-0 rounded-lg border overflow-hidden bg-muted/30 flex flex-col">
+                  {/* Right: PDF preview – auf dem Handy ausgeblendet (kein Platz,
+                      Android-WebView kann PDFs ohnehin nicht via iframe rendern) */}
+                  <div className="hidden md:flex w-[45%] shrink-0 rounded-lg border overflow-hidden bg-muted/30 flex-col">
                     <div className="text-xs text-muted-foreground px-3 py-1.5 border-b font-medium">Vorschau</div>
                     {pdfDataUrl ? (
                         <iframe
