@@ -35,10 +35,12 @@ import {
   genId,
 } from '@/types/dashboard';
 import type { DashboardNode, NodeType } from '@/types/dashboard';
-import { DEFAULT_MOBILE_LAYOUT } from '@/types/dashboard';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { MobileDashboard } from '@/components/dashboard/MobileDashboard';
+
+const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
 // ─── Drag overlay preview ────────────────────────────────────────────────────
 
@@ -59,11 +61,11 @@ function DragPreview({ type }: { type: NodeType }) {
 
 export default function Dashboard() {
   const data = useDashboardData();
-  const { layout: desktopLayout, setLayout, resetLayout } = useDashboardStore();
+  const {
+    layout, setLayout, resetLayout,
+    mobileLayout, setMobileLayout, resetMobileLayout,
+  } = useDashboardStore();
   const isMobile = useIsMobile();
-  // Auf dem Handy immer das feste Mobile-Standard-Layout (einspaltig, nicht
-  // editierbar) – das Desktop-Layout bleibt davon unberührt.
-  const layout = isMobile ? DEFAULT_MOBILE_LAYOUT : desktopLayout;
   const [editMode, setEditMode] = useState(false);
   const [activeDrag, setActiveDrag] = useState<{ type: NodeType; id: string } | null>(null);
   const [overContainerId, setOverContainerId] = useState<string | null>(null);
@@ -269,6 +271,61 @@ export default function Dashboard() {
     setConfirmReset(true);
   };
 
+  // ── Handy: eigenes, antippbares Layout mit eigenem Editor ──
+  if (isMobile) {
+    return (
+      <DashboardContext.Provider value={{ ...data, editMode }}>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h1 className="min-w-0 flex-1 truncate text-xl font-bold">Dashboard</h1>
+            <Button
+              variant={editMode ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 shrink-0 gap-1.5"
+              onClick={() => setEditMode((v) => !v)}
+            >
+              <Settings2 className="h-4 w-4" />
+              {editMode ? 'Fertig' : 'Anpassen'}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Select
+              value={String(data.selectedMonth)}
+              onValueChange={(v) => data.setSelectedMonth(Number(v))}
+            >
+              <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {MONTH_NAMES.map((name, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(data.selectedYear)}
+              onValueChange={(v) => data.setSelectedYear(Number(v))}
+            >
+              <SelectTrigger className="h-9 w-28 shrink-0"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {data.years.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <MobileDashboard
+            layout={mobileLayout}
+            onChange={setMobileLayout}
+            onReset={resetMobileLayout}
+            editMode={editMode}
+            onEditModeChange={setEditMode}
+          />
+        </div>
+      </DashboardContext.Provider>
+    );
+  }
+
   return (
     <DashboardContext.Provider value={{ ...data, editMode }}>
       {/*
@@ -282,14 +339,11 @@ export default function Dashboard() {
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
       >
-        <div className={cn('flex', isMobile ? 'flex-col' : '-m-6 h-[calc(100%+3rem)]')}>
+        <div className="flex -m-6 h-[calc(100%+3rem)]">
           {/* ── Main scrollable content ── */}
           <div
             data-tutorial="dashboard-kpis"
-            className={cn(
-              'flex-1 min-w-0',
-              isMobile ? 'space-y-4' : 'overflow-y-auto p-6 space-y-6',
-            )}
+            className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6"
           >
             {/* Header */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -301,10 +355,7 @@ export default function Dashboard() {
                 >
                   <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {[
-                      'Januar','Februar','März','April','Mai','Juni',
-                      'Juli','August','September','Oktober','November','Dezember',
-                    ].map((name, i) => {
+                    {MONTH_NAMES.map((name, i) => {
                       const isCurrentMonth = i + 1 === new Date().getMonth() + 1 && data.selectedYear === new Date().getFullYear();
                       return (
                         <SelectItem key={i + 1} value={String(i + 1)}>
@@ -332,24 +383,22 @@ export default function Dashboard() {
                     ))}
                   </SelectContent>
                 </Select>
-                {!isMobile && (
-                  <Button
-                    variant={editMode ? 'default' : 'outline'}
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => setEditMode((v) => !v)}
-                  >
-                    <Settings2 className="h-4 w-4" />
-                    {editMode ? 'Fertig' : 'Anpassen'}
-                  </Button>
-                )}
+                <Button
+                  variant={editMode ? 'default' : 'outline'}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setEditMode((v) => !v)}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  {editMode ? 'Fertig' : 'Anpassen'}
+                </Button>
               </div>
             </div>
 
             {/* Grid */}
             <DashboardGridNode
               node={layout}
-              editMode={editMode && !isMobile}
+              editMode={editMode}
               overContainerId={overContainerId}
               overItemId={overItemId}
               activeDragId={activeDrag?.id ?? null}
@@ -365,7 +414,7 @@ export default function Dashboard() {
           {/* ── Edit sidebar – flex panel, no overlay ── */}
           <div className={cn(
             'flex-shrink-0 border-l bg-background transition-all duration-300 overflow-hidden',
-            editMode && !isMobile ? 'w-72' : 'w-0',
+            editMode ? 'w-72' : 'w-0',
           )}>
             {/* inner div keeps w-72 even when outer collapses to w-0 */}
             <DashboardEditSidebar

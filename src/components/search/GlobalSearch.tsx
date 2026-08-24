@@ -126,7 +126,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-3 pt-[8vh] backdrop-blur-sm sm:px-0 sm:pt-[10vh]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-2xl rounded-xl border border-border bg-background shadow-2xl overflow-hidden">

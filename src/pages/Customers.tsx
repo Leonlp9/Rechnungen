@@ -46,7 +46,7 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-0 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="h-6 w-6" /> Kunden</h1>
         <Button onClick={() => { setEditing(null); setShowForm(true); }}><Plus className="mr-2 h-4 w-4" /> Neuer Kunde</Button>

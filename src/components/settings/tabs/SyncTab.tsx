@@ -21,7 +21,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   loadSyncConfig,
   saveSyncConfig,
-  runSync,
+  syncNow,
   testSyncConnection,
   startDriveOAuthFlow,
   syncSecrets,
@@ -67,15 +67,7 @@ export function SyncTab() {
       }
       await saveSyncConfig(config);
       toast.success('Sync-Einstellungen gespeichert');
-      if (config.kind !== 'none') {
-        void runSync()
-          .then((r) => {
-            toast.success(
-              `Sync abgeschlossen: ${r.pulledRows + r.pulledFiles} empfangen, ${r.pushedRows + r.pushedFiles} gesendet`,
-            );
-          })
-          .catch((e) => toast.error(`Sync fehlgeschlagen: ${e instanceof Error ? e.message : e}`));
-      }
+      if (config.kind !== 'none') void syncNow();
     } finally {
       setSaving(false);
     }
@@ -292,19 +284,7 @@ export function SyncTab() {
                 <Button variant="outline" onClick={handleTest} disabled={testing}>
                   {testing ? 'Teste …' : 'Verbindung testen'}
                 </Button>
-                <Button
-                  variant="outline"
-                  disabled={status.running}
-                  onClick={() =>
-                    void runSync()
-                      .then((r) =>
-                        toast.success(
-                          `Sync abgeschlossen: ${r.pulledRows + r.pulledFiles} empfangen, ${r.pushedRows + r.pushedFiles} gesendet`,
-                        ),
-                      )
-                      .catch((e) => toast.error(`Sync fehlgeschlagen: ${e instanceof Error ? e.message : e}`))
-                  }
-                >
+                <Button variant="outline" disabled={status.running} onClick={() => void syncNow()}>
                   <RefreshCw className={`mr-2 h-4 w-4 ${status.running ? 'animate-spin' : ''}`} />
                   {status.running ? status.message || 'Synchronisiere …' : 'Jetzt synchronisieren'}
                 </Button>

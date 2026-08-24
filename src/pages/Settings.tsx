@@ -1,4 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getSetting, setSetting } from '@/lib/db';
 import { getGeminiApiKey, saveGeminiApiKey } from '@/lib/gemini';
 import type { AuditLogEntry } from '@/lib/db';
@@ -45,8 +46,28 @@ const TABS: SettingsTab[] = [
   { id: 'dev', label: 'Dev Debug', icon: Bug, devOnly: true },
 ];
 
+const TAB_IDS = TABS.map((t) => t.id);
+
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('profil');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Deep-Link: /settings?tab=sync – u. a. vom Sync-Indikator genutzt
+  const paramTab = searchParams.get('tab') as TabId | null;
+  const [activeTab, setActiveTabState] = useState<TabId>(
+    paramTab && TAB_IDS.includes(paramTab) ? paramTab : 'profil',
+  );
+  const setActiveTab = (id: TabId) => {
+    setActiveTabState(id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', id);
+      return next;
+    }, { replace: true });
+  };
+
+  useEffect(() => {
+    if (paramTab && TAB_IDS.includes(paramTab) && paramTab !== activeTab) setActiveTabState(paramTab);
+  }, [paramTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Profil

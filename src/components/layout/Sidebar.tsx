@@ -1,26 +1,11 @@
 import { NavLink, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  FileText,
-  Settings,
   ChevronLeft,
   ChevronRight,
-  FilePlus2,
-  PenSquare,
   ArrowLeft,
   ArrowRight,
-  HelpCircle,
-  ListTodo,
-  Mail,
-  CalendarDays,
-  Car,
-  Users,
-  Landmark,
-  Receipt,
-  FolderKanban,
-  ScrollText,
-  HeartPulse,
 } from 'lucide-react';
+import { DESKTOP_NAV_ITEMS } from './navItems';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -57,24 +42,6 @@ function useNavHistory() {
   return { canGoBack: state.idx > 0, canGoForward: state.idx < state.maxIdx };
 }
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, tutorialId: 'nav-dashboard' },
-  { to: '/invoices', label: 'Alle Rechnungen', icon: FileText, tutorialId: 'nav-invoices' },
-  { to: '/write-invoice', label: 'Rechnung schreiben', icon: FilePlus2, tutorialId: 'nav-write-invoice' },
-  { to: '/invoice-designer', label: 'Template Designer', icon: PenSquare, tutorialId: 'nav-invoice-designer' },
-  { to: '/lists', label: 'Listen', icon: ListTodo, tutorialId: 'nav-lists' },
-  { to: '/gmail', label: 'Mail', icon: Mail, tutorialId: 'nav-gmail' },
-  { to: '/calendar', label: 'Kalender', icon: CalendarDays, tutorialId: 'nav-calendar' },
-  { to: '/customers', label: 'Kunden', icon: Users, tutorialId: 'nav-customers' },
-  { to: '/projects', label: 'Projekte', icon: FolderKanban, tutorialId: 'nav-projects' },
-  { to: '/fahrtenbuch', label: 'Fahrtenbuch', icon: Car, tutorialId: 'nav-fahrtenbuch' },
-  { to: '/bank-import', label: 'Bankimport', icon: Landmark, tutorialId: 'nav-bank-import' },
-  { to: '/steuerbericht', label: 'Steuerbericht', icon: Receipt, tutorialId: 'nav-steuerbericht' },
-  { to: '/krankenkasse', label: 'Krankenkasse', icon: HeartPulse, tutorialId: 'nav-krankenkasse' },
-  { to: '/revisionsprotokoll', label: 'Revisionsprotokoll', icon: ScrollText, tutorialId: 'nav-revisionsprotokoll' },
-  { to: '/settings', label: 'Einstellungen', icon: Settings, tutorialId: 'nav-settings' },
-  { to: '/help', label: 'Hilfe', icon: HelpCircle, tutorialId: 'nav-help' },
-];
 
 export function Sidebar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
@@ -125,7 +92,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 p-2">
-        {NAV_ITEMS.filter(({ to }) => !hiddenNavItems.includes(to)).map(({ to, label, icon: Icon, tutorialId }) => (
+        {DESKTOP_NAV_ITEMS.filter(({ to }) => !hiddenNavItems.includes(to)).map(({ to, label, icon: Icon, tutorialId }) => (
           <NavLink
             key={to}
             to={to}

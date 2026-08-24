@@ -168,7 +168,7 @@ export default function BankImportPage() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="p-0 md:p-6 space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -176,7 +176,7 @@ export default function BankImportPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-0 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Landmark className="h-6 w-6" /> Bankimport
