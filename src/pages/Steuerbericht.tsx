@@ -179,7 +179,7 @@ export default function SteuerbrichtPage() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="p-0 md:p-6 space-y-4">
         <Skeleton className="h-8 w-64" />
         <div className="grid grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
@@ -190,7 +190,7 @@ export default function SteuerbrichtPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-0 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

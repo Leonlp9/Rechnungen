@@ -2,6 +2,7 @@ import { getSetting, setSetting } from '@/lib/db';
 import { keyringLoad, keyringSave, keyringDelete } from '@/lib/keyring';
 import type { GeminiResult} from '@/types';
 import {HELP_CONTENT_TEXT} from '@/lib/helpContent';
+import { CURRENCY_CODES, normalizeCurrency } from '@/lib/currency';
 
 // ─── Gemini API Key (Keychain) ────────────────────────────────────────────────
 
@@ -678,6 +679,17 @@ JSON-Schema:
   "suggested_category": "umsatz_pflichtig | umsatz_steuerfrei | reverse_charge | ust_erstattung | privateinlage | anlagenverkauf | erstattungen | sponsoring | affiliate | donations_tips | sachzuwendungen | sonstige_einnahmen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | bewirtungskosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | privatentnahme | sonstiges"
 }
 
+=== REGELN FÜR "currency" ===
+- Gib den ISO-4217-Code der Währung an, die AUF DEM BELEG steht: EUR, USD, CHF, GBP, …
+- „€", „EUR", „Euro" → "EUR". „$", „USD", „US$" → "USD". „£" → "GBP". „CHF", „Fr." → "CHF".
+- Steht KEIN Währungszeichen und KEIN Währungscode auf dem Beleg, dann "EUR".
+  Rate NICHT "USD", nur weil der Anbieter amerikanisch ist – entscheidend ist
+  ausschließlich, was auf dem Dokument gedruckt steht.
+- Ein Beleg mit deutscher Adresse, "MwSt."/"USt." oder deutschem Zahlenformat
+  (1.234,56) ist praktisch immer "EUR".
+- Rechne NICHTS um: Die Beträge werden genau so eingetragen, wie sie auf dem
+  Beleg stehen – die Umrechnung in Euro macht die App selbst.
+
 === REGELN FÜR "type" ===
 - "einnahme": Der Benutzer BEKOMMT Geld (z.B. eine Rechnung die ER gestellt hat, Gutschrift an ihn).
 - "ausgabe": Der Benutzer BEZAHLT etwas (z.B. Rechnung von einem Lieferanten/Dienstleister).
@@ -769,7 +781,7 @@ WICHTIG:
           fee: { type: 'NUMBER' },
           ust: { type: 'NUMBER' },
           brutto: { type: 'NUMBER' },
-          currency: { type: 'STRING' },
+          currency: { type: 'STRING', enum: CURRENCY_CODES },
           type: { type: 'STRING', enum: ['einnahme', 'ausgabe', 'info'] },
           suggested_category: {
             type: 'STRING',
@@ -800,7 +812,11 @@ WICHTIG:
   }
 
   try {
-    return JSON.parse(text) as GeminiResult;
+    const parsed = JSON.parse(text) as GeminiResult;
+    // Die Währung wird hart auf einen unterstützten ISO-Code gebracht.
+    // Unbekanntes fällt auf EUR zurück – das Modell hat sonst die Tendenz,
+    // bei fehlendem Währungszeichen „USD" zu raten.
+    return { ...parsed, currency: normalizeCurrency(parsed.currency) };
   } catch {
     throw new Error('Gemini-Antwort konnte nicht als JSON geparst werden.');
   }

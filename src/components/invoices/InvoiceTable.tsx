@@ -22,6 +22,9 @@ import { fmtCurrency, saveCsvFile } from '@/lib/utils';
 import { InvoiceContextMenu } from './InvoiceContextMenu';
 import { useState } from 'react';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { fmtOriginal, normalizeCurrency } from '@/lib/currency';
+import { cn } from '@/lib/utils';
 
 type SortKey = 'date' | 'partner' | 'category' | 'brutto' | 'type';
 type SortDir = 'asc' | 'desc';
@@ -35,6 +38,7 @@ interface Props {
 
 export function InvoiceTable({ invoices, showSearch = true, showFilters = true, showYearFilter = true }: Props) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const privacyMode = useAppStore((s) => s.privacyMode);
   const setSelectedYear = useAppStore((s) => s.setSelectedYear);
   const setSelectedMonth = useAppStore((s) => s.setSelectedMonth);
@@ -211,7 +215,11 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
 
   const exportSelectedCsv = async () => {
     const selected = filtered.filter((i) => selectedIds.has(i.id));
-    const header = ['Datum', 'Partner', 'Beschreibung', 'Kategorie', 'Netto', 'USt', 'Brutto', 'Typ', 'Währung', 'Notiz'];
+    const header = [
+      'Datum', 'Partner', 'Beschreibung', 'Kategorie',
+      'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Typ',
+      'Währung', 'Brutto (Original)', 'Kurs (EUR je Einheit)', 'Kursdatum', 'Notiz',
+    ];
     const rows = selected.map((inv) => [
       inv.date,
       `"${inv.partner.replace(/"/g, '""')}"`,
@@ -221,7 +229,10 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
       inv.ust.toFixed(2).replace('.', ','),
       inv.brutto.toFixed(2).replace('.', ','),
       TYPE_LABELS[inv.type],
-      inv.currency,
+      normalizeCurrency(inv.currency),
+      (inv.brutto_original ?? inv.brutto).toFixed(2).replace('.', ','),
+      (inv.fx_rate ?? 1).toFixed(6).replace('.', ','),
+      inv.fx_date ?? '',
       `"${(inv.note ?? '').replace(/"/g, '""')}"`,
     ]);
     const csv = '\uFEFF' + [header.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
@@ -236,7 +247,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
           placeholder="Suche nach Beschreibung, Partner oder Notiz..."
           value={search}
           onChange={(e) => { setParam('q', e.target.value || null); }}
-          className="max-w-md"
+          className="w-full md:max-w-md"
         />
       )}
 
@@ -383,6 +394,14 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
         </div>
       )}
 
+      {isMobile ? (
+        <MobileInvoiceList
+          invoices={paginated}
+          privacyMode={privacyMode}
+          customerNames={customerNames}
+          onOpen={(id) => navigate(`/invoices/${id}`)}
+        />
+      ) : (
       <div className="rounded-xl border shadow-sm">
         <Table>
           <TableHeader>
@@ -450,6 +469,14 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
                   <TableCell className="hidden md:table-cell">{CATEGORY_LABELS[inv.category]}</TableCell>
                   <TableCell className={inv.type === 'einnahme' ? 'text-green-600' : inv.type === 'ausgabe' ? 'text-red-600' : ''}>
                     <div>{fmtCurrency(inv.brutto, privacyMode)}</div>
+                    {normalizeCurrency(inv.currency) !== 'EUR' && (
+                      <div
+                        className="text-[11px] text-muted-foreground"
+                        title={`Belegbetrag in ${normalizeCurrency(inv.currency)} – umgerechnet mit dem EZB-Kurs vom Belegdatum`}
+                      >
+                        Beleg: {privacyMode ? '••••' : fmtOriginal(inv.brutto_original ?? inv.brutto, normalizeCurrency(inv.currency))}
+                      </div>
+                    )}
                     {inv.fee > 0 && (
                       <div className="text-[11px] text-muted-foreground">
                         Ausgezahlt: {fmtCurrency(inv.brutto - inv.fee, privacyMode)}
@@ -486,6 +513,7 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
           </TableBody>
         </Table>
       </div>
+      )}
 
       {/* Pagination */}
       <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground flex-wrap">
@@ -534,3 +562,99 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   );
 }
 
+// ─── Mobile: Kartenliste statt Tabelle ───────────────────────────────────────
+//
+// Auf dem Handy ist eine 8-spaltige Tabelle unbrauchbar. Jede Rechnung wird
+// deshalb als antippbare Karte mit allen wichtigen Feldern dargestellt.
+
+function MobileInvoiceList({
+  invoices,
+  privacyMode,
+  customerNames,
+  onOpen,
+}: {
+  invoices: Invoice[];
+  privacyMode: boolean;
+  customerNames: Set<string>;
+  onOpen: (id: string) => void;
+}) {
+  if (invoices.length === 0) {
+    return (
+      <div className="rounded-xl border py-10 text-center text-sm text-muted-foreground">
+        Keine Rechnungen gefunden.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {invoices.map((inv) => (
+        <button
+          key={inv.id}
+          onClick={() => onOpen(inv.id)}
+          className="flex w-full items-start gap-3 rounded-xl border bg-card p-3 text-left shadow-sm transition-colors active:bg-muted/60"
+        >
+          {/* Farbstreifen für den Typ */}
+          <span
+            className={cn(
+              'mt-0.5 h-10 w-1 shrink-0 rounded-full',
+              inv.type === 'einnahme' ? 'bg-green-500' : inv.type === 'ausgabe' ? 'bg-red-500' : 'bg-muted-foreground/40',
+            )}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                {inv.partner || '(kein Partner)'}
+                {customerNames.has(inv.partner.trim().toLowerCase()) && (
+                  <span className="ml-1 text-[10px] font-normal text-primary">· Kunde</span>
+                )}
+              </span>
+              <span
+                className={cn(
+                  'shrink-0 text-sm font-semibold tabular-nums',
+                  inv.type === 'einnahme' ? 'text-green-600' : inv.type === 'ausgabe' ? 'text-red-600' : '',
+                )}
+              >
+                {inv.type === 'ausgabe' ? '−' : inv.type === 'einnahme' ? '+' : ''}
+                {fmtCurrency(inv.brutto, privacyMode)}
+              </span>
+            </div>
+
+            {inv.description && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{inv.description}</p>
+            )}
+
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span>{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</span>
+              {CATEGORY_LABELS[inv.category] && (
+                <>
+                  <span>·</span>
+                  <span className="truncate">{CATEGORY_LABELS[inv.category]}</span>
+                </>
+              )}
+              {normalizeCurrency(inv.currency) !== 'EUR' && (
+                <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 font-medium">
+                  {privacyMode ? normalizeCurrency(inv.currency) : fmtOriginal(inv.brutto_original ?? inv.brutto, normalizeCurrency(inv.currency))}
+                </span>
+              )}
+              {inv.fee > 0 && (
+                <span className="text-muted-foreground/80">
+                  · ausgezahlt {fmtCurrency(inv.brutto - inv.fee, privacyMode)}
+                </span>
+              )}
+              {inv.storno_of ? (
+                <span className="rounded-full border border-orange-300/30 bg-orange-500/10 px-1.5 py-0.5 font-medium text-orange-700 dark:text-orange-400">
+                  ↩ Storno
+                </span>
+              ) : inv.is_locked ? (
+                <span className="rounded-full border border-blue-300/30 bg-blue-500/10 px-1.5 py-0.5 font-medium text-blue-700 dark:text-blue-400">
+                  🔒 Fest
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}

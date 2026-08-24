@@ -18,9 +18,11 @@ interface Props {
   pageContext: string;
   hasPdf: boolean;
   isInvoiceList: boolean;
+  /** Handy-Modus: größere Touch-Ziele, 16px-Eingabe (verhindert iOS-Zoom) */
+  mobile?: boolean;
 }
 
-export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
+export function ChatPanel({ pageContext, hasPdf, isInvoiceList, mobile = false }: Props) {
   const {
     sessions, activeChatId, createSession, deleteSession, setActiveSession,
     addMessage, updateLastAssistantMessage, setSessionTitle,
@@ -143,10 +145,13 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b shrink-0">
+      <div className={cn('flex items-center gap-2 border-b px-3 shrink-0', mobile ? 'py-2.5' : 'py-2')}>
         <button
           onClick={() => setSidebarOpen((o) => !o)}
-          className="flex items-center gap-1 text-sm font-medium truncate flex-1 hover:text-primary transition-colors text-left"
+          className={cn(
+            'flex flex-1 items-center gap-1 truncate text-left font-medium transition-colors hover:text-primary',
+            mobile ? 'text-sm' : 'text-sm',
+          )}
         >
           <span className="truncate">{activeSession?.title ?? 'Neuer Chat'}</span>
           <ChevronDown className={cn('h-3 w-3 shrink-0 transition-transform', sidebarOpen && 'rotate-180')} />
@@ -154,17 +159,17 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
         <Button
           size="icon"
           variant="ghost"
-          className="h-6 w-6 shrink-0"
+          className={cn('shrink-0', mobile ? 'h-9 w-9' : 'h-6 w-6')}
           onClick={() => { createSession(); setSidebarOpen(false); }}
           title="Neuer Chat"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className={mobile ? 'h-5 w-5' : 'h-3.5 w-3.5'} />
         </Button>
       </div>
 
       {/* Session Sidebar */}
       {sidebarOpen && (
-        <div className="border-b bg-muted/30 max-h-36 overflow-y-auto shrink-0">
+        <div className={cn('shrink-0 overflow-y-auto border-b bg-muted/30', mobile ? 'max-h-52' : 'max-h-36')}>
           {sessions.length === 0 && (
             <p className="text-xs text-muted-foreground px-3 py-2">Keine Chats vorhanden.</p>
           )}
@@ -172,17 +177,18 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
             <div
               key={sess.id}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-muted transition-colors',
+                'flex cursor-pointer items-center gap-2 px-3 transition-colors hover:bg-muted',
+                mobile ? 'py-3' : 'py-1.5',
                 sess.id === activeChatId && 'bg-muted'
               )}
               onClick={() => { setActiveSession(sess.id); setSidebarOpen(false); }}
             >
-              <span className="flex-1 text-xs truncate">{sess.title}</span>
+              <span className={cn('flex-1 truncate', mobile ? 'text-sm' : 'text-xs')}>{sess.title}</span>
               <button
                 onClick={(e) => { e.stopPropagation(); deleteSession(sess.id); }}
-                className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
               >
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className={mobile ? 'h-4 w-4' : 'h-3 w-3'} />
               </button>
             </div>
           ))}
@@ -196,7 +202,8 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
             <button
               onClick={() => setUseAllInvoicesForContext(!useAllInvoicesForContext)}
               className={cn(
-                'flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors',
+                'flex items-center gap-1 rounded-full border text-xs transition-colors',
+                mobile ? 'px-3 py-1.5' : 'px-2 py-0.5',
                 useAllInvoicesForContext
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'border-border text-muted-foreground hover:text-foreground'
@@ -210,7 +217,8 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
             <button
               onClick={pendingPdfBase64 ? () => setPendingPdf(null) : handleAttachPdf}
               className={cn(
-                'flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors',
+                'flex items-center gap-1 rounded-full border text-xs transition-colors',
+                mobile ? 'px-3 py-1.5' : 'px-2 py-0.5',
                 pendingPdfBase64
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'border-border text-muted-foreground hover:text-foreground'
@@ -226,11 +234,11 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0"
+        className={cn('min-h-0 flex-1 overflow-y-auto px-3 py-3', mobile ? 'space-y-4' : 'space-y-3')}
       >
         {(!activeSession || activeSession.messages.length === 0) && (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-            <p className="text-xs text-muted-foreground">
+            <p className={cn('text-muted-foreground', mobile ? 'text-sm' : 'text-xs')}>
               Stelle eine Frage zu deinen Rechnungen oder zur App.
             </p>
             <div className="flex flex-col gap-1.5 w-full">
@@ -238,7 +246,10 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
                 <button
                   key={q}
                   onClick={() => handleSend(q)}
-                  className="text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                  className={cn(
+                    'rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+                    mobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-1.5 text-xs',
+                  )}
                 >
                   {q}
                 </button>
@@ -266,7 +277,10 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
       </div>
 
       {/* Input */}
-      <div className="px-3 pb-3 pt-2 shrink-0 border-t">
+      <div
+        className="shrink-0 border-t px-3 pt-2 pb-3"
+        style={mobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' } : undefined}
+      >
         {pendingPdfBase64 && (
           <div className="flex items-center gap-1.5 text-xs text-primary mb-2">
             <PaperclipIcon className="h-3 w-3" />
@@ -278,7 +292,8 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Nachricht eingeben…"
-            className="text-sm h-8"
+            // 16px Schriftgröße auf dem Handy – sonst zoomt iOS beim Fokus hinein
+            className={cn(mobile ? 'h-11 text-base' : 'h-8 text-sm')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -289,11 +304,11 @@ export function ChatPanel({ pageContext, hasPdf, isInvoiceList }: Props) {
           />
           <Button
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className={cn('shrink-0', mobile ? 'h-11 w-11' : 'h-8 w-8')}
             onClick={() => handleSend()}
             disabled={!input.trim() || loading}
           >
-            <Send className="h-3.5 w-3.5" />
+            <Send className={mobile ? 'h-5 w-5' : 'h-3.5 w-3.5'} />
           </Button>
         </div>
       </div>

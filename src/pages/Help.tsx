@@ -25,6 +25,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface HelpArticle {
   id: string;
@@ -965,9 +966,14 @@ export default function HelpPage() {
   const resetTutorial = useTutorialStore((s) => s.resetTutorial);
   const startTutorial = useTutorialStore((s) => s.startTutorial);
 
+  const isMobile = useIsMobile();
   const [selected, setSelected] = useState<string>(initialArticle);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  // Handy: Liste und Artikel liegen übereinander statt nebeneinander
+  const [mobileView, setMobileView] = useState<'list' | 'article'>(
+    searchParams.get('article') ? 'article' : 'list',
+  );
 
   const filtered = ARTICLES.filter((a) => {
     const matchesSearch =
@@ -980,6 +986,122 @@ export default function HelpPage() {
 
   const article = ARTICLES.find((a) => a.id === selected) ?? ARTICLES[0];
   const ArticleIcon = article.icon;
+
+  // ── Handy: Master/Detail statt zweispaltig ──
+  if (isMobile) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {mobileView === 'article' ? (
+          <>
+            <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-3 py-2.5">
+              <button
+                onClick={() => setMobileView('list')}
+                aria-label="Zur Artikelliste"
+                className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-muted"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <ArticleIcon className="h-4 w-4 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+                  {article.category}
+                </p>
+                <h1 className="truncate text-sm font-bold">{article.title}</h1>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-4 py-4">
+              <div className="prose-sm space-y-5 pb-6">{article.content}</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="shrink-0 space-y-2.5 border-b border-border px-3 py-3">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 shrink-0 text-primary" />
+                <span className="flex-1 text-base font-semibold">Hilfe & Anleitungen</span>
+              </div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Artikel suchen…"
+                  // 16px – sonst zoomt iOS beim Fokus hinein
+                  className="w-full rounded-md border border-input bg-background py-2 pr-3 pl-8 text-base placeholder:text-muted-foreground focus:ring-1 focus:ring-ring focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={() => { resetTutorial(); setTimeout(() => startTutorial(), 100); }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary active:bg-primary/20"
+              >
+                <span>🎓</span>
+                Geführtes Tutorial neu starten
+              </button>
+              <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  onClick={() => setActiveCategory(null)}
+                  className={cn(
+                    'shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors',
+                    !activeCategory
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border text-muted-foreground',
+                  )}
+                >
+                  Alle
+                </button>
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                    className={cn(
+                      'shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors',
+                      activeCategory === cat
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border text-muted-foreground',
+                    )}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <nav className="min-h-0 flex-1 overflow-y-auto p-3">
+              {filtered.length === 0 && (
+                <p className="px-3 py-8 text-center text-sm text-muted-foreground">Kein Artikel gefunden</p>
+              )}
+              <div className="overflow-hidden rounded-xl border">
+                {filtered.map((a, idx) => {
+                  const Icon = a.icon;
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => { setSelected(a.id); setMobileView('article'); }}
+                      className={cn(
+                        'flex w-full items-center gap-3 px-3 py-3 text-left transition-colors active:bg-muted',
+                        idx > 0 && 'border-t',
+                      )}
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{a.title}</span>
+                        <span className="block text-[11px] text-muted-foreground">{a.category}</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full gap-0 -m-6 min-h-0">

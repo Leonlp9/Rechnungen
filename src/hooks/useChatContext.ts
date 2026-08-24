@@ -164,7 +164,7 @@ Kategorie: ${CATEGORY_LABELS[inv.category as keyof typeof CATEGORY_LABELS] ?? in
 Netto: ${fmtEur(inv.netto)}
 USt.: ${fmtEur(inv.ust)}
 Brutto: ${fmtEur(inv.brutto)}
-Währung: ${inv.currency}
+Belegwährung: ${inv.currency}${inv.currency !== 'EUR' ? ` (Beträge oben sind der umgerechnete Euro-Wert, Kurs ${inv.fx_rate ?? 1} vom ${inv.fx_date || inv.date})` : ''}
 Notiz: ${inv.note ?? '(keine)'}
 Hat PDF: ${inv.pdf_path ? 'Ja' : 'Nein'}`;
     }

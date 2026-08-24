@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { zipSync } from 'fflate';
 import { getAbsolutePdfPath } from '@/lib/pdf';
+import { normalizeCurrency } from '@/lib/currency';
 
 const MONTH_NAMES = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -84,10 +85,13 @@ export async function exportToXlsx(invoices: Invoice[], year: number | string) {
     { header: 'Beschreibung', key: 'description', width: 35 },
     { header: 'Kategorie', key: 'category', width: 22 },
     { header: 'Typ', key: 'type', width: 12 },
-    { header: 'Netto', key: 'netto', width: 14 },
-    { header: 'USt', key: 'ust', width: 14 },
-    { header: 'Brutto', key: 'brutto', width: 14 },
+    { header: 'Netto (EUR)', key: 'netto', width: 14 },
+    { header: 'USt (EUR)', key: 'ust', width: 14 },
+    { header: 'Brutto (EUR)', key: 'brutto', width: 14 },
     { header: 'Währung', key: 'currency', width: 10 },
+    { header: 'Brutto (Original)', key: 'bruttoOriginal', width: 16 },
+    { header: 'Kurs (EUR/Einheit)', key: 'fxRate', width: 18 },
+    { header: 'Kursdatum', key: 'fxDate', width: 14 },
     { header: 'Notiz', key: 'note', width: 30 },
   ];
   styleHeaderRow(ws1);
@@ -102,7 +106,11 @@ export async function exportToXlsx(invoices: Invoice[], year: number | string) {
       netto: fmtEur(inv.netto),
       ust: fmtEur(inv.ust),
       brutto: fmtEur(inv.brutto),
-      currency: inv.currency,
+      currency: normalizeCurrency(inv.currency),
+      // Bei Euro-Belegen bleiben die Zusatzspalten leer – sonst wären sie nur Rauschen
+      bruttoOriginal: normalizeCurrency(inv.currency) === 'EUR' ? '' : fmtEur(inv.brutto_original ?? inv.brutto),
+      fxRate: normalizeCurrency(inv.currency) === 'EUR' ? '' : (inv.fx_rate ?? 1).toFixed(6),
+      fxDate: normalizeCurrency(inv.currency) === 'EUR' ? '' : (inv.fx_date ?? ''),
       note: inv.note,
     });
   }
@@ -213,9 +221,11 @@ export async function exportToDatev(invoices: Invoice[], year: number | string) 
     const belegDatum = format(new Date(inv.date), 'ddMM', { locale: de });
     const ustSatz = inv.netto > 0 ? ((inv.ust / inv.netto) * 100).toFixed(0) : '0';
     return [
+      // DATEV bekommt den umgerechneten Euro-Betrag – deshalb ist der
+      // Währungsschlüssel hier immer EUR, unabhängig von der Belegwährung.
       fmtEur(Math.abs(inv.brutto)),
       soll,
-      inv.currency,
+      'EUR',
       konto,
       gegenkonto,
       '',

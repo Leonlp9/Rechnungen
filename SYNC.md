@@ -79,6 +79,23 @@ Passphrase. Verschlüsselt werden Change-Dateien und Blobs. Der Cloud-Anbieter
 sieht nur Zufallsdaten und Datei-Größen. Ohne Passphrase sind die Daten
 unwiederbringlich – gut sichern!
 
+## Sichtbarkeit in der Oberfläche
+
+Ein Sync, den niemand sieht, ist wertlos. Deshalb:
+
+- `useSyncStatus` (Zustand-Store) hält Anbieter, Intervall, Verschlüsselung,
+  Geräte-ID, letzten Lauf, letzten Fehler und den Zeitpunkt der letzten
+  eingehenden Änderung.
+- Die Komponente `SyncIndicator` hängt in der Desktop-Topbar **und** in der
+  Mobile-Kopfzeile – also auf jeder Seite. Zustände: aus / läuft / neue Daten /
+  Fehler / bereit.
+- Nach einem Pull mit Zugängen ruft `refreshAppData()` auf:
+  `queryClient.invalidateQueries()` (React-Query-Caches) sowie ein Neuladen von
+  Rechnungen und Entwürfen in den Zustand-Store. Ohne diesen Schritt landen
+  fremde Änderungen zwar in der Datenbank, die offene Ansicht zeigt aber
+  weiter den alten Stand.
+- Zusätzlich meldet ein Toast, was von anderen Geräten übernommen wurde.
+
 ## Datenverkehr
 
 Ein Sync überträgt nur neue Change-Dateien (wenige KB JSON) plus neue Blobs.

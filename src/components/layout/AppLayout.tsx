@@ -7,6 +7,7 @@ import { ExportDialog } from '@/components/invoices/ExportDialog';
 import { DraftsPanel } from '@/components/invoices/DraftsPanel';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { AIChatFloat } from '@/components/chat/AIChatFloat';
+import { MobileAIChat } from '@/components/chat/MobileAIChat';
 import { useAppStore } from '@/store';
 import { getAllDrafts } from '@/lib/db';
 import { getAbsolutePdfPath } from '@/lib/pdf';
@@ -17,17 +18,26 @@ import { ShortcutsModal } from '@/components/ShortcutsModal';
 import { initAutoSync } from '@/lib/sync';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { MobileNav } from './MobileNav';
+import { MobileTopbar } from './MobileTopbar';
+import { MobileMoreSheet } from './MobileMoreSheet';
 
+/** Seiten, die ihre Höhe selbst verwalten (eigenes Scrolling im Inneren). */
 const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail', '/calendar', '/settings'];
+
+/** Dasselbe für das Handy – hier scrollt sonst Seite UND Inhalt gleichzeitig. */
+const MOBILE_FULL_HEIGHT_ROUTES = ['/settings', '/lists', '/help', '/write-invoice', '/invoice-designer', '/invoices/'];
 
 export function AppLayout() {
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const { pathname } = useLocation();
-  const fullHeight = FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r));
   const isMobile = useIsMobile();
+  const fullHeight = isMobile
+    ? MOBILE_FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r))
+    : FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r));
   const searchOpen = useAppStore((s) => s.searchOpen);
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setDrafts = useAppStore((s) => s.setDrafts);
@@ -53,6 +63,9 @@ export function AppLayout() {
     }).catch(() => {});
   }, []);
 
+  // Beim Seitenwechsel das Mehr-Menü schließen
+  useEffect(() => { setMoreOpen(false); }, [pathname]);
+
   // Escape schließt die Suche
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -63,10 +76,16 @@ export function AppLayout() {
   }, [setSearchOpen]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {!isMobile && <Sidebar />}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {!isMobile && (
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {isMobile ? (
+          <MobileTopbar
+            onNewInvoice={() => setNewInvoiceOpen(true)}
+            onDrafts={() => setDraftsOpen(true)}
+            onExport={() => setExportOpen(true)}
+          />
+        ) : (
           <Topbar
             onNewInvoice={() => setNewInvoiceOpen(true)}
             onExport={() => setExportOpen(true)}
@@ -75,18 +94,17 @@ export function AppLayout() {
         )}
         <main
           className={
-            fullHeight && !isMobile
-              ? 'flex-1 overflow-hidden'
+            fullHeight
+              ? 'min-h-0 flex-1 overflow-hidden'
               : isMobile
-                ? 'flex-1 overflow-y-auto overflow-x-hidden p-3'
+                ? 'min-h-0 flex-1 overflow-x-hidden overflow-y-auto'
                 : 'flex-1 overflow-y-auto p-6'
           }
           style={
-            isMobile
+            isMobile && !fullHeight
               ? {
-                  // Safe-Areas: nichts unter Notch/Kamera oder der Bottom-Nav rendern
-                  paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)',
-                  paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 5rem)',
+                  // Safe-Areas links/rechts; oben/unten übernehmen Topbar und Nav
+                  padding: '0.75rem',
                   paddingLeft: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
                   paddingRight: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
                 }
@@ -95,8 +113,18 @@ export function AppLayout() {
         >
           <Outlet />
         </main>
+        {isMobile && <MobileNav onOpenMore={() => setMoreOpen(true)} moreOpen={moreOpen} />}
       </div>
-      {isMobile && <MobileNav />}
+      {isMobile && <MobileAIChat />}
+      {isMobile && (
+        <MobileMoreSheet
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          onNewInvoice={() => setNewInvoiceOpen(true)}
+          onDrafts={() => setDraftsOpen(true)}
+          onExport={() => setExportOpen(true)}
+        />
+      )}
       <NewInvoiceDialog open={newInvoiceOpen} onClose={() => setNewInvoiceOpen(false)} />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
       <DraftsPanel open={draftsOpen} onClose={() => setDraftsOpen(false)} />
