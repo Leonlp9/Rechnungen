@@ -1,4 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
+import { convertAmounts, convertWithRate, normalizeCurrency } from '@/lib/currency';
 
 let db: Database | null = null;
 // Promise-basiertes Mutex – verhindert Race Conditions bei parallelen Aufrufen
@@ -194,6 +195,73 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
     `);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_kk_zahlungen_monat ON krankenkasse_zahlungen(monat)`);
   },
+  // v10 → v11: Fremdwährungen – Originalbetrag + eingefrorener Stichtagskurs
+  async (db) => {
+    const cols = [
+      'netto_original REAL',
+      'ust_original REAL',
+      'brutto_original REAL',
+      'fee_original REAL',
+      "fx_rate REAL NOT NULL DEFAULT 1",
+      "fx_date TEXT NOT NULL DEFAULT ''",
+      "fx_source TEXT NOT NULL DEFAULT ''",
+    ];
+    for (const col of cols) {
+      try { await db.execute(`ALTER TABLE invoices ADD COLUMN ${col}`); } catch { /* existiert bereits */ }
+    }
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS fx_rates (
+        currency TEXT NOT NULL,
+        date TEXT NOT NULL,
+        rate REAL NOT NULL,
+        rate_date TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'ecb',
+        fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (currency, date)
+      )
+    `);
+
+    // Währungsangaben vereinheitlichen: Leerwerte und Schreibvarianten → EUR
+    await db.execute(`UPDATE invoices SET currency = UPPER(TRIM(currency))`);
+    await db.execute(`
+      UPDATE invoices SET currency = 'EUR'
+      WHERE currency IS NULL OR currency = '' OR currency IN ('€', 'EURO', 'EUROS')
+    `);
+
+    // Euro-Belege (der Normalfall): Betrag = Originalbetrag, Kurs 1.
+    // Damit rechnen sofort alle Auswertungen korrekt weiter – ohne Netzzugriff
+    // und ohne dass der Nutzer irgendetwas tun muss.
+    await db.execute(`
+      UPDATE invoices
+         SET netto_original = netto,
+             ust_original   = ust,
+             brutto_original = brutto,
+             fee_original   = fee,
+             fx_rate        = 1,
+             fx_date        = date,
+             fx_source      = 'identity'
+       WHERE currency = 'EUR'
+    `);
+
+    // Fremdwährungsbelege: Die bisherigen Beträge SIND die Originalbeträge
+    // (sie wurden bisher fälschlich als Euro aufsummiert). Sie werden gesichert
+    // und als „Umrechnung ausstehend" markiert – ensureCurrencyConversions()
+    // holt die Stichtagskurse nach, sobald Netz da ist.
+    await db.execute(`
+      UPDATE invoices
+         SET netto_original = netto,
+             ust_original   = ust,
+             brutto_original = brutto,
+             fee_original   = fee,
+             fx_rate        = 0,
+             fx_date        = '',
+             fx_source      = 'pending'
+       WHERE currency <> 'EUR'
+    `);
+
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_invoices_fx_source ON invoices(fx_source)`);
+  },
 ];
 
 async function migrate(db: Database) {
@@ -325,6 +393,13 @@ interface InvoiceRow {
   pdf_text?: string;
   project_id?: string;
   xrechnung_path?: string;
+  netto_original?: number | null;
+  ust_original?: number | null;
+  brutto_original?: number | null;
+  fee_original?: number | null;
+  fx_rate?: number | null;
+  fx_date?: string | null;
+  fx_source?: string | null;
 }
 
 export async function getAllInvoices(): Promise<import('@/types').Invoice[]> {
@@ -366,31 +441,98 @@ function mapInvoiceRow(row: InvoiceRow): import('@/types').Invoice {
     pdf_text: row.pdf_text ?? '',
     project_id: row.project_id ?? '',
     xrechnung_path: row.xrechnung_path ?? '',
+    // Fremdwährung: Originalbeträge fallen auf die Euro-Werte zurück, solange
+    // die Migration noch nicht gelaufen ist (z. B. sehr alte Backups).
+    netto_original: row.netto_original ?? row.netto,
+    ust_original: row.ust_original ?? row.ust,
+    brutto_original: row.brutto_original ?? row.brutto,
+    fee_original: row.fee_original ?? row.fee ?? 0,
+    fx_rate: row.fx_rate ?? 1,
+    fx_date: row.fx_date ?? '',
+    fx_source: (row.fx_source ?? 'identity') as import('@/types').FxSource,
   };
 }
 
-export async function insertInvoice(inv: import('@/types').Invoice): Promise<void> {
+/**
+ * Bringt einen Beleg vor dem Schreiben in die Doppel-Darstellung
+ * (Originalbetrag + Euro-Betrag + eingefrorener Kurs).
+ *
+ * Die Originalbeträge kommen aus `*_original`, falls gesetzt – sonst werden
+ * `netto/ust/brutto/fee` als Originalbeträge verstanden. Dadurch funktioniert
+ * sowohl ein frisch aus einem Formular gebauter Beleg als auch ein aus der DB
+ * geladener und wieder gespeicherter, ohne doppelt umzurechnen.
+ *
+ * Scheitert die Kursermittlung (offline, Kurs noch nicht veröffentlicht),
+ * wird der Beleg trotzdem gespeichert und als 'pending' markiert –
+ * `ensureCurrencyConversions()` holt das später nach.
+ */
+async function withConversion(
+  inv: import('@/types').Invoice,
+): Promise<import('@/types').Invoice> {
+  const currency = normalizeCurrency(inv.currency);
+  const original = {
+    netto: inv.netto_original ?? inv.netto,
+    ust: inv.ust_original ?? inv.ust,
+    brutto: inv.brutto_original ?? inv.brutto,
+    fee: inv.fee_original ?? inv.fee ?? 0,
+  };
+
+  // Vorgegebener Kurs (fx_source='manual'): nicht neu abrufen. Das nutzen
+  // Stornobuchungen, die exakt den Euro-Betrag des Originalbelegs umkehren
+  // müssen, sowie manuell gesetzte Kurse (z. B. BMF-Durchschnittskurse).
+  if (inv.fx_source === 'manual' && (inv.fx_rate ?? 0) > 0) {
+    const c = convertWithRate(original, currency, inv.fx_rate!, inv.fx_date || inv.date);
+    return { ...inv, ...c, fx_source: 'manual' };
+  }
+
+  try {
+    const c = await convertAmounts(original, currency, inv.date);
+    return { ...inv, ...c, fx_source: c.fx_source as import('@/types').FxSource };
+  } catch {
+    return {
+      ...inv,
+      currency,
+      netto: original.netto,
+      ust: original.ust,
+      brutto: original.brutto,
+      fee: original.fee,
+      netto_original: original.netto,
+      ust_original: original.ust,
+      brutto_original: original.brutto,
+      fee_original: original.fee,
+      fx_rate: 0,
+      fx_date: '',
+      fx_source: 'pending',
+    };
+  }
+}
+
+export async function insertInvoice(raw: import('@/types').Invoice): Promise<void> {
   const db = await getDb();
+  const inv = await withConversion(raw);
   await db.execute(
-    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, fee, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of, pdf_text, project_id, xrechnung_path)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
-    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '', inv.pdf_text ?? '', inv.project_id ?? '', inv.xrechnung_path ?? '']
+    `INSERT INTO invoices (id, date, year, month, category, description, partner, netto, fee, ust, brutto, type, currency, pdf_path, note, created_at, updated_at, is_locked, pdf_sha256, delivery_date, storno_of, pdf_text, project_id, xrechnung_path, netto_original, ust_original, brutto_original, fee_original, fx_rate, fx_date, fx_source)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
+    [inv.id, inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, inv.created_at, inv.updated_at, inv.is_locked ? 1 : 0, inv.pdf_sha256 ?? '', inv.delivery_date ?? '', inv.storno_of ?? '', inv.pdf_text ?? '', inv.project_id ?? '', inv.xrechnung_path ?? '',
+     inv.netto_original, inv.ust_original, inv.brutto_original, inv.fee_original, inv.fx_rate, inv.fx_date, inv.fx_source]
   );
   await addAuditLog(inv.id, 'created');
 }
 
-export async function updateInvoice(inv: import('@/types').Invoice): Promise<void> {
+export async function updateInvoice(raw: import('@/types').Invoice): Promise<void> {
   const db = await getDb();
   // GoBD: Festgeschriebene Belege dürfen nicht bearbeitet werden
-  const old = await getInvoiceById(inv.id);
+  const old = await getInvoiceById(raw.id);
   if (old?.is_locked) {
     throw new Error('Dieser Beleg ist festgeschrieben und kann nicht bearbeitet werden. Erstelle eine Stornobuchung.');
   }
+  const inv = await withConversion(raw);
   if (old) await logInvoiceChanges(old, inv);
 
   await db.execute(
-    `UPDATE invoices SET date=$1, year=$2, month=$3, category=$4, description=$5, partner=$6, netto=$7, fee=$8, ust=$9, brutto=$10, type=$11, currency=$12, pdf_path=$13, note=$14, updated_at=$15, delivery_date=$16, project_id=$17, xrechnung_path=$18 WHERE id=$19`,
-    [inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, new Date().toISOString(), inv.delivery_date ?? '', inv.project_id ?? '', inv.xrechnung_path ?? '', inv.id]
+    `UPDATE invoices SET date=$1, year=$2, month=$3, category=$4, description=$5, partner=$6, netto=$7, fee=$8, ust=$9, brutto=$10, type=$11, currency=$12, pdf_path=$13, note=$14, updated_at=$15, delivery_date=$16, project_id=$17, xrechnung_path=$18, netto_original=$19, ust_original=$20, brutto_original=$21, fee_original=$22, fx_rate=$23, fx_date=$24, fx_source=$25 WHERE id=$26`,
+    [inv.date, inv.year, inv.month, inv.category, inv.description, inv.partner, inv.netto, inv.fee ?? 0, inv.ust, inv.brutto, inv.type, inv.currency, inv.pdf_path, inv.note, new Date().toISOString(), inv.delivery_date ?? '', inv.project_id ?? '', inv.xrechnung_path ?? '',
+     inv.netto_original, inv.ust_original, inv.brutto_original, inv.fee_original, inv.fx_rate, inv.fx_date, inv.fx_source, inv.id]
   );
 }
 

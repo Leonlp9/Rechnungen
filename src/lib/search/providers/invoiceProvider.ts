@@ -7,7 +7,10 @@ import type { SearchProvider, SearchResult } from '../types';
 function formatAmount(inv: Invoice): string {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
-    currency: inv.currency || 'EUR',
+    // inv.brutto ist immer Euro – die Belegwährung steht in inv.currency,
+    // gehört hier aber nicht ans Format, sonst wird ein Euro-Betrag als
+    // Dollar ausgegeben.
+    currency: 'EUR',
   }).format(inv.brutto);
 }
 

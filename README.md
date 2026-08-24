@@ -281,11 +281,18 @@ Die Installer sind als **Draft-Release** auf der Releases-Seite und als **Artifa
 
 SQLite-Datenbank wird beim ersten Start automatisch im App-Data-Ordner erstellt.
 
-**Tabelle `invoices`**: id, date, year, month, category, description, partner, netto, ust, brutto, type, currency, pdf_path, note, created_at, updated_at
+**Tabelle `invoices`**: id, date, year, month, category, description, partner, netto, ust, brutto, fee, type, currency, pdf_path, note, created_at, updated_at
+
+> `netto`/`ust`/`brutto`/`fee` sind **immer Euro**. Bei Fremdwährungsbelegen
+> steht der Betrag laut Beleg in `netto_original`/… und der einmalig zum
+> Belegdatum ermittelte EZB-Kurs in `fx_rate`/`fx_date`/`fx_source` –
+> siehe [docs/fremdwaehrungen.md](docs/fremdwaehrungen.md).
 
 **Tabelle `settings`**: key/value Store für API-Key, Profildaten, Theme-Einstellungen
 
 **Tabelle `drafts`**: id, file_path, file_name, added_at – zwischengespeicherte PDF-Entwürfe
+
+**Tabelle `fx_rates`**: currency, date, rate, rate_date, source, fetched_at – zwischengespeicherte EZB-Referenzkurse (jede Kombination wird nur einmal abgerufen)
 
 **Tabelle `audit_log`**: id, invoice_id, action, field_name, old_value, new_value, timestamp, user_note – GoBD-konformes Änderungsprotokoll
 

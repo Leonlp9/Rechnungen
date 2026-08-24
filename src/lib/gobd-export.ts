@@ -12,6 +12,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import type { Invoice } from '@/types';
 import { CATEGORY_LABELS, TYPE_LABELS } from '@/types';
+import { normalizeCurrency } from '@/lib/currency';
 
 /** Formatiert einen Betrag als deutsches Dezimalformat (Komma als Trennzeichen) */
 function fmtEur(v: number): string {
@@ -47,8 +48,13 @@ function getStatus(inv: Invoice): string {
  *
  * Spalten:
  *   Belegnummer;Datum;Leistungsdatum;Partner;Beschreibung;Typ;Kategorie;
- *   Netto (EUR);USt (EUR);Brutto (EUR);Währung;Status;Festgeschrieben;
+ *   Netto (EUR);USt (EUR);Brutto (EUR);Währung;
+ *   Brutto (Originalwährung);Umrechnungskurs;Kursdatum;Status;Festgeschrieben;
  *   Storniert von;Notiz;Erfassungszeitpunkt;Geändert am
+ *
+ * Fremdwährungsbelege sind damit vollständig nachvollziehbar: gebuchter
+ * Euro-Wert, Originalbetrag und der dafür verwendete EZB-Referenzkurs samt
+ * Kursdatum.
  */
 export function buildGobdCsv(invoices: Invoice[]): string {
   const HEADER = [
@@ -65,6 +71,9 @@ export function buildGobdCsv(invoices: Invoice[]): string {
     'USt-Satz (%)',
     'Brutto (EUR)',
     'Währung',
+    'Brutto (Originalwährung)',
+    'Umrechnungskurs (EUR je Einheit)',
+    'Kursdatum (EZB)',
     'Status',
     'Festgeschrieben',
     'Storniert von (Beleg-ID)',
@@ -90,7 +99,11 @@ export function buildGobdCsv(invoices: Invoice[]): string {
       csvEsc(fmtEur(inv.ust)),
       csvEsc(`${ustSatz}%`),
       csvEsc(fmtEur(inv.brutto)),
-      csvEsc(inv.currency || 'EUR'),
+      csvEsc(normalizeCurrency(inv.currency)),
+      // Nachvollziehbarkeit der Umrechnung (GoBD): Originalbetrag, Kurs, Kursdatum
+      csvEsc(normalizeCurrency(inv.currency) === 'EUR' ? '' : fmtEur(inv.brutto_original ?? inv.brutto)),
+      csvEsc(normalizeCurrency(inv.currency) === 'EUR' ? '' : (inv.fx_rate ?? 1).toFixed(6).replace('.', ',')),
+      csvEsc(normalizeCurrency(inv.currency) === 'EUR' ? '' : (inv.fx_date ?? '')),
       csvEsc(getStatus(inv)),
       csvEsc(inv.is_locked ? 'Ja' : 'Nein'),
       csvEsc(inv.storno_of || ''),

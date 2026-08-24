@@ -245,6 +245,10 @@ export interface Invoice {
   ust: number;
   brutto: number;
   type: InvoiceType;
+  /**
+   * Belegwährung (ISO-4217). Die Beträge oben sind IMMER Euro –
+   * der Betrag in dieser Währung steht in den *_original-Feldern.
+   */
   currency: string;
   pdf_path: string;
   note: string;
@@ -268,7 +272,31 @@ export interface Invoice {
    * Pflichtfeld für alle ausgehenden B2B-Rechnungen ab 01.01.2025.
    */
   xrechnung_path?: string;
+
+  // ─── Fremdwährung ──────────────────────────────────────────────────────────
+  // netto/ust/brutto/fee oben sind immer Euro (damit rechnen alle
+  // Auswertungen). Hier steht der Betrag so, wie er auf dem Beleg steht,
+  // plus der EINMALIG zum Belegdatum ermittelte und danach eingefrorene Kurs.
+  /** Nettobetrag in der Belegwährung */
+  netto_original?: number;
+  ust_original?: number;
+  brutto_original?: number;
+  fee_original?: number;
+  /** EUR je 1 Einheit der Belegwährung. 0 = Umrechnung steht noch aus. */
+  fx_rate?: number;
+  /** Tatsächliches Kursdatum (EZB-Bankarbeitstag, ggf. vor dem Belegdatum) */
+  fx_date?: string;
+  fx_source?: FxSource;
 }
+
+/**
+ * Herkunft des Umrechnungskurses:
+ * - identity: Euro-Beleg, Kurs 1
+ * - ecb:      EZB-Referenzkurs zum Belegdatum
+ * - manual:   vom Nutzer gesetzter Kurs
+ * - pending:  Kurs konnte noch nicht ermittelt werden (offline o. Ä.)
+ */
+export type FxSource = 'identity' | 'ecb' | 'manual' | 'pending';
 
 export interface ProjectLink {
   url: string;

@@ -2,13 +2,15 @@ import { useMemo, useState, useCallback } from 'react';
 import { useAppStore } from '@/store';
 import { isCategoryValidForType, CATEGORY_LABELS, TYPE_LABELS } from '@/types';
 import type { Invoice } from '@/types';
-import { AlertTriangle, X, ExternalLink, CheckCircle2, Sparkles, FileSearch, Loader2 } from 'lucide-react';
+import { AlertTriangle, X, ExternalLink, CheckCircle2, Sparkles, FileSearch, Loader2, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { getAllInvoices, setPdfText } from '@/lib/db';
+import { ensureCurrencyConversions, normalizeCurrency } from '@/lib/currency';
+import { toast } from 'sonner';
 import { getAbsolutePdfPath } from '@/lib/pdf';
 
 // ─── Fehler-Typen ─────────────────────────────────────────────────────────────
@@ -91,6 +93,15 @@ export function DataIssuesIndicator() {
   const [indexProgress, setIndexProgress] = useState<{ current: number; total: number } | null>(null);
   const [indexFailed, setIndexFailed] = useState<{ id: string; description: string; partner: string }[]>([]);
 
+  // Fremdwährungsbelege, deren Umrechnung noch aussteht (offline erfasst
+  // oder Altbestand ohne Kurs). Sie werden aktuell mit ihrem Fremdwährungs-
+  // betrag gezählt – deshalb ein Fehler, kein bloßer Hinweis.
+  const [converting, setConverting] = useState(false);
+  const pendingFx = useMemo(
+    () => invoices.filter((i) => i.fx_source === 'pending'),
+    [invoices],
+  );
+
   const issues = useMemo(() => detectIssues(invoices), [invoices]);
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
@@ -103,7 +114,27 @@ export function DataIssuesIndicator() {
   const unindexedCount = unindexedInvoices.length;
 
   const total = issues.length;
-  const showIndicator = total > 0 || unindexedCount > 0 || indexFailed.length > 0;
+  const showIndicator = total > 0 || unindexedCount > 0 || indexFailed.length > 0 || pendingFx.length > 0;
+
+  const handleConvertNow = useCallback(async () => {
+    if (converting) return;
+    setConverting(true);
+    try {
+      const result = await ensureCurrencyConversions();
+      if (result.converted > 0) {
+        toast.success(`${result.converted} Beleg${result.converted !== 1 ? 'e' : ''} umgerechnet`);
+        setInvoices(await getAllInvoices());
+      }
+      if (result.failed > 0) {
+        toast.error(
+          `${result.failed} Beleg${result.failed !== 1 ? 'e' : ''} konnten nicht umgerechnet werden`,
+          { description: result.errors[0] ?? 'Keine Verbindung zur Kursquelle.' },
+        );
+      }
+    } finally {
+      setConverting(false);
+    }
+  }, [converting, setInvoices]);
 
   const handleStartIndexing = useCallback(async () => {
     if (indexing) return;
@@ -144,9 +175,10 @@ export function DataIssuesIndicator() {
 
   if (!showIndicator) return null;
 
-  const primaryColor = errors.length > 0 ? 'text-destructive' : 'text-amber-500';
-  const badgeBg = errors.length > 0 ? 'bg-destructive' : 'bg-amber-500';
-  const badgeCount = total + (unindexedCount > 0 ? 1 : 0) + (indexFailed.length > 0 && unindexedCount === 0 ? 1 : 0);
+  const hasError = errors.length > 0 || pendingFx.length > 0;
+  const primaryColor = hasError ? 'text-destructive' : 'text-amber-500';
+  const badgeBg = hasError ? 'bg-destructive' : 'bg-amber-500';
+  const badgeCount = total + (unindexedCount > 0 ? 1 : 0) + (indexFailed.length > 0 && unindexedCount === 0 ? 1 : 0) + (pendingFx.length > 0 ? 1 : 0);
 
   const handleAiFix = (issue: DataIssue, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -196,6 +228,7 @@ export function DataIssuesIndicator() {
                   {warnings.length > 0 && <span className="text-amber-500 font-medium">{warnings.length} Warnung{warnings.length !== 1 ? 'en' : ''}</span>}
                   {warnings.length > 0 && unindexedCount > 0 && <span className="text-muted-foreground"> · </span>}
                   {unindexedCount > 0 && <span className="text-amber-500 font-medium">{unindexedCount} PDF{unindexedCount !== 1 ? 's' : ''} nicht indiziert</span>}
+                  {pendingFx.length > 0 && <span className="text-destructive font-medium"> · {pendingFx.length} Umrechnung{pendingFx.length !== 1 ? 'en' : ''} offen</span>}
                 </p>
               </div>
               <button onClick={() => setOpen(false)} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors">
@@ -205,6 +238,35 @@ export function DataIssuesIndicator() {
 
             {/* List */}
             <div className="overflow-y-auto flex-1">
+              {/* Währungsumrechnung ausstehend */}
+              {pendingFx.length > 0 && (
+                <div className="px-4 py-3 border-b bg-destructive/5">
+                  <div className="flex items-start gap-3">
+                    <Coins className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground">Währungsumrechnung ausstehend</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                        {pendingFx.length} Beleg{pendingFx.length !== 1 ? 'e' : ''} in{' '}
+                        {[...new Set(pendingFx.map((i) => normalizeCurrency(i.currency)))].join(', ')}{' '}
+                        konnten noch nicht in Euro umgerechnet werden und werden solange mit ihrem
+                        Fremdwährungsbetrag gezählt. Dafür wird der EZB-Referenzkurs vom Belegdatum
+                        benötigt – eine Internetverbindung genügt.
+                      </p>
+                      <button
+                        onClick={handleConvertNow}
+                        disabled={converting}
+                        className="mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium bg-destructive/10 text-destructive border border-destructive/30 hover:bg-destructive/20 transition-colors disabled:opacity-60"
+                      >
+                        {converting
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <Coins className="h-3 w-3" />}
+                        {converting ? 'Rechne um …' : 'Jetzt umrechnen'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* PDF-Indizierungshinweis */}
               {(unindexedCount > 0 || indexFailed.length > 0) && (
                 <div className="px-4 py-3 border-b bg-amber-500/5">
@@ -278,7 +340,7 @@ export function DataIssuesIndicator() {
                 </div>
               )}
 
-              {issues.length === 0 && unindexedCount === 0 && indexFailed.length === 0 ? (
+              {issues.length === 0 && unindexedCount === 0 && indexFailed.length === 0 && pendingFx.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
                   <CheckCircle2 className="h-8 w-8 text-green-500" />
                   <p className="text-sm">Keine Probleme gefunden</p>

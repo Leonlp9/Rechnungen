@@ -125,7 +125,7 @@ function entryTitle(e: DayEntry): string {
   if (e.kind === 'invoice') {
     const partner = e.invoice.partner ? ` · ${e.invoice.partner}` : '';
     const amount = e.invoice.brutto !== 0
-      ? ` ${e.invoice.brutto > 0 ? '+' : ''}${e.invoice.brutto.toFixed(2)} ${e.invoice.currency}`
+      ? ` ${e.invoice.brutto > 0 ? '+' : ''}${e.invoice.brutto.toFixed(2)} EUR`
       : '';
     return (e.invoice.description || 'Rechnung') + partner + amount;
   }
@@ -282,8 +282,8 @@ function InvoiceDetail({ invoice, onClose }: { invoice: Invoice; onClose: () => 
         )}
         <div className="grid grid-cols-2 gap-2 text-sm rounded-lg border border-border p-3">
           <div><p className="text-xs text-muted-foreground">Typ</p><p className="font-medium" style={{ color }}>{typeLabel}</p></div>
-          <div><p className="text-xs text-muted-foreground">Brutto</p><p className="font-medium">{invoice.brutto.toFixed(2)} {invoice.currency}</p></div>
-          <div><p className="text-xs text-muted-foreground">Netto</p><p className="font-medium">{invoice.netto.toFixed(2)} {invoice.currency}</p></div>
+          <div><p className="text-xs text-muted-foreground">Brutto</p><p className="font-medium">{invoice.brutto.toFixed(2)} EUR</p></div>
+          <div><p className="text-xs text-muted-foreground">Netto</p><p className="font-medium">{invoice.netto.toFixed(2)} EUR</p></div>
           <div><p className="text-xs text-muted-foreground">Kategorie</p><p className="font-medium text-xs">{CATEGORY_LABELS[invoice.category] ?? invoice.category}</p></div>
         </div>
         {invoice.note && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{invoice.note}</p>}

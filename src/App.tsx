@@ -33,7 +33,8 @@ import { importBackup } from "@/lib/backup";
 import { toast } from "sonner";
 import { migrateSecretsToKeychain } from "@/lib/keyring-migration";
 import { GeminiConsentProvider } from "@/components/GeminiConsentProvider";
-import { verifyAuditIntegrity } from "@/lib/db";
+import { verifyAuditIntegrity, getAllInvoices } from "@/lib/db";
+import { countPendingConversions, ensureCurrencyConversions } from "@/lib/currency";
 import "./App.css";
 
 const router = createBrowserRouter([
@@ -94,6 +95,35 @@ function App() {
         );
       }
     }).catch(console.error);
+  }, []);
+
+  // Fremdwährungsbelege nachträglich in Euro umrechnen.
+  // Betrifft Altbestände aus der Migration und Belege, die offline erfasst
+  // wurden. Läuft still im Hintergrund – der Nutzer muss nichts tun.
+  useEffect(() => {
+    const run = async () => {
+      const pending = await countPendingConversions();
+      if (pending === 0) return;
+      const result = await ensureCurrencyConversions();
+      if (result.converted > 0) {
+        toast.success(
+          `${result.converted} Fremdwährungsbeleg${result.converted !== 1 ? 'e' : ''} in Euro umgerechnet`,
+          { description: 'EZB-Referenzkurs vom jeweiligen Belegdatum.', duration: 8000 },
+        );
+        try {
+          const all = await getAllInvoices();
+          useAppStore.getState().setInvoices(all);
+        } catch { /* Ansicht aktualisiert sich beim nächsten Laden */ }
+      }
+      if (result.failed > 0) {
+        toast.warning(
+          `${result.failed} Beleg${result.failed !== 1 ? 'e' : ''} konnten noch nicht umgerechnet werden`,
+          { description: 'Wird beim nächsten Start automatisch erneut versucht.', duration: 8000 },
+        );
+      }
+    };
+    const timer = setTimeout(() => { void run().catch(console.error); }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Check if app was opened with a .rmbackup file (double-click)

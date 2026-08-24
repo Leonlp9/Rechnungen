@@ -38,6 +38,10 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { fmtCurrency, cn } from '@/lib/utils';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { CurrencySelect } from '@/components/ui/CurrencySelect';
+import { normalizeCurrency } from '@/lib/currency';
+import { reportInvalid } from '@/lib/formErrors';
+import { CurrencyConversionHint } from './CurrencyConversionHint';
 import { PdfCanvasViewer } from './PdfCanvasViewer';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
@@ -51,7 +55,7 @@ const schema = z.object({
   brutto: z.number(),
   type: z.enum(['einnahme', 'ausgabe', 'info']),
   category: z.enum(CATEGORIES),
-  currency: z.string().min(1),
+  currency: z.string().min(1),  // per CurrencySelect immer ein gültiger ISO-Code
   note: z.string(),
   project_id: z.string(),
 });
@@ -271,7 +275,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
       form.setValue('fee', Number.isFinite(result.fee) ? Math.max(0, result.fee) : 0);
       form.setValue('ust', result.ust);
       form.setValue('brutto', result.brutto);
-      form.setValue('currency', result.currency);
+      form.setValue('currency', normalizeCurrency(result.currency));
       form.setValue('type', result.type);
       form.setValue('category', result.suggested_category);
       toast.success('KI-Erfassung abgeschlossen!');
@@ -457,7 +461,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                     </div>
 
                     {/* Form */}
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 sm:grid-cols-2 [&_input]:min-w-0">
+                    <form onSubmit={form.handleSubmit(onSubmit, (errs) => reportInvalid(errs))} className="grid grid-cols-1 gap-4 sm:grid-cols-2 [&_input]:min-w-0">
                       <div className="space-y-1.5">
                         <Label>Datum</Label>
                         <Input type="date" {...form.register('date')} />
@@ -513,8 +517,22 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                       </p>
 
                       <div className="space-y-1.5">
-                        <Label>Währung</Label>
-                        <Input {...form.register('currency')} />
+                        <Label className="flex items-center gap-1">
+                          Währung
+                          <InfoTooltip text="Währung wie auf dem Beleg. Fremdwährungen werden mit dem EZB-Referenzkurs vom Belegdatum einmalig in Euro umgerechnet – alle Auswertungen rechnen dann in Euro." side="top" />
+                        </Label>
+                        <CurrencySelect
+                          value={form.watch('currency')}
+                          onChange={(v) => form.setValue('currency', v, { shouldDirty: true })}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <CurrencyConversionHint
+                          brutto={form.watch('brutto') || 0}
+                          currency={form.watch('currency')}
+                          date={form.watch('date')}
+                        />
                       </div>
 
                       <div className="space-y-1.5">

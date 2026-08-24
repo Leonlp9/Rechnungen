@@ -30,6 +30,9 @@ import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
 import { Upload, Sparkles, Loader2, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CurrencySelect } from '@/components/ui/CurrencySelect';
+import { fmtOriginal, normalizeCurrency } from '@/lib/currency';
+import { reportInvalid } from '@/lib/formErrors';
 
 const schema = z.object({
   date: z.string().min(1),
@@ -73,7 +76,9 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
   const watchedPartner = form.watch('partner');
 
   // Validation: amounts and partner must match original (negated)
-  const bruttoMismatch = invoice && Math.abs(watchedBrutto - (-invoice.brutto)) > 0.01;
+  const stornoCurrency = invoice ? normalizeCurrency(invoice.currency) : 'EUR';
+  const originalBrutto = invoice ? (invoice.brutto_original ?? invoice.brutto) : 0;
+  const bruttoMismatch = invoice && Math.abs(watchedBrutto - -originalBrutto) > 0.01;
   const partnerMismatch = invoice && watchedPartner?.trim().toLowerCase() !== invoice.partner.trim().toLowerCase();
 
   useEffect(() => {
@@ -86,12 +91,14 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
         date: new Date().toISOString().slice(0, 10),
         description: `[STORNO] ${invoice.description}`,
         partner: invoice.partner,
-        netto: -invoice.netto,
-        ust: -invoice.ust,
-        brutto: -invoice.brutto,
+        // Gespiegelt werden die Beträge in der BELEGWÄHRUNG – der Euro-Wert
+        // entsteht daraus mit dem Kurs des Originalbelegs (s. u.).
+        netto: -(invoice.netto_original ?? invoice.netto),
+        ust: -(invoice.ust_original ?? invoice.ust),
+        brutto: -(invoice.brutto_original ?? invoice.brutto),
         type: invoice.type,
         category: invoice.category,
-        currency: invoice.currency,
+        currency: normalizeCurrency(invoice.currency),
         note: `Stornobuchung zu Beleg ${invoice.id}`,
       });
       getAllInvoices().then(setAllInvoices).catch(() => {});
@@ -188,6 +195,15 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
         note: data.note,
         pdf_path,
         updated_at: new Date().toISOString(),
+        // Kurs des Originalbelegs übernehmen – sonst würde die Stornobuchung
+        // mit dem heutigen Kurs umgerechnet und der Saldo ginge nicht auf null.
+        netto_original: data.netto,
+        ust_original: data.ust,
+        brutto_original: data.brutto,
+        fee_original: 0,
+        fx_rate: invoice.fx_rate ?? 1,
+        fx_date: invoice.fx_date ?? invoice.date,
+        fx_source: normalizeCurrency(data.currency) === 'EUR' ? 'identity' : 'manual',
       };
       await updateInvoice(updated);
 
@@ -306,7 +322,7 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
                     Felder müssen mit dem Original übereinstimmen:
                   </div>
                   {partnerMismatch && <p className="text-amber-700 dark:text-amber-400">• Partner muss „{invoice.partner}" sein</p>}
-                  {bruttoMismatch && <p className="text-amber-700 dark:text-amber-400">• Brutto muss {(-invoice.brutto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} sein</p>}
+                  {bruttoMismatch && <p className="text-amber-700 dark:text-amber-400">• Brutto muss {fmtOriginal(-originalBrutto, stornoCurrency)} sein</p>}
                 </div>
               )}
               {!bruttoMismatch && !partnerMismatch && (
@@ -316,7 +332,7 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
                 </div>
               )}
 
-              <form onSubmit={form.handleSubmit(handleSave)} className="grid grid-cols-2 gap-4">
+              <form onSubmit={form.handleSubmit(handleSave, (errs) => reportInvalid(errs))} className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Datum</Label>
                   <Input type="date" {...form.register('date')} />
@@ -352,7 +368,10 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
                 </div>
                 <div className="space-y-1.5">
                   <Label>Währung</Label>
-                  <Input {...form.register('currency')} />
+                  <CurrencySelect
+                    value={form.watch('currency')}
+                    onChange={(v) => form.setValue('currency', v, { shouldDirty: true })}
+                  />
                 </div>
 
                 <div className="space-y-1.5">

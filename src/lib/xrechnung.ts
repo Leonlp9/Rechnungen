@@ -22,6 +22,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import type { Invoice } from '@/types';
+import { normalizeCurrency } from '@/lib/currency';
 
 const XRECHNUNG_FOLDER = 'xrechnung';
 
@@ -87,10 +88,15 @@ export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): 
     return d.toISOString().slice(0, 10);
   })();
 
-  const taxAmount = round2(invoice.ust);
-  const nettoAmount = round2(invoice.netto);
-  const bruttoAmount = round2(invoice.brutto);
-  const taxRate = calcTaxRate(invoice.netto, invoice.ust);
+  // Die XML-Rechnung ist ein Dokument IN der Belegwährung – also die
+  // Originalbeträge, nicht die intern gebuchten Euro-Werte. Bei Euro-Belegen
+  // (dem Normalfall für ausgehende Rechnungen) sind beide identisch.
+  const nettoRaw = invoice.netto_original ?? invoice.netto;
+  const ustRaw = invoice.ust_original ?? invoice.ust;
+  const taxAmount = round2(ustRaw);
+  const nettoAmount = round2(nettoRaw);
+  const bruttoAmount = round2(invoice.brutto_original ?? invoice.brutto);
+  const taxRate = calcTaxRate(nettoRaw, ustRaw);
 
   // Steueridentifikation: USt-ID bevorzugt
   const taxIdBlock = profile.vatId
@@ -127,7 +133,7 @@ export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): 
   <!-- BT-22: Anmerkungen -->
   ${invoice.note ? `<cbc:Note>${esc(invoice.note)}</cbc:Note>` : '<!-- keine Notiz -->'}
   <!-- BT-5: Währung -->
-  <cbc:DocumentCurrencyCode>${esc(invoice.currency || 'EUR')}</cbc:DocumentCurrencyCode>
+  <cbc:DocumentCurrencyCode>${esc(normalizeCurrency(invoice.currency))}</cbc:DocumentCurrencyCode>
 
   <!-- ── Rechnungsperiode (Leistungsdatum) ─────────────────────────────── -->
   <!-- BT-72/73: Leistungsdatum (§ 14 Abs. 4 Nr. 6 UStG) -->
@@ -192,12 +198,12 @@ export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): 
   <!-- ── Steuerzusammenfassung ─────────────────────────────────────────── -->
   <cac:TaxTotal>
     <!-- BT-110: Gesamtbetrag der Umsatzsteuer -->
-    <cbc:TaxAmount currencyID="${esc(invoice.currency || 'EUR')}">${taxAmount}</cbc:TaxAmount>
+    <cbc:TaxAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${taxAmount}</cbc:TaxAmount>
     <cac:TaxSubtotal>
       <!-- BT-116: Nettobetrag je Steuerkategorie -->
-      <cbc:TaxableAmount currencyID="${esc(invoice.currency || 'EUR')}">${nettoAmount}</cbc:TaxableAmount>
+      <cbc:TaxableAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${nettoAmount}</cbc:TaxableAmount>
       <!-- BT-117: Steuerbetrag je Steuerkategorie -->
-      <cbc:TaxAmount currencyID="${esc(invoice.currency || 'EUR')}">${taxAmount}</cbc:TaxAmount>
+      <cbc:TaxAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${taxAmount}</cbc:TaxAmount>
       <cac:TaxCategory>
         <!-- BT-118: Steuerkategoriecode -->
         <cbc:ID>${taxCategoryCode}</cbc:ID>
@@ -214,13 +220,13 @@ export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): 
   <!-- ── Monetäre Gesamtbeträge ─────────────────────────────────────────── -->
   <cac:LegalMonetaryTotal>
     <!-- BT-106: Summe der Netto-Einzelposten -->
-    <cbc:LineExtensionAmount currencyID="${esc(invoice.currency || 'EUR')}">${nettoAmount}</cbc:LineExtensionAmount>
+    <cbc:LineExtensionAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${nettoAmount}</cbc:LineExtensionAmount>
     <!-- BT-109: Nettobetrag Gesamt -->
-    <cbc:TaxExclusiveAmount currencyID="${esc(invoice.currency || 'EUR')}">${nettoAmount}</cbc:TaxExclusiveAmount>
+    <cbc:TaxExclusiveAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${nettoAmount}</cbc:TaxExclusiveAmount>
     <!-- BT-112: Bruttobetrag Gesamt inkl. USt. -->
-    <cbc:TaxInclusiveAmount currencyID="${esc(invoice.currency || 'EUR')}">${bruttoAmount}</cbc:TaxInclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${bruttoAmount}</cbc:TaxInclusiveAmount>
     <!-- BT-115: Zu zahlender Betrag -->
-    <cbc:PayableAmount currencyID="${esc(invoice.currency || 'EUR')}">${bruttoAmount}</cbc:PayableAmount>
+    <cbc:PayableAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${bruttoAmount}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 
   <!-- ── Rechnungsposition ─────────────────────────────────────────────── -->
@@ -229,7 +235,7 @@ export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): 
     <!-- BT-129: Menge -->
     <cbc:InvoicedQuantity unitCode="C62">1</cbc:InvoicedQuantity>
     <!-- BT-131: Nettobetrag der Zeile -->
-    <cbc:LineExtensionAmount currencyID="${esc(invoice.currency || 'EUR')}">${nettoAmount}</cbc:LineExtensionAmount>
+    <cbc:LineExtensionAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${nettoAmount}</cbc:LineExtensionAmount>
     <cac:Item>
       <!-- BT-153: Leistungsbeschreibung -->
       <cbc:Description>${esc(invoice.description || 'Dienstleistung')}</cbc:Description>
@@ -244,7 +250,7 @@ export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): 
     </cac:Item>
     <cac:Price>
       <!-- BT-146: Netto-Einzelpreis -->
-      <cbc:PriceAmount currencyID="${esc(invoice.currency || 'EUR')}">${nettoAmount}</cbc:PriceAmount>
+      <cbc:PriceAmount currencyID="${esc(normalizeCurrency(invoice.currency))}">${nettoAmount}</cbc:PriceAmount>
     </cac:Price>
   </cac:InvoiceLine>
 

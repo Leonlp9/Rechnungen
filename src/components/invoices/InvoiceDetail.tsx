@@ -37,10 +37,10 @@ import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
 import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getCategoriesForBranche, getDefaultCategoryForType, isCategoryValidForType } from '@/types';
 import type { Invoice } from '@/types';
-import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator, FileCode2, Lock } from 'lucide-react';
+import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator, FileCode2, Lock, Check } from 'lucide-react';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import { cn } from '@/lib/utils';
+import { cn, fmtCurrency } from '@/lib/utils';
 import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
 import { StornoDialog } from './StornoDialog';
 import { PdfCanvasViewer } from './PdfCanvasViewer';
@@ -49,6 +49,10 @@ import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { saveXRechnungFile, saveXRechnungToAppData, getAbsoluteXRechnungPath } from '@/lib/xrechnung';
 import { getSetting } from '@/lib/db';
 import { ProjectSelector } from '@/components/projects/ProjectSelector';
+import { reportInvalid } from '@/lib/formErrors';
+import { CurrencySelect } from '@/components/ui/CurrencySelect';
+import { CurrencyConversionHint } from './CurrencyConversionHint';
+import { fmtOriginal, normalizeCurrency } from '@/lib/currency';
 
 const schema = z.object({
   date: z.string().min(1),
@@ -109,13 +113,15 @@ export default function InvoiceDetail() {
         date: inv.date,
         description: inv.description,
         partner: inv.partner,
-        netto: inv.netto,
-        fee: inv.fee,
-        ust: inv.ust,
-        brutto: inv.brutto,
+        // Bearbeitet werden IMMER die Beträge in der Belegwährung –
+        // die Euro-Werte leitet die Datenschicht daraus ab.
+        netto: inv.netto_original ?? inv.netto,
+        fee: inv.fee_original ?? inv.fee,
+        ust: inv.ust_original ?? inv.ust,
+        brutto: inv.brutto_original ?? inv.brutto,
         type: inv.type,
         category: inv.category,
-        currency: inv.currency,
+        currency: normalizeCurrency(inv.currency),
         note: inv.note,
       });
       if (inv.pdf_path) {
@@ -225,6 +231,13 @@ export default function InvoiceDetail() {
   }, [goToSibling]);
 
   // ─── Speichern / Löschen ────────────────────────────────────────────────────
+  /**
+   * Ohne diesen Handler bricht react-hook-form bei ungültigen Feldern still ab –
+   * der Speichern-Knopf sah dann aus, als würde er nichts tun. Häufigster Fall:
+   * ein geleertes Zahlenfeld wird zu NaN und scheitert an z.number().
+   */
+  const onInvalid = (errs: Record<string, unknown>) => reportInvalid(errs, setInvalidFields);
+
   const onSubmit = async (data: FormData) => {
     if (!invoice) return;
     if (steuerregelung === 'kleinunternehmer' && data.type === 'einnahme' && Math.abs(data.ust) > 0.001) {
@@ -246,6 +259,12 @@ export default function InvoiceDetail() {
       const updated: Invoice = {
         ...invoice,
         ...data,
+        // Die Formularwerte sind Beträge in der Belegwährung. Ohne diese
+        // Zuweisung würde die Umrechnung die alten Originalwerte verwenden.
+        netto_original: data.netto,
+        ust_original: data.ust,
+        brutto_original: data.brutto,
+        fee_original: data.fee,
         year: dateObj.getFullYear(),
         month: dateObj.getMonth() + 1,
         updated_at: new Date().toISOString(),
@@ -256,8 +275,11 @@ export default function InvoiceDetail() {
       const all = await getAllInvoices();
       setInvoices(all);
       toast.success('Änderungen gespeichert!');
+      setInvalidFields([]);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2500);
     } catch (e) {
-      toast.error('Fehler: ' + String(e));
+      toast.error('Nicht gespeichert: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setSaving(false);
     }
@@ -407,6 +429,10 @@ export default function InvoiceDetail() {
 
   // ─── Hilfs-Werte ────────────────────────────────────────────────────────────
   const watchedType = form.watch('type');
+  const watchedCurrency = normalizeCurrency(form.watch('currency'));
+  const privacyMode = useAppStore((s) => s.privacyMode);
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  const [justSaved, setJustSaved] = useState(false);
   const watchedCategory = form.watch('category');
   const hasCategoryIssue = watchedCategory && watchedType
       ? !isCategoryValidForType(watchedCategory, watchedType) || (watchedType === 'einnahme' && watchedCategory === 'einnahmen')
@@ -418,7 +444,7 @@ export default function InvoiceDetail() {
   }
 
   return (
-      <div className={cn('h-full', isMobile ? 'flex flex-col gap-3' : 'flex gap-6')}>
+      <div className={cn('h-full', isMobile ? 'flex flex-col gap-3 p-3' : 'flex gap-6')}>
         {/* Mobile: Umschalter Details ↔ Dokument */}
         {isMobile && (
           <div className="flex shrink-0 gap-1 rounded-lg border bg-muted/40 p-1">
@@ -511,7 +537,42 @@ export default function InvoiceDetail() {
             </div>
           </div>
 
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+          {/* Fremdwährung: gebuchter Euro-Wert und der dafür eingefrorene Kurs */}
+          {invoice && normalizeCurrency(invoice.currency) !== 'EUR' && (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+              {invoice.fx_source === 'pending' ? (
+                <p className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Umrechnung steht noch aus – dieser Beleg wird aktuell mit seinem
+                    {' '}{normalizeCurrency(invoice.currency)}-Betrag gezählt. Sobald ein Kurs
+                    abrufbar ist, wird er automatisch umgerechnet.
+                  </span>
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-medium">
+                    <span className="text-muted-foreground">Gebucht:</span>
+                    <span>{fmtCurrency(invoice.brutto, privacyMode)}</span>
+                    <span className="text-muted-foreground">· Beleg:</span>
+                    <span>
+                      {privacyMode
+                        ? '••••'
+                        : fmtOriginal(invoice.brutto_original ?? invoice.brutto, normalizeCurrency(invoice.currency))}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-muted-foreground">
+                    Kurs {(invoice.fx_rate ?? 1).toFixed(4)} EUR/{normalizeCurrency(invoice.currency)}
+                    {invoice.fx_date && ` vom ${new Date(invoice.fx_date).toLocaleDateString('de-DE')}`}
+                    {invoice.fx_source === 'ecb' && ' (EZB-Referenzkurs)'}
+                    {invoice.fx_source === 'manual' && ' (manuell gesetzt)'}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-3">
             <div className="space-y-1.5">
               <Label>Datum</Label>
               <Input type="date" {...form.register('date')} />
@@ -528,6 +589,9 @@ export default function InvoiceDetail() {
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
                   Netto
+                  {watchedCurrency !== 'EUR' && (
+                    <span className="font-mono text-[10px] text-muted-foreground">({watchedCurrency})</span>
+                  )}
                   <InfoTooltip text="Nettobetrag ohne Umsatzsteuer. Basis für die EÜR (Einnahmen-Überschuss-Rechnung)." side="right" />
                 </Label>
                 <Input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} />
@@ -535,6 +599,9 @@ export default function InvoiceDetail() {
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
                   Gebuehren
+                  {watchedCurrency !== 'EUR' && (
+                    <span className="font-mono text-[10px] text-muted-foreground">({watchedCurrency})</span>
+                  )}
                   <InfoTooltip text="Plattformgebühren oder Transaktionskosten (z. B. PayPal-Fee). Separat gespeichert, senken aber deinen Nettoerlös." side="right" />
                 </Label>
                 <Input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} />
@@ -542,6 +609,9 @@ export default function InvoiceDetail() {
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
                   USt
+                  {watchedCurrency !== 'EUR' && (
+                    <span className="font-mono text-[10px] text-muted-foreground">({watchedCurrency})</span>
+                  )}
                   <InfoTooltip text="Umsatzsteuer (MwSt.): Aufschlag auf den Nettobetrag. Als Kleinunternehmer (§ 19 UStG) 0 eintragen." side="right" />
                 </Label>
                 <Input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} />
@@ -549,15 +619,29 @@ export default function InvoiceDetail() {
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
                   Brutto
+                  {watchedCurrency !== 'EUR' && (
+                    <span className="font-mono text-[10px] text-muted-foreground">({watchedCurrency})</span>
+                  )}
                   <InfoTooltip text="Gesamtbetrag inkl. USt (Netto + USt). Relevant für die Kleinunternehmergrenze (§ 19 UStG)." side="right" />
                 </Label>
                 <Input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Währung</Label>
-              <Input {...form.register('currency')} />
+              <Label className="flex items-center gap-1">
+                Währung
+                <InfoTooltip text="Währung wie auf dem Beleg. Die Beträge oben werden in dieser Währung erfasst; Auswertungen rechnen immer in Euro – umgerechnet mit dem EZB-Referenzkurs vom Belegdatum." side="right" />
+              </Label>
+              <CurrencySelect
+                value={form.watch('currency')}
+                onChange={(v) => form.setValue('currency', v, { shouldDirty: true })}
+              />
             </div>
+            <CurrencyConversionHint
+              brutto={form.watch('brutto') || 0}
+              currency={form.watch('currency')}
+              date={form.watch('date')}
+            />
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1">
                 Typ
@@ -643,11 +727,33 @@ export default function InvoiceDetail() {
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
+              {invalidFields.length > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Nicht gespeichert – bitte prüfen: <strong>{invalidFields.join(', ')}</strong>.
+                    Zahlenfelder dürfen nicht leer sein (0 eintragen).
+                  </span>
+                </div>
+              )}
+              {invoice?.is_locked && (
+                <p className="rounded-lg border border-blue-300/40 bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-400">
+                  Dieser Beleg ist festgeschrieben – Änderungen sind nur noch per Stornobuchung möglich.
+                </p>
+              )}
               {/* Zeile 1: Primäraktion + PDF + XRechnung */}
               <div className="flex gap-2">
-                <Button type="submit" disabled={saving || invoice?.is_locked} className="flex-1">
-                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Speichern
+                <Button
+                  type="submit"
+                  disabled={saving || invoice?.is_locked}
+                  className={cn('flex-1', justSaved && 'bg-emerald-600 hover:bg-emerald-600')}
+                >
+                  {saving
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : justSaved
+                      ? <Check className="mr-2 h-4 w-4" />
+                      : <Save className="mr-2 h-4 w-4" />}
+                  {saving ? 'Speichere …' : justSaved ? 'Gespeichert' : 'Speichern'}
                 </Button>
                 <Button type="button" variant="outline" onClick={handleReveal} title="PDF im Explorer anzeigen">
                   <FolderOpen className="h-4 w-4" />
