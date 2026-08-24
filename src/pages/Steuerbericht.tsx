@@ -81,18 +81,21 @@ export default function SteuerbrichtPage() {
   const [fahrtAbsetzbar, setFahrtAbsetzbar] = useState(0);
   const [fahrtKmDienst, setFahrtKmDienst] = useState(0);
 
+  // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
+  const dataVersion = useAppStore((s) => s.dataVersion);
+
   useEffect(() => {
     getAllInvoices()
       .then(setAllInvoices)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [dataVersion]);
 
   useEffect(() => {
     fahrtenbuch.getJahresauswertung(selectedYear, kmPauschale)
       .then((d) => { setFahrtAbsetzbar(d.absetzbar); setFahrtKmDienst(d.kmDienst); })
       .catch(console.error);
-  }, [selectedYear, kmPauschale]);
+  }, [selectedYear, kmPauschale, dataVersion]);
 
   const invoices = useMemo(
     () => allInvoices.filter((i) => i.year === selectedYear && i.type !== 'info'),

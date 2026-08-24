@@ -113,6 +113,7 @@ function App() {
         try {
           const all = await getAllInvoices();
           useAppStore.getState().setInvoices(all);
+          useAppStore.getState().bumpDataVersion();
         } catch { /* Ansicht aktualisiert sich beim nächsten Laden */ }
       }
       if (result.failed > 0) {

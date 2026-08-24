@@ -7,6 +7,7 @@
 
 import { Bot, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { useSheetDrag, SheetGrabber } from '@/components/ui/sheet-drag';
 import { Button } from '@/components/ui/button';
 import { useChatStore } from '@/store/chatStore';
 import { useAppStore } from '@/store';
@@ -20,12 +21,14 @@ export function MobileAIChat() {
   const pageContext = useChatContext();
   const hasPdf = useCurrentInvoiceHasPdf();
   const isInvoiceList = useIsInvoiceList();
+  const { contentRef, onGrabberMouseDown } = useSheetDrag(() => setOpen(false));
 
   if (!showAiChat) return null;
 
   return (
     <Sheet open={isOpen} onOpenChange={setOpen}>
       <SheetContent
+        ref={contentRef}
         side="bottom"
         showCloseButton={false}
         aria-describedby={undefined}
@@ -37,10 +40,8 @@ export function MobileAIChat() {
 
         {/* Ziehgriff + Kopfzeile */}
         <div className="shrink-0">
-          <div className="flex justify-center pt-2.5 pb-1">
-            <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-          </div>
-          <div className="flex items-center gap-2 px-3 pb-2">
+          <SheetGrabber onMouseDown={onGrabberMouseDown} className="pb-1" />
+          <div data-sheet-grabber className="flex items-center gap-2 px-3 pb-2">
             <Bot className="h-5 w-5 shrink-0 text-primary" />
             <span className="flex-1 text-sm font-semibold">KI-Assistent</span>
             <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Schließen">

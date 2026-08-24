@@ -37,7 +37,9 @@ export default function CustomersPage() {
   }, [invoices]);
 
   const reload = () => customers.getAll().then(setAllCustomers).finally(() => setLoading(false));
-  useEffect(() => { reload(); }, []);
+  // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
+  const dataVersion = useAppStore((s) => s.dataVersion);
+  useEffect(() => { reload(); }, [dataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = allCustomers.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||

@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { useSheetDrag, SheetGrabber } from '@/components/ui/sheet-drag';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import type { DashboardNode, ElementType, NodeType } from '@/types/dashboard';
@@ -349,6 +350,7 @@ function ElementPicker({
 }) {
   const [search, setSearch] = useState('');
   const [added, setAdded] = useState<string | null>(null);
+  const { contentRef, onGrabberMouseDown } = useSheetDrag(onClose);
 
   const sections = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -371,13 +373,15 @@ function ElementPicker({
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent
+        ref={contentRef}
         side="bottom"
         showCloseButton={false}
         aria-describedby={undefined}
         className="max-h-[85dvh] gap-0 rounded-t-2xl p-0"
       >
         <SheetTitle className="sr-only">Element hinzufügen</SheetTitle>
-        <div className="flex items-center gap-2 border-b px-4 py-3">
+        <SheetGrabber onMouseDown={onGrabberMouseDown} />
+        <div className="flex items-center gap-2 border-b px-4 pt-1 pb-3">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -393,7 +397,7 @@ function ElementPicker({
         </div>
 
         <div
-          className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-3"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
         >
           {sections.length === 0 && (
@@ -463,6 +467,7 @@ function PageManager({
   onChange: (pages: MobilePage[], focusId?: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const { contentRef, onGrabberMouseDown } = useSheetDrag(onClose);
 
   const rename = (id: string, label: string) =>
     onChange(pages.map((p) => (p.id === id ? { ...p, label } : p)));
@@ -490,19 +495,21 @@ function PageManager({
     <>
       <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
         <SheetContent
+          ref={contentRef}
           side="bottom"
           showCloseButton={false}
           aria-describedby={undefined}
           className="max-h-[80dvh] gap-0 rounded-t-2xl p-0"
         >
-          <div className="flex items-center justify-between border-b px-4 py-3">
+          <SheetGrabber onMouseDown={onGrabberMouseDown} />
+          <div data-sheet-grabber className="flex items-center justify-between border-b px-4 pt-1 pb-3">
             <SheetTitle className="text-sm font-semibold">Seiten verwalten</SheetTitle>
             <Button variant="ghost" size="icon" onClick={onClose} aria-label="Schließen">
               <X className="h-4 w-4" />
             </Button>
           </div>
           <div
-            className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3"
+            className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-3"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
           >
             {pages.map((p, idx) => (

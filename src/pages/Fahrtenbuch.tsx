@@ -173,7 +173,9 @@ export default function FahrtenbuchPage() {
   const [kmInput, setKmInput] = useState(String(kmPauschale));
 
   const reload = () => fahrtenbuch.getAll().then(setFahrten).finally(() => setLoading(false));
-  useEffect(() => { reload(); }, []);
+  // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
+  const dataVersion = useAppStore((s) => s.dataVersion);
+  useEffect(() => { reload(); }, [dataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dienstKm = useMemo(() => fahrten.filter(f => f.art === 'dienst').reduce((s, f) => s + f.km, 0), [fahrten]);
   const absetzbar = dienstKm * kmPauschale;

@@ -191,9 +191,11 @@ export default function KrankenkassePage() {
     }
   }
 
+  // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
+  const dataVersion = useAppStore((s) => s.dataVersion);
   useEffect(() => {
     load();
-  }, [year]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [year, dataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Berechnungen ──────────────────────────────────────────────────────────
 

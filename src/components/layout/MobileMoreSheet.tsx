@@ -26,6 +26,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { getVersion } from '@tauri-apps/api/app';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { useSheetDrag, SheetGrabber } from '@/components/ui/sheet-drag';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
@@ -54,6 +55,7 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
   const showAiChat = useAppStore((s) => s.showAiChat);
   const setChatOpen = useChatStore((s) => s.setOpen);
   const sync = useSyncStatus();
+  const { contentRef, onGrabberMouseDown } = useSheetDrag(onClose);
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
@@ -76,16 +78,14 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent
+        ref={contentRef}
         side="bottom"
         showCloseButton={false}
         aria-describedby={undefined}
-        className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-2xl p-0"
+        className="max-h-[88dvh] gap-0 overflow-y-auto overscroll-contain rounded-t-2xl p-0"
       >
         <SheetTitle className="sr-only">Menü</SheetTitle>
-        {/* Ziehgriff */}
-        <div className="sticky top-0 z-10 flex justify-center bg-popover pt-2.5 pb-1.5">
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-        </div>
+        <SheetGrabber onMouseDown={onGrabberMouseDown} className="sticky top-0 z-10 bg-popover" />
 
         <div
           className="space-y-5 px-4 pb-4"

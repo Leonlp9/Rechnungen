@@ -28,6 +28,14 @@ export interface ActiveAiFix {
 interface AppState {
   invoices: Invoice[];
   setInvoices: (invoices: Invoice[]) => void;
+  /**
+   * Zählt hoch, sobald von außen neue Daten in die Datenbank gekommen sind
+   * (Cloud-Sync, Währungsumrechnung). Komponenten, die ihre Daten beim Mounten
+   * in lokalen State laden, hängen diesen Wert in ihre Dependency-Liste und
+   * laden dadurch automatisch neu – ohne dass man die Seite wechseln muss.
+   */
+  dataVersion: number;
+  bumpDataVersion: () => void;
   drafts: InvoiceDraft[];
   setDrafts: (drafts: InvoiceDraft[]) => void;
   addDraft: (draft: InvoiceDraft) => void;
@@ -82,6 +90,8 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       invoices: [],
       setInvoices: (invoices) => set({ invoices }),
+      dataVersion: 0,
+      bumpDataVersion: () => set((st) => ({ dataVersion: st.dataVersion + 1 })),
       drafts: [],
       setDrafts: (drafts) => set({ drafts }),
       addDraft: (draft) => set((s) => ({ drafts: [...s.drafts, draft] })),

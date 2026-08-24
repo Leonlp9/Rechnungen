@@ -1032,13 +1032,6 @@ export default function HelpPage() {
                   className="w-full rounded-md border border-input bg-background py-2 pr-3 pl-8 text-base placeholder:text-muted-foreground focus:ring-1 focus:ring-ring focus:outline-none"
                 />
               </div>
-              <button
-                onClick={() => { resetTutorial(); setTimeout(() => startTutorial(), 100); }}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary active:bg-primary/20"
-              >
-                <span>🎓</span>
-                Geführtes Tutorial neu starten
-              </button>
               <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <button
                   onClick={() => setActiveCategory(null)}

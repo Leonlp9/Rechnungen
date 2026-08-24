@@ -298,6 +298,12 @@ async function refreshAppData(result: SyncResult): Promise<void> {
     // s. o.
   }
 
+  // Weckt alle Ansichten, die ihre Daten beim Mounten in lokalen State laden
+  // (Kunden, Fahrtenbuch, Krankenkasse, Bankimport, Steuerbericht …).
+  // Ohne das musste man die Seite einmal wechseln, damit die neuen Daten
+  // sichtbar wurden.
+  useAppStore.getState().bumpDataVersion();
+
   useSyncStatus.getState().set({
     lastIncoming: new Date().toISOString(),
     lastIncomingCount: incoming,

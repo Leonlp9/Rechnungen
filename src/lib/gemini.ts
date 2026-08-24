@@ -4,6 +4,43 @@ import type { GeminiResult} from '@/types';
 import {HELP_CONTENT_TEXT} from '@/lib/helpContent';
 import { CURRENCY_CODES, normalizeCurrency } from '@/lib/currency';
 
+// ─── Beträge geradeziehen ────────────────────────────────────────────────────
+//
+// Die App verlangt netto + ust = brutto; Gebühren stehen daneben und fließen
+// NICHT in diese Gleichung ein. Modelle ziehen die Gebühr trotzdem gern vom
+// Gesamtbetrag ab (Wise: 92,75 gezahlt, 2,75 Gebühr, 90,00 überwiesen →
+// netto 90 statt 92,75). Ohne Korrektur ließ sich der Beleg nicht speichern.
+
+const round2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100;
+const near = (a: number, b: number): boolean => Math.abs(a - b) <= 0.011;
+
+export function reconcileAmounts(r: {
+  netto?: number; ust?: number; brutto?: number; fee?: number;
+}): { netto: number; ust: number; brutto: number; fee: number } {
+  const netto = round2(r.netto ?? 0);
+  const ust = round2(r.ust ?? 0);
+  const brutto = round2(r.brutto ?? 0);
+  const fee = round2(r.fee ?? 0);
+
+  if (near(netto + ust, brutto)) return { netto, ust, brutto, fee };
+
+  // Gebühr wurde vom Gesamtbetrag abgezogen → netto auf den Gesamtbetrag heben
+  if (fee !== 0 && near(netto + ust + fee, brutto)) {
+    return { netto: round2(brutto - ust), ust, brutto, fee };
+  }
+  // Umgekehrt: brutto ohne Gebühr angegeben → brutto aus netto + ust bilden
+  if (fee !== 0 && near(netto + ust, brutto + fee)) {
+    return { netto, ust, brutto: round2(netto + ust), fee };
+  }
+  // Ein Feld fehlt ganz
+  if (brutto === 0 && netto + ust !== 0) return { netto, ust, brutto: round2(netto + ust), fee };
+  if (netto === 0 && brutto !== 0) return { netto: round2(brutto - ust), ust, brutto, fee };
+
+  // Rest: brutto ist der zuverlässigste Wert auf einem Beleg – netto anpassen
+  if (brutto !== 0) return { netto: round2(brutto - ust), ust, brutto, fee };
+  return { netto, ust, brutto, fee };
+}
+
 // ─── Gemini API Key (Keychain) ────────────────────────────────────────────────
 
 export async function getGeminiApiKey(): Promise<string | null> {
@@ -679,6 +716,28 @@ JSON-Schema:
   "suggested_category": "umsatz_pflichtig | umsatz_steuerfrei | reverse_charge | ust_erstattung | privateinlage | anlagenverkauf | erstattungen | sponsoring | affiliate | donations_tips | sachzuwendungen | sonstige_einnahmen | anlagevermoegen_afa | gwg | software_abos | fremdleistungen | buerobedarf | reisekosten | bewirtungskosten | marketing | weiterbildung | miete | versicherungen_betrieb | fahrzeugkosten | kommunikation | vertraege | spenden | krankenkasse | sozialversicherung | privat | privatentnahme | sonstiges"
 }
 
+=== REGELN FÜR DIE BETRÄGE (WICHTIG) ===
+Es gilt IMMER: **netto + ust = brutto**. Rechne das nach, bevor du antwortest.
+
+- "brutto" = Gesamtbetrag des Belegs, also der Betrag, der tatsächlich vom
+  Konto abgegangen bzw. eingegangen ist.
+- "ust" = die auf dem Beleg ausgewiesene Umsatzsteuer. Ist keine ausgewiesen:
+  ust = 0 UND netto = brutto.
+- "fee" = Gebühren, die ein Zahlungsanbieter zusätzlich ausweist (PayPal,
+  Stripe, Wise, Transaktions- oder Auszahlungsgebühren).
+  **fee wird separat gespeichert und ist NICHT von netto oder brutto
+  abzuziehen.** netto und brutto bleiben der Gesamtbetrag des Belegs.
+  Keine Gebühr erkennbar → fee = 0.
+
+Beispiel Wise-Überweisung:
+  Beleg: "Amount paid 92.75 USD" · "Transfer fees 2.75 USD" · "Transfer amount 90.00 USD"
+  RICHTIG: brutto = 92.75, ust = 0, netto = 92.75, fee = 2.75
+  FALSCH:  netto = 90 — dann wäre netto + ust ≠ brutto und der Beleg unspeicherbar.
+
+Beispiel Rechnung mit MwSt:
+  Beleg: "Netto 100,00 € · 19 % MwSt 19,00 € · Gesamt 119,00 €"
+  RICHTIG: netto = 100, ust = 19, brutto = 119, fee = 0
+
 === REGELN FÜR "currency" ===
 - Gib den ISO-4217-Code der Währung an, die AUF DEM BELEG steht: EUR, USD, CHF, GBP, …
 - „€", „EUR", „Euro" → "EUR". „$", „USD", „US$" → "USD". „£" → "GBP". „CHF", „Fr." → "CHF".
@@ -749,7 +808,6 @@ WICHTIG:
 - Gezahlte Spenden → type="ausgabe", suggested_category="spenden"
 - Krankenkasse/Sozialversicherung → type="ausgabe", suggested_category="krankenkasse" oder "sozialversicherung"
 - Beträge als Zahlen (nicht Strings). Wenn kein Betrag erkennbar → netto=0, fee=0, ust=0, brutto=0.
-- fee = nicht steuerbare Gebuehren (z. B. Zahlungsanbieter-/Transaktionsgebuehren). Wenn keine Gebuehren erkennbar sind, setze fee=0.
 - Bei Verträgen ohne konkreten Rechnungsbetrag: setze Beträge auf 0.
 - Kategorien für Einnahmen DÜRFEN NICHT für Ausgaben verwendet werden und umgekehrt!`;
 
@@ -813,10 +871,11 @@ WICHTIG:
 
   try {
     const parsed = JSON.parse(text) as GeminiResult;
+    const fixed = reconcileAmounts(parsed);
     // Die Währung wird hart auf einen unterstützten ISO-Code gebracht.
     // Unbekanntes fällt auf EUR zurück – das Modell hat sonst die Tendenz,
     // bei fehlendem Währungszeichen „USD" zu raten.
-    return { ...parsed, currency: normalizeCurrency(parsed.currency) };
+    return { ...parsed, ...fixed, currency: normalizeCurrency(parsed.currency) };
   } catch {
     throw new Error('Gemini-Antwort konnte nicht als JSON geparst werden.');
   }

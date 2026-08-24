@@ -59,7 +59,9 @@ export default function BankImportPage() {
     }
   }, []);
 
-  useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
+  const dataVersion = useAppStore((s) => s.dataVersion);
+  useEffect(() => { loadTransactions(); }, [loadTransactions, dataVersion]);
 
   const handleImport = async () => {
     const files = await open({

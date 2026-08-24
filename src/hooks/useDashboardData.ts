@@ -105,11 +105,13 @@ export function useDashboardData(): DashboardData {
 
   // Fahrtenbuch-Daten für das gewählte Jahr
   const [fahrtStats, setFahrtStats] = useState({ kmDienst: 0, kmPrivat: 0, kmGesamt: 0, absetzbar: 0, fahrten: [] as import('@/lib/db').Fahrt[] });
+  // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
+  const dataVersion = useAppStore((s) => s.dataVersion);
   useEffect(() => {
     fahrtenbuch.getJahresauswertung(selectedYear, kmPauschale)
       .then((d) => setFahrtStats({ ...d }))
       .catch(console.error);
-  }, [selectedYear, kmPauschale]);
+  }, [selectedYear, kmPauschale, dataVersion]);
 
   // Fahrtenbuch-Daten für den gewählten Monat
   const fahrtMonat = useMemo(() => {

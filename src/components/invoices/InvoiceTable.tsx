@@ -49,11 +49,13 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   // Set of customer names (lowercase) to check if a partner has a customer record
   const [customerNames, setCustomerNames] = useState<Set<string>>(new Set());
 
+  // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
+  const dataVersion = useAppStore((s) => s.dataVersion);
   useEffect(() => {
     customers.getAll().then((list) => {
       setCustomerNames(new Set(list.map((c) => c.name.trim().toLowerCase())));
     }).catch(console.error);
-  }, []);
+  }, [dataVersion]);
 
   // Read state from URL
   const search = searchParams.get('q') ?? '';
