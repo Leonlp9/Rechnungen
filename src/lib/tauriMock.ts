@@ -21,11 +21,23 @@ trailer<</Root 1 0 R/Size 6>>
 if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
   let callbackId = 0;
 
+  // Einstellungen im Speicher halten – sonst lassen sich Dinge wie der
+  // Keyring-Fallback im Browser gar nicht ausprobieren.
+  const settings = new Map<string, string>();
+
   const invoke = async (cmd: string, _args?: unknown): Promise<any> => {
     switch (cmd) {
       // SQL-Plugin: leere Datenbank simulieren
       case 'plugin:sql|load':
         return 'sqlite:mock.db';
+      // Kein OS-Schlüsselbund auf Mobilgeräten – dort sind diese Kommandos
+      // per #[cfg(desktop)] nicht kompiliert. Der Mock bildet das nach, damit
+      // der Fallback auf die Datenbank auch im Browser durchlaufen wird.
+      case 'keyring_set':
+      case 'keyring_get':
+      case 'keyring_delete':
+        throw new Error(`Command ${cmd} not found`);
+
       case 'plugin:sql|select': {
         // Eine Demo-Rechnung, damit Liste + Detailseite im Browser testbar sind
         const query = String((_args as { query?: string })?.query ?? '');
@@ -59,10 +71,21 @@ if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
             },
           ];
         }
+        if (query.includes('FROM settings')) {
+          const key = String((_args as { values?: unknown[] })?.values?.[0] ?? '');
+          const value = settings.get(key);
+          return value === undefined ? [] : [{ value }];
+        }
         return [];
       }
-      case 'plugin:sql|execute':
+      case 'plugin:sql|execute': {
+        const query = String((_args as { query?: string })?.query ?? '');
+        if (query.includes('INTO settings')) {
+          const vals = (_args as { values?: unknown[] })?.values ?? [];
+          settings.set(String(vals[0]), String(vals[1] ?? ''));
+        }
         return [0, 0];
+      }
       case 'plugin:sql|close':
         return true;
 

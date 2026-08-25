@@ -47,8 +47,16 @@ function findScroller(from: EventTarget | null, root: HTMLElement): HTMLElement 
   return null;
 }
 
-function overlayEl(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('[data-slot="sheet-overlay"]');
+/**
+ * Die Abdunklung liegt als Geschwister-Element im selben Portal wie das Sheet.
+ * Über den Elternknoten gesucht statt global – sonst würde bei mehreren
+ * offenen Sheets das falsche Overlay angefasst.
+ */
+function overlayEl(el: HTMLElement | null): HTMLElement | null {
+  return (
+    el?.parentElement?.querySelector<HTMLElement>('[data-slot="sheet-overlay"]') ??
+    document.querySelector<HTMLElement>('[data-slot="sheet-overlay"]')
+  );
 }
 
 export function useSheetDrag(onClose: () => void) {
@@ -88,12 +96,36 @@ function createDragApi(
     velocity: 0,
   };
 
+  /**
+   * Während des Ziehens jede Übergangsanimation abschalten.
+   *
+   * `SheetContent` bringt `transition duration-200` als Klasse mit – ein
+   * leeres `style.transition` stellt die also wieder her, und das Sheet lief
+   * dem Finger mit 200 ms Verzögerung hinterher. Deshalb explizit 'none'.
+   */
+  function beginDrag() {
+    const el = elRef.current;
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.willChange = 'transform';
+    const overlay = overlayEl(el);
+    if (overlay) overlay.style.transition = 'none';
+  }
+
+  /** Nach dem Ziehen wieder den Klassen-Übergang übernehmen lassen. */
+  function endDrag() {
+    const el = elRef.current;
+    if (el) { el.style.transition = ''; el.style.willChange = ''; }
+    const overlay = overlayEl(el);
+    if (overlay) overlay.style.transition = '';
+  }
+
   /** Sheet verschieben und die Abdunklung passend mitziehen. */
   function paint(offset: number) {
     const el = elRef.current;
     if (!el) return;
     el.style.transform = offset > 0 ? `translateY(${offset}px)` : '';
-    const overlay = overlayEl();
+    const overlay = overlayEl(el);
     if (overlay) {
       const height = el.offsetHeight || 1;
       overlay.style.opacity = String(Math.max(0, 1 - offset / height));
@@ -106,11 +138,10 @@ function createDragApi(
     d.decided = false;
     d.fromHandle = false;
     if (!el) { if (close) onCloseRef.current(); return; }
-    const overlay = overlayEl();
+    const overlay = overlayEl(el);
 
     if (close) {
-      // Erst nach unten aus dem Bild schieben, dann schließen – sonst springt
-      // das Sheet vor der Ausblend-Animation kurz zurück.
+      // Erst nach unten aus dem Bild schieben, dann schließen.
       el.style.transition = 'transform 190ms cubic-bezier(0.32, 0.72, 0, 1)';
       el.style.transform = `translateY(${el.offsetHeight}px)`;
       if (overlay) {
@@ -118,9 +149,18 @@ function createDragApi(
         overlay.style.opacity = '0';
       }
       window.setTimeout(() => {
+        // Radix legt beim Schließen eine eigene Ausblend-Animation auf das
+        // Element (slide-out + fade-out). Deren Keyframes setzen transform
+        // und opacity zurück – das Sheet sprang dadurch am Ende sichtbar
+        // nach oben und wurde kurz wieder eingeblendet. Für den Ziehweg wird
+        // sie deshalb abgeschaltet; das Sheet ist ohnehin schon aus dem Bild.
+        // Ohne laufende Animation hängt Radix das Element sofort aus.
+        el.style.animation = 'none';
+        if (overlay) overlay.style.animation = 'none';
         onCloseRef.current();
-        const o = overlayEl();
-        if (o) { o.style.transition = ''; o.style.opacity = ''; }
+        // Bewusst KEIN Zurücksetzen von transform/opacity: Beides würde das
+        // Sheet für einen Frame wieder sichtbar machen. Beim nächsten Öffnen
+        // erzeugt Radix ohnehin frische Elemente.
       }, 180);
       return;
     }
@@ -128,11 +168,7 @@ function createDragApi(
     el.style.transition = 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)';
     paint(0);
     if (overlay) { overlay.style.transition = 'opacity 260ms linear'; overlay.style.opacity = ''; }
-    window.setTimeout(() => {
-      if (elRef.current) elRef.current.style.transition = '';
-      const o = overlayEl();
-      if (o) o.style.transition = '';
-    }, 270);
+    window.setTimeout(endDrag, 270);
     d.offset = 0;
   }
 
@@ -159,9 +195,20 @@ function createDragApi(
 
   /** Touch-Listener anhängen; gibt die Abhäng-Funktion zurück. */
   function attach(el: HTMLDivElement) {
+    // Reste eines vorherigen Schließvorgangs nur entfernen, wenn das Sheet
+    // gerade WIRKLICH offen ist. Beim Schließen hängt Radix die Ref im selben
+    // Commit neu an – ein bedingungsloses Zurücksetzen würde das bereits nach
+    // unten geschobene Sheet für einen Moment zurückspringen lassen (genau das
+    // sichtbare Flackern am Ende der Animation).
+    if (el.getAttribute('data-state') === 'open') {
+      el.style.animation = '';
+      el.style.transition = '';
+      el.style.transform = '';
+    }
+
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
-      el.style.transition = '';
+      beginDrag();
       d.active = true;
       d.decided = false;
       d.fromHandle = !!(e.target instanceof HTMLElement && e.target.closest('[data-sheet-grabber]'));
@@ -186,6 +233,7 @@ function createDragApi(
         const atTop = !scroller || scroller.scrollTop <= 0;
         if (!(dy > 0 && (d.fromHandle || atTop))) {
           d.active = false;
+          endDrag();
           return;
         }
       }
@@ -211,7 +259,7 @@ function createDragApi(
   /** Maus-Unterstützung – nur am Griff, damit Textauswahl möglich bleibt. */
   function onGrabberMouseDown(e: React.MouseEvent) {
     e.preventDefault();
-    if (elRef.current) elRef.current.style.transition = '';
+    beginDrag();
     d.active = true;
     d.decided = true;
     d.fromHandle = true;
