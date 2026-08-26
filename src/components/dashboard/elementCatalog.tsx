@@ -126,6 +126,29 @@ export const ALL_ITEMS: SidebarItemDef[] = [
 ];
 
 /** Alle Sektionen in Katalog-Reihenfolge. */
+/**
+ * Bausteine, die einen Betrieb voraussetzen. Wer angestellt ist, hat keine
+ * Umsatzsteuer, keine Kleinunternehmergrenze und legt auch nichts für die
+ * Einkommensteuer zurück – das erledigt der Lohnsteuerabzug.
+ */
+export const SELBSTSTAENDIGEN_WIDGETS: NodeType[] = [
+  'kpi-ust-jahr',
+  'kpi-steuerruecklage',
+  'kpi-kleinunternehmer',
+  'kpi-marge',
+  'kpi-gesamt-marge',
+  'kpi-stille-reserven',
+  'kpi-kundenkonzentration',
+  'card-partner',
+  'list-top-partner',
+];
+
+/** Katalog für den jeweiligen Status. */
+export function itemsFor(rechtsform: string, items: SidebarItemDef[]): SidebarItemDef[] {
+  if (rechtsform !== 'angestellt') return items;
+  return items.filter((i) => !SELBSTSTAENDIGEN_WIDGETS.includes(i.type));
+}
+
 export const CATALOG_SECTIONS: string[] = Array.from(new Set(ALL_ITEMS.map((i) => i.section)));
 
 /** Nur echte Widgets (ohne Layout-Container) – für das Mobile-Dashboard. */

@@ -105,7 +105,10 @@ export default function GehaltPage() {
   };
 
   return (
-    <div className="space-y-8 pb-6">
+    // Am Rechner in einer Spalte von Lesebreite statt über die ganze Fläche:
+    // Zeilen mit Beschriftung links und Wert rechts werden sonst zu Balken,
+    // bei denen zwischen beidem ein halber Bildschirm liegt.
+    <div className="mx-auto max-w-3xl space-y-8 pb-6">
       <PageHeader
         title="Gehalt"
         subtitle="Was jeden Monat kommt – und was einmalig dazukam"

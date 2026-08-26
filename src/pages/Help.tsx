@@ -18,6 +18,7 @@ import {
   Sparkles,
   ArrowLeft,
   GraduationCap,
+  Wallet,
   TrendingUp,
   Shield,
   Calculator,
@@ -54,6 +55,71 @@ interface HelpArticle {
 }
 
 const ARTICLES: HelpArticle[] = [
+  {
+    id: 'angestellt',
+    title: 'Als Angestellter: was sich lohnt zu sammeln',
+    icon: Wallet,
+    category: 'Steuern',
+    keywords: ['angestellt', 'arbeitnehmer', 'werbungskosten', 'gehalt', 'lohn', 'anlage n', 'pendler', 'homeoffice', 'handwerker', '35a'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Wer angestellt ist, führt keinen Betrieb: Es gibt keine Umsatzsteuer und keine
+          Betriebsausgaben. Für die Steuererklärung zählen vier andere Töpfe – und für alle vier
+          gilt: ohne Beleg kein Abzug.
+        </p>
+
+        <Section title="1. Werbungskosten (Anlage N)">
+          <p className="text-sm text-muted-foreground mb-2">
+            Alles rund um den Job. Das Finanzamt zieht ohnehin <strong>1.230 €</strong> pauschal ab –
+            sammeln lohnt sich also erst, wenn du darüber kommst. Der Steuerbericht zeigt, wie weit
+            du bist.
+          </p>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Weg zur Arbeit</strong> – 0,38 € je Entfernungskilometer, ab dem ersten Kilometer. Einfache Strecke, nicht Hin- und Rückweg.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Homeoffice</strong> – 6 € je Tag, höchstens 210 Tage (1.260 €). Am selben Tag entweder Pendeln oder Homeoffice, nicht beides.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Arbeitsmittel</strong> – Laptop, Werkzeug, Fachbuch, Arbeitskleidung. Bis 952 € brutto sofort, teurer über die Nutzungsdauer.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Fortbildung, Bewerbung, Gewerkschaft</strong> und nicht erstattete Dienstreisen.</span></li>
+          </ul>
+        </Section>
+
+        <Section title="2. Haushalt und Handwerker (§ 35a)">
+          <p className="text-sm text-muted-foreground">
+            Der stärkste Hebel: <strong>20 % gehen direkt von der Steuer ab</strong>, nicht bloß vom
+            Einkommen. Haushaltsnahe Dienstleistungen bis 20.000 € im Jahr (also bis 4.000 €
+            Ersparnis), Handwerker bis 6.000 € (1.200 €).
+          </p>
+          <Tip>
+            Nur der <strong>Arbeitsanteil</strong> zählt, Material nicht – und die Rechnung muss
+            überwiesen sein. Bar bezahlt erkennt das Finanzamt nicht an.
+          </Tip>
+        </Section>
+
+        <Section title="3. Sonderausgaben">
+          <p className="text-sm text-muted-foreground">
+            Kranken-, Pflege- und Rentenversicherung, Haftpflicht, Berufsunfähigkeit,
+            Kinderbetreuung, Spenden, Kirchensteuer.
+          </p>
+        </Section>
+
+        <Section title="4. Außergewöhnliche Belastungen">
+          <p className="text-sm text-muted-foreground">
+            Arzt, Zahnersatz, Brille, Pflege. Sie wirken erst über der <em>zumutbaren Belastung</em> –
+            je nach Einkommen 1 bis 7 %. Deshalb lohnt es sich, größere Behandlungen in ein Jahr zu
+            legen.
+          </p>
+        </Section>
+
+        <Section title="Und das Gehalt?">
+          <p className="text-sm text-muted-foreground">
+            Dafür gibt es keinen Beleg – es kommt jeden Monat von selbst. Es steht deshalb unter
+            <strong> Gehalt</strong>: einmal eintragen, ab wann du wie viel bekommst. Eine Erhöhung
+            ist eine neue Stufe, Sonderzahlungen wie das 13. Gehalt stehen daneben.
+          </p>
+        </Section>
+      </div>
+    ),
+  },
   {
     id: 'overview',
     title: 'Erste Schritte – Übersicht',

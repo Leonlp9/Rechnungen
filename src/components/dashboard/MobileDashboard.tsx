@@ -37,7 +37,8 @@ import type { DashboardNode, ElementType, NodeType } from '@/types/dashboard';
 import { genId, isGridType } from '@/types/dashboard';
 import { DashboardElementNode, ELEMENT_LABELS } from './DashboardElementNode';
 import { DashboardErrorBoundary } from './DashboardErrorBoundary';
-import { WIDGET_ITEMS } from './elementCatalog';
+import { WIDGET_ITEMS, itemsFor } from './elementCatalog';
+import { useAppStore } from '@/store';
 
 // ─── Normalisiertes Mobile-Modell ────────────────────────────────────────────
 //
@@ -717,24 +718,26 @@ function ElementPicker({
   const [search, setSearch] = useState('');
   const [added, setAdded] = useState<string | null>(null);
   const { contentRef, onGrabberMouseDown } = useSheetDrag(onClose);
+  const rechtsform = useAppStore((s) => s.rechtsform);
 
   const sections = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const verfuegbar = itemsFor(rechtsform, WIDGET_ITEMS);
     const filtered = q
-      ? WIDGET_ITEMS.filter(
+      ? verfuegbar.filter(
           (i) =>
             i.label.toLowerCase().includes(q) ||
             i.description?.toLowerCase().includes(q) ||
             i.section.toLowerCase().includes(q),
         )
-      : WIDGET_ITEMS;
+      : verfuegbar;
     const map = new Map<string, typeof WIDGET_ITEMS>();
     for (const item of filtered) {
       if (!map.has(item.section)) map.set(item.section, []);
       map.get(item.section)!.push(item);
     }
     return [...map.entries()];
-  }, [search]);
+  }, [search, rechtsform]);
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>

@@ -566,20 +566,43 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
 
                   <FormGroup
                     title={mobileCurrency === 'EUR' ? 'Beträge' : `Beträge in ${mobileCurrency}`}
-                    footer="Netto + USt muss dem Brutto entsprechen. Gebühren stehen daneben und zählen nicht hinein."
+                    footer={angestellt ? 'Der Betrag, der auf dem Beleg steht.' : 'Netto + USt muss dem Brutto entsprechen. Gebühren stehen daneben und zählen nicht hinein.'}
                   >
-                    <FormRow label="Netto">
-                      <input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} className={FIELD} />
-                    </FormRow>
-                    <FormRow label="USt">
-                      <input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} className={FIELD} />
-                    </FormRow>
-                    <FormRow label="Brutto">
-                      <input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} className={FIELD} />
-                    </FormRow>
-                    <FormRow label="Gebühren">
-                      <input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} className={FIELD} />
-                    </FormRow>
+                    {/* Angestellte haben mit Netto und Umsatzsteuer nichts zu
+                        tun – für sie zählt der Betrag, der auf dem Beleg
+                        steht. Netto zieht dann einfach mit. */}
+                    {angestellt ? (
+                      <FormRow label="Betrag">
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={FIELD}
+                          {...form.register('brutto', {
+                            valueAsNumber: true,
+                            onChange: (e) => {
+                              const wert = Number(e.target.value) || 0;
+                              form.setValue('netto', wert, { shouldDirty: true });
+                              form.setValue('ust', 0, { shouldDirty: true });
+                            },
+                          })}
+                        />
+                      </FormRow>
+                    ) : (
+                      <>
+                        <FormRow label="Netto">
+                          <input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} className={FIELD} />
+                        </FormRow>
+                        <FormRow label="USt">
+                          <input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} className={FIELD} />
+                        </FormRow>
+                        <FormRow label="Brutto">
+                          <input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} className={FIELD} />
+                        </FormRow>
+                        <FormRow label="Gebühren">
+                          <input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} className={FIELD} />
+                        </FormRow>
+                      </>
+                    )}
                     <FormRow label="Währung">
                       <CurrencySelect
                         value={form.watch('currency')}

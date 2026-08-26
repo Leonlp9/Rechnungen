@@ -110,6 +110,15 @@ interface AppState {
    */
   pageHeaderMounted: boolean;
   setPageHeaderMounted: (mounted: boolean) => void;
+  /** Einfache Entfernung zur Arbeit in km – Grundlage der Pendlerpauschale */
+  pendlerKm: number;
+  setPendlerKm: (km: number) => void;
+  /** Tage im Büro im Steuerjahr */
+  pendlerTage: number;
+  setPendlerTage: (tage: number) => void;
+  /** Tage im Homeoffice im Steuerjahr */
+  homeofficeTage: number;
+  setHomeofficeTage: (tage: number) => void;
   showGlossarTooltips: boolean;
   setShowGlossarTooltips: (v: boolean) => void;
 }
@@ -197,12 +206,18 @@ export const useAppStore = create<AppState>()(
       setShowAiChat: (showAiChat) => set({ showAiChat }),
       pageHeaderMounted: false,
       setPageHeaderMounted: (pageHeaderMounted) => set({ pageHeaderMounted }),
+      pendlerKm: 0,
+      setPendlerKm: (pendlerKm) => set({ pendlerKm }),
+      pendlerTage: 0,
+      setPendlerTage: (pendlerTage) => set({ pendlerTage }),
+      homeofficeTage: 0,
+      setHomeofficeTage: (homeofficeTage) => set({ homeofficeTage }),
       showGlossarTooltips: true,
       setShowGlossarTooltips: (showGlossarTooltips) => set({ showGlossarTooltips }),
     }),
     {
       name: 'Klevr-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, themeMode: state.themeMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, themeMode: state.themeMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips, pendlerKm: state.pendlerKm, pendlerTage: state.pendlerTage, homeofficeTage: state.homeofficeTage }),
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as object), drafts: [] };
         // Ein entferntes Theme im gespeicherten Zustand würde sonst eine

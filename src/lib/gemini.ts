@@ -3,6 +3,7 @@ import { keyringLoad, keyringSave, keyringDelete } from '@/lib/keyring';
 import type { GeminiResult} from '@/types';
 import {HELP_CONTENT_TEXT} from '@/lib/helpContent';
 import { CURRENCY_CODES, normalizeCurrency } from '@/lib/currency';
+import { useAppStore } from '@/store';
 
 // ─── Beträge geradeziehen ────────────────────────────────────────────────────
 //
@@ -602,6 +603,113 @@ ${userPrompt.trim()}
   return {name: parsed.name ?? 'KI-Template', elements};
 }
 
+/**
+ * Der Kategorienteil des Prompts. Angestellte bekommen eine völlig andere
+ * Liste – Betriebsausgaben gibt es bei ihnen nicht, dafür Werbungskosten,
+ * Sonderausgaben und die beiden Haushaltskategorien des § 35a.
+ */
+function categoryRules(): string {
+  const angestellt = useAppStore.getState().rechtsform === 'angestellt';
+  if (angestellt) return EMPLOYEE_CATEGORY_RULES;
+  return BUSINESS_CATEGORY_RULES;
+}
+
+const EMPLOYEE_CATEGORY_RULES = `=== REGELN FÜR "suggested_category" (ANGESTELLTER) ===
+Der Benutzer ist angestellt – es gibt KEINEN Betrieb, keine Umsatzsteuer und
+keine Betriebsausgaben. Wähle ausschließlich aus diesen Kategorien:
+
+EINNAHMEN (NUR wenn type="einnahme"):
+- "gehalt": Lohn- oder Gehaltsabrechnung, monatliche Zahlung vom Arbeitgeber.
+- "sonderzahlung": 13. Gehalt, Bonus, Urlaubsgeld, Prämie, Nachzahlung.
+- "lohnersatz": Krankengeld, Elterngeld, Arbeitslosengeld, Kurzarbeitergeld.
+- "erstattungen": Rückerstattungen und Gutschriften an den Benutzer.
+- "sonstige_einnahmen": Alles andere.
+
+AUSGABEN (NUR wenn type="ausgabe"):
+- "wk_pendeln": Fahrkarten, Monatskarte, Tankbelege für den Arbeitsweg.
+- "wk_homeoffice": Belege rund ums Arbeiten zu Hause.
+- "wk_arbeitsmittel": Laptop, Werkzeug, Fachbuch, Arbeitskleidung, Büromaterial für den Job.
+- "wk_fortbildung": Kurse, Seminare, Prüfungsgebühren, Fachliteratur.
+- "wk_bewerbung": Bewerbungsmappen, Fahrten zu Vorstellungsgesprächen.
+- "wk_berufsverband": Gewerkschaft, Berufsverband, Kammerbeitrag.
+- "wk_dienstreise": Dienstreise, die der Arbeitgeber nicht erstattet hat.
+- "wk_doppelter_haushalt": Zweitwohnung am Arbeitsort, Familienheimfahrten.
+- "wk_umzug": Umzug aus beruflichem Anlass.
+- "wk_sonstige": Sonstige Kosten rund um den Job (z.B. Kontoführung, Bewerbungsfotos).
+- "sa_vorsorge": Kranken-, Pflege-, Renten- oder Arbeitslosenversicherung, Rürup, Riester.
+- "sa_versicherungen": Haftpflicht, Berufsunfähigkeit, Unfall, Rechtsschutz.
+- "sa_kinderbetreuung": Kita, Hort, Tagesmutter.
+- "agb_krankheit": Arzt, Zahnarzt, Brille, Medikamente, Zuzahlungen.
+- "agb_pflege": Pflegeheim, Pflegedienst, Pflegehilfsmittel.
+- "agb_sonstige": Beerdigung, Kur, Behinderung, sonstige zwangsläufige Kosten.
+- "hh_dienstleistung": Putzhilfe, Gartenpflege, Winterdienst, Hausmeister, Betreuung im Haushalt.
+- "hh_handwerker": Handwerker in der eigenen Wohnung/im Haus – Reparatur, Wartung, Renovierung, Schornsteinfeger.
+- "privat": Rein privater Kauf ohne steuerliche Wirkung.
+- "sonstiges": Passt in keine andere Kategorie.
+
+INFO (NUR wenn type="info"):
+- "vertraege": Verträge, Bescheinigungen, Informationsschreiben.
+- "sonstiges": Sonstige Dokumente ohne Geldfluss.
+
+`;
+
+const BUSINESS_CATEGORY_RULES = `=== REGELN FÜR "suggested_category" ===
+Wähle die passendste Kategorie – WICHTIG: Die Kategorie MUSS zum Typ passen!
+
+EINNAHMEN (NUR wenn type="einnahme"):
+- "umsatz_pflichtig": Standard-Umsätze mit 19% oder 7% MwSt (Rechnungen, Honorare, Dienstleistungen).
+- "umsatz_steuerfrei": Einnahmen ohne MwSt (Kleinunternehmer §19 UStG, steuerfreie Leistungen).
+- "reverse_charge": Reverse Charge (§ 13b UStG) – Einnahmen von ausländischen Plattformen (z.B. Twitch, YouTube/Google Ireland, Amazon KDP). Netto-Rechnung, Steuerschuldumkehr.
+- "ust_erstattung": Geld vom Finanzamt zurück (Umsatzsteuererstattung).
+- "privateinlage": Privates Geld ins Unternehmen eingelegt (kein steuerpflichtiger Gewinn).
+- "anlagenverkauf": Erlös aus Verkauf von Firmengeräten, Möbeln, Fahrzeugen etc.
+- "erstattungen": Rückerstattungen, Gutschriften, Auslagenerstattungen an den Benutzer (durchlaufender Posten).
+- "sponsoring": Sponsoring / Werbeleistung – Zahlungen von Sponsoren für Werbeplatzierung, Product Placement.
+- "affiliate": Affiliate / Vermittlungsprovision – Provisionen aus Affiliate-Links, Empfehlungsprogrammen.
+- "donations_tips": Donations / Tips (Streaming) – freiwillige Zuschauerzahlungen (Twitch Bits, YouTube Super Chat, Ko-fi, PayPal.me). Sind Betriebseinnahmen!
+- "sachzuwendungen": Sachzuwendungen – erhaltene Produkte/PR-Samples, Marktwert als Einnahme ansetzen.
+- "sonstige_einnahmen": Alle anderen Einnahmen (Crowdfunding, sonstige Erträge).
+
+BETRIEBSAUSGABEN (NUR wenn type="ausgabe"):
+- "anlagevermoegen_afa": Anschaffungen > 800€ netto, die über Jahre abgeschrieben werden (z.B. Laptop, Maschinen, Möbel über 800€).
+- "gwg": Geringwertige Wirtschaftsgüter ≤ 800€ netto (z.B. Monitor, Tastatur, Bürostuhl, Kleingeräte).
+- "software_abos": Software-Lizenzen, SaaS-Abos, Cloud-Dienste (Adobe, GitHub, Hosting, Microsoft 365).
+- "fremdleistungen": Leistungen von Dritten/Subunternehmern (Freelancer, Agentur, externer Entwickler).
+- "buerobedarf": Büromaterial, Druckerpatronen, Papier, Kleinmaterial.
+- "reisekosten": Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen, Spesen, Verpflegungsmehraufwand.
+- "bewirtungskosten": Geschäftliche Bewirtung – Restaurantbesuche mit Geschäftspartnern, nur 70 % absetzbar. NICHT für private Restaurantbesuche (→ privat)!
+- "marketing": Werbung, Social-Media-Anzeigen, Drucksachen, Messen, PR.
+- "weiterbildung": Kurse, Seminare, Fachbücher, Online-Kurse, Konferenztickets.
+- "miete": Büromiete, Co-Working, Lagermiete, Raumkosten.
+- "versicherungen_betrieb": Betriebliche Versicherungen (Haftpflicht, Berufsunfähigkeit, Inventar).
+- "fahrzeugkosten": KFZ-Kosten, Benzin, Leasing, Reparatur für betriebliche Fahrzeuge.
+- "kommunikation": Telefon, Mobilfunk, Internet, Festnetz für den Betrieb.
+
+SONDERAUSGABEN (NUR wenn type="ausgabe"):
+- "spenden": NUR wenn der Benutzer eine Spende ZAHLT an eine gemeinnützige Organisation. NICHT für Twitch-Subs oder Gaming!
+- "krankenkasse": Beiträge zur gesetzlichen oder privaten Krankenversicherung, Pflegeversicherung.
+- "sozialversicherung": Rentenversicherung, Altersvorsorge, Berufsgenossenschaft.
+
+PRIVAT (NUR wenn type="ausgabe"):
+- "privat": Rein private Ausgaben (Twitch-Subs, Netflix, Spotify, private Einkäufe, Restaurantbesuche privat). NICHT steuerlich relevant.
+- "privatentnahme": Geldentnahme aus dem Betrieb für private Zwecke.
+
+INFO (NUR wenn type="info"):
+- "vertraege": Verträge, Vereinbarungen, AGBs, Bestätigungen, Informationsschreiben.
+- "sonstiges": Alle anderen Info-Dokumente.
+
+SONSTIGES:
+- "sonstiges": Ausgaben, die in keine andere Ausgaben-Kategorie passen.
+
+WICHTIG:
+- Verträge/Vereinbarungen → type="info", suggested_category="vertraege"
+- Erhaltene Spenden/Donations → type="einnahme", suggested_category="sonstige_einnahmen"
+- Gezahlte Spenden → type="ausgabe", suggested_category="spenden"
+- Krankenkasse/Sozialversicherung → type="ausgabe", suggested_category="krankenkasse" oder "sozialversicherung"
+- Beträge als Zahlen (nicht Strings). Wenn kein Betrag erkennbar → netto=0, fee=0, ust=0, brutto=0.
+- Bei Verträgen ohne konkreten Rechnungsbetrag: setze Beträge auf 0.
+`;
+
 export async function analyzeInvoicePdf(base64: string, recentInvoices?: import('@/types').Invoice[]): Promise<GeminiResult> {
   const consented = await ensureGeminiConsent();
   if (!consented) throw new Error('KI-Nutzung abgebrochen – ohne Zustimmung werden keine Daten an Google übertragen.');
@@ -754,61 +862,7 @@ Beispiel Rechnung mit MwSt:
 - "ausgabe": Der Benutzer BEZAHLT etwas (z.B. Rechnung von einem Lieferanten/Dienstleister).
 - "info": Kein Geldfluss – z.B. Verträge, AGBs, Bestätigungen, Informationsschreiben, Vertragsdokumente.
 
-=== REGELN FÜR "suggested_category" ===
-Wähle die passendste Kategorie – WICHTIG: Die Kategorie MUSS zum Typ passen!
-
-EINNAHMEN (NUR wenn type="einnahme"):
-- "umsatz_pflichtig": Standard-Umsätze mit 19% oder 7% MwSt (Rechnungen, Honorare, Dienstleistungen).
-- "umsatz_steuerfrei": Einnahmen ohne MwSt (Kleinunternehmer §19 UStG, steuerfreie Leistungen).
-- "reverse_charge": Reverse Charge (§ 13b UStG) – Einnahmen von ausländischen Plattformen (z.B. Twitch, YouTube/Google Ireland, Amazon KDP). Netto-Rechnung, Steuerschuldumkehr.
-- "ust_erstattung": Geld vom Finanzamt zurück (Umsatzsteuererstattung).
-- "privateinlage": Privates Geld ins Unternehmen eingelegt (kein steuerpflichtiger Gewinn).
-- "anlagenverkauf": Erlös aus Verkauf von Firmengeräten, Möbeln, Fahrzeugen etc.
-- "erstattungen": Rückerstattungen, Gutschriften, Auslagenerstattungen an den Benutzer (durchlaufender Posten).
-- "sponsoring": Sponsoring / Werbeleistung – Zahlungen von Sponsoren für Werbeplatzierung, Product Placement.
-- "affiliate": Affiliate / Vermittlungsprovision – Provisionen aus Affiliate-Links, Empfehlungsprogrammen.
-- "donations_tips": Donations / Tips (Streaming) – freiwillige Zuschauerzahlungen (Twitch Bits, YouTube Super Chat, Ko-fi, PayPal.me). Sind Betriebseinnahmen!
-- "sachzuwendungen": Sachzuwendungen – erhaltene Produkte/PR-Samples, Marktwert als Einnahme ansetzen.
-- "sonstige_einnahmen": Alle anderen Einnahmen (Crowdfunding, sonstige Erträge).
-
-BETRIEBSAUSGABEN (NUR wenn type="ausgabe"):
-- "anlagevermoegen_afa": Anschaffungen > 800€ netto, die über Jahre abgeschrieben werden (z.B. Laptop, Maschinen, Möbel über 800€).
-- "gwg": Geringwertige Wirtschaftsgüter ≤ 800€ netto (z.B. Monitor, Tastatur, Bürostuhl, Kleingeräte).
-- "software_abos": Software-Lizenzen, SaaS-Abos, Cloud-Dienste (Adobe, GitHub, Hosting, Microsoft 365).
-- "fremdleistungen": Leistungen von Dritten/Subunternehmern (Freelancer, Agentur, externer Entwickler).
-- "buerobedarf": Büromaterial, Druckerpatronen, Papier, Kleinmaterial.
-- "reisekosten": Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen, Spesen, Verpflegungsmehraufwand.
-- "bewirtungskosten": Geschäftliche Bewirtung – Restaurantbesuche mit Geschäftspartnern, nur 70 % absetzbar. NICHT für private Restaurantbesuche (→ privat)!
-- "marketing": Werbung, Social-Media-Anzeigen, Drucksachen, Messen, PR.
-- "weiterbildung": Kurse, Seminare, Fachbücher, Online-Kurse, Konferenztickets.
-- "miete": Büromiete, Co-Working, Lagermiete, Raumkosten.
-- "versicherungen_betrieb": Betriebliche Versicherungen (Haftpflicht, Berufsunfähigkeit, Inventar).
-- "fahrzeugkosten": KFZ-Kosten, Benzin, Leasing, Reparatur für betriebliche Fahrzeuge.
-- "kommunikation": Telefon, Mobilfunk, Internet, Festnetz für den Betrieb.
-
-SONDERAUSGABEN (NUR wenn type="ausgabe"):
-- "spenden": NUR wenn der Benutzer eine Spende ZAHLT an eine gemeinnützige Organisation. NICHT für Twitch-Subs oder Gaming!
-- "krankenkasse": Beiträge zur gesetzlichen oder privaten Krankenversicherung, Pflegeversicherung.
-- "sozialversicherung": Rentenversicherung, Altersvorsorge, Berufsgenossenschaft.
-
-PRIVAT (NUR wenn type="ausgabe"):
-- "privat": Rein private Ausgaben (Twitch-Subs, Netflix, Spotify, private Einkäufe, Restaurantbesuche privat). NICHT steuerlich relevant.
-- "privatentnahme": Geldentnahme aus dem Betrieb für private Zwecke.
-
-INFO (NUR wenn type="info"):
-- "vertraege": Verträge, Vereinbarungen, AGBs, Bestätigungen, Informationsschreiben.
-- "sonstiges": Alle anderen Info-Dokumente.
-
-SONSTIGES:
-- "sonstiges": Ausgaben, die in keine andere Ausgaben-Kategorie passen.
-
-WICHTIG:
-- Verträge/Vereinbarungen → type="info", suggested_category="vertraege"
-- Erhaltene Spenden/Donations → type="einnahme", suggested_category="sonstige_einnahmen"
-- Gezahlte Spenden → type="ausgabe", suggested_category="spenden"
-- Krankenkasse/Sozialversicherung → type="ausgabe", suggested_category="krankenkasse" oder "sozialversicherung"
-- Beträge als Zahlen (nicht Strings). Wenn kein Betrag erkennbar → netto=0, fee=0, ust=0, brutto=0.
-- Bei Verträgen ohne konkreten Rechnungsbetrag: setze Beträge auf 0.
+${categoryRules()}
 - Kategorien für Einnahmen DÜRFEN NICHT für Ausgaben verwendet werden und umgekehrt!`;
 
   const body = {

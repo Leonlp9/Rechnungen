@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { DashboardElementNode } from './DashboardElementNode';
-import { ALL_ITEMS, type SidebarItemDef } from './elementCatalog';
+import { ALL_ITEMS, itemsFor, type SidebarItemDef } from './elementCatalog';
+import { useAppStore } from '@/store';
 
 // ─── Sidebar Draggable Item ──────────────────────────────────────────────────
 
@@ -139,16 +140,21 @@ export function DashboardEditSidebar({ onClose, onReset }: DashboardEditSidebarP
   const [search, setSearch] = useState('');
   const [previewType, setPreviewType] = useState<ElementType | null>(null);
 
+  const rechtsform = useAppStore((s) => s.rechtsform);
+
   const filtered = useMemo(() => {
+    // Bausteine, die einen Betrieb voraussetzen, tauchen für Angestellte
+    // gar nicht erst auf.
+    const verfuegbar = itemsFor(rechtsform, ALL_ITEMS);
     const q = search.trim().toLowerCase();
-    if (!q) return ALL_ITEMS;
-    return ALL_ITEMS.filter(
+    if (!q) return verfuegbar;
+    return verfuegbar.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.description?.toLowerCase().includes(q) ||
         item.section.toLowerCase().includes(q),
     );
-  }, [search]);
+  }, [search, rechtsform]);
 
   // Group filtered items by section
   const sections = useMemo(() => {

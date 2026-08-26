@@ -33,11 +33,12 @@ function listSummary(list: AppList): string {
 }
 
 /** Erstellt immer vorhandenen globalen Finanz-Kontext aus allen Belegen */
-function buildGlobalContext(invoices: Invoice[], steuerregelung: string, branchenprofil: string, selectedYear: number): string {
+function buildGlobalContext(invoices: Invoice[], steuerregelung: string, branchenprofil: string, selectedYear: number, rechtsform: string): string {
   if (invoices.length === 0) {
     return `═══ GLOBALE ÜBERSICHT ═══
 Steuerregelung: ${steuerregelung === 'kleinunternehmer' ? 'Kleinunternehmer (§19 UStG)' : 'Regelbesteuerung'}
 Branchenprofil: ${branchenprofil}
+Rechtsform: ${rechtsform === 'angestellt' ? 'Angestellt – kein Betrieb, keine Umsatzsteuer. Belege dienen der Steuererklärung: Werbungskosten (Anlage N), Sonderausgaben, außergewöhnliche Belastungen und § 35a (Haushalt/Handwerker). Das Gehalt steht nicht als Beleg, sondern unter „Gehalt“.' : rechtsform}
 Keine Belege vorhanden.`;
   }
 
@@ -90,6 +91,7 @@ Keine Belege vorhanden.`;
   return `═══ GLOBALE ÜBERSICHT (immer aktuell) ═══
 Steuerregelung: ${steuerregelung === 'kleinunternehmer' ? 'Kleinunternehmer (§19 UStG)' : 'Regelbesteuerung'}
 Branchenprofil: ${branchenprofil}
+Rechtsform: ${rechtsform === 'angestellt' ? 'Angestellt – kein Betrieb, keine Umsatzsteuer. Belege dienen der Steuererklärung: Werbungskosten (Anlage N), Sonderausgaben, außergewöhnliche Belastungen und § 35a (Haushalt/Handwerker). Das Gehalt steht nicht als Beleg, sondern unter „Gehalt“.' : rechtsform}
 Ausgewähltes Jahr: ${currentYear}
 Gesamtbelege (alle Zeit): ${invoices.length}
 Verfügbare Jahre: ${years.join(', ')}
@@ -127,6 +129,7 @@ export function useChatContext(): string {
   const selectedYear = useAppStore((s) => s.selectedYear);
   const steuerregelung = useAppStore((s) => s.steuerregelung);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const rechtsform = useAppStore((s) => s.rechtsform);
   const { visibleInvoiceIds, useAllInvoicesForContext } = useChatStore();
   const templates = useTemplateStore((s) => s.templates);
   const lists = useListsStore((s) => s.lists);
@@ -134,7 +137,7 @@ export function useChatContext(): string {
   const activeAccount = useGmailStore(selectActiveAccount);
   const selectedEmail = useGmailStore((s) => s.selectedEmail);
 
-  const globalCtx = buildGlobalContext(invoices, steuerregelung, branchenprofil, selectedYear);
+  const globalCtx = buildGlobalContext(invoices, steuerregelung, branchenprofil, selectedYear, rechtsform);
 
   // Dashboard
   if (pathname === '/') {

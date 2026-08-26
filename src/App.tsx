@@ -17,6 +17,7 @@ import CustomersPage from "@/pages/Customers";
 import BankImportPage from "@/pages/BankImport";
 import SteuerbrichtPage from "@/pages/Steuerbericht";
 import GehaltPage from "@/pages/Gehalt";
+import SteuerberichtAngestelltPage from "@/pages/SteuerberichtAngestellt";
 import ProjectsPage from "@/pages/Projects";
 import ProjectDetailPage from "@/pages/ProjectDetail";
 import RevisionsprotokollPage from "@/pages/Revisionsprotokoll";
@@ -38,6 +39,15 @@ import { verifyAuditIntegrity, getAllInvoices } from "@/lib/db";
 import { countPendingConversions, ensureCurrencyConversions } from "@/lib/currency";
 import "./App.css";
 
+/**
+ * Der Steuerbericht sieht für Angestellte völlig anders aus – EÜR und
+ * Umsatzsteuer gibt es dort nicht. Deshalb zwei Seiten hinter einer Adresse.
+ */
+function SteuerberichtRoute() {
+  const angestellt = useAppStore((s) => s.rechtsform === 'angestellt');
+  return angestellt ? <SteuerberichtAngestelltPage /> : <SteuerbrichtPage />;
+}
+
 const router = createBrowserRouter([
   {
     element: <AppLayout />,
@@ -54,7 +64,7 @@ const router = createBrowserRouter([
       { path: "/customers", element: <CustomersPage /> },
       { path: "/bank-import", element: <BankImportPage /> },
       { path: "/gehalt", element: <GehaltPage /> },
-      { path: "/steuerbericht", element: <SteuerbrichtPage /> },
+      { path: "/steuerbericht", element: <SteuerberichtRoute /> },
       { path: "/projects", element: <ProjectsPage /> },
       { path: "/projects/:id", element: <ProjectDetailPage /> },
       { path: "/revisionsprotokoll", element: <RevisionsprotokollPage /> },
