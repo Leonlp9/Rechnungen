@@ -109,21 +109,22 @@ export function TodoList({ data, onChange, listName }: Props) {
     <>
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b border-border px-6 py-4 shrink-0">
-        <h2 className="text-xl font-semibold">{listName}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
+      {/* Der Listenname steht am Handy schon in der Leiste darüber */}
+      <div className="shrink-0 border-b border-border px-4 py-3 md:px-6 md:py-4">
+        <h2 className="hidden truncate text-xl font-semibold md:block">{listName}</h2>
+        <p className="text-xs text-muted-foreground md:mt-0.5">
           {pending.length} offen · {done.length} erledigt
         </p>
       </div>
 
       {/* Input */}
-      <div className="px-6 py-3 border-b border-border shrink-0 space-y-2">
+      <div className="shrink-0 space-y-2 border-b border-border px-4 py-3 md:px-6">
         <div className="flex gap-2">
           <Input
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Neuer Eintrag… (Strg+V für Bilder)"
+            placeholder="Neuer Eintrag …"
             onKeyDown={(e) => e.key === 'Enter' && addItem()}
             onPaste={handleInputPaste}
             className="flex-1"

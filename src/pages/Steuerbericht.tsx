@@ -17,6 +17,16 @@ import {
   berechneProRataAfa, getNutzungsdauer, NUTZUNGSDAUER_LABELS,
 } from '@/lib/afa';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ChevronDown } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -73,6 +83,7 @@ export default function SteuerbrichtPage() {
   const selectedYear = useAppStore((s) => s.selectedYear);
   const setSelectedYear = useAppStore((s) => s.setSelectedYear);
   const privacyMode = useAppStore((s) => s.privacyMode);
+  const isMobile = useIsMobile();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
   const grundfreibetrag = useAppStore((s) => s.grundfreibetrag);
   const kmPauschale = useAppStore((s) => s.kmPauschale);
@@ -182,7 +193,7 @@ export default function SteuerbrichtPage() {
 
   if (loading) {
     return (
-      <div className="p-0 md:p-6 space-y-4">
+      <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
         <div className="grid grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
@@ -192,8 +203,225 @@ export default function SteuerbrichtPage() {
     );
   }
 
+  // ── Handy ──
+  // Vier Tabellen mit je drei bis sechs Spalten passen auf ein Handy nicht:
+  // Man las Zahlenkolonnen, die zur Hälfte abgeschnitten waren. Dieselben
+  // Werte hier als Gruppenlisten – Bezeichnung links, Betrag rechts, Details
+  // in der zweiten Zeile.
+  if (isMobile) {
+    const amount = (value: number, tone?: string) => (
+      <span className={tone}>{fmtCurrency(value, privacyMode)}</span>
+    );
+
+    return (
+      <div className="space-y-7">
+        <PageHeader
+          title="Steuerbericht"
+          subtitle={`Einnahmen-Überschuss-Rechnung ${selectedYear}`}
+          actions={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1">
+                  {selectedYear}
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {years.map((y) => (
+                  <DropdownMenuItem key={y} onSelect={() => setSelectedYear(y)}>
+                    {y}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
+        />
+
+        <ListGroup
+          title="Ergebnis"
+          footer="Steuerliche Basis inklusive AfA-Korrektur – die Cash-Werte darunter weichen bewusst ab."
+        >
+          <ListRow
+            label="Betriebseinnahmen"
+            hint="Netto, ohne Umsatzsteuer"
+            value={amount(einnahmen, 'text-green-600')}
+            noChevron
+          />
+          <ListRow
+            label="Betriebsausgaben"
+            hint={
+              anlagevermoegen_kaufpreis > 0 || fahrtAbsetzbar > 0
+                ? `Steuerlich · Cash ${fmtCurrency(betriebsausgabenCash, privacyMode)}`
+                : 'Steuerlich absetzbar'
+            }
+            value={amount(betriebsausgabenSteuerlich, 'text-red-600')}
+            noChevron
+          />
+          <ListRow
+            label="Steuerlicher Gewinn"
+            hint="Grundlage der Einkommensteuer"
+            value={amount(gewinnSteuerlich, gewinnSteuerlich >= 0 ? 'text-violet-600' : 'text-red-600')}
+            noChevron
+          />
+          <ListRow
+            label="Steuerrücklage"
+            hint={`30 % über dem Grundfreibetrag (${fmtCurrency(grundfreibetrag, privacyMode)})`}
+            value={amount(steuerruecklage, 'text-amber-600')}
+            noChevron
+          />
+        </ListGroup>
+
+        {steuerregelung === 'regelbesteuerung' && (
+          <ListGroup title="Umsatzsteuer" footer="Die Zahllast wird per Umsatzsteuervoranmeldung ans Finanzamt abgeführt.">
+            <ListRow label="USt aus Einnahmen" value={amount(ustEinnahmen, 'text-green-600')} noChevron />
+            <ListRow label="Vorsteuer aus Ausgaben" value={amount(vorsteuer, 'text-red-600')} noChevron />
+            <ListRow
+              label="Zahllast"
+              value={amount(ustZahllast, ustZahllast >= 0 ? 'text-orange-600' : 'text-green-600')}
+              noChevron
+            />
+          </ListGroup>
+        )}
+
+        <ListGroup title="Einnahmen nach Kategorie">
+          {einnahmenByKat.length === 0 ? (
+            <ListRow label="Keine Einnahmen" noChevron />
+          ) : (
+            einnahmenByKat.map(([cat, betrag]) => (
+              <ListRow
+                key={cat}
+                label={CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
+                hint={einnahmen > 0 ? `${((betrag / einnahmen) * 100).toFixed(1)} % der Einnahmen` : undefined}
+                value={amount(betrag)}
+                noChevron
+              />
+            ))
+          )}
+        </ListGroup>
+
+        <ListGroup title="Ausgaben nach Kategorie" footer="Rechts steht der steuerlich absetzbare Betrag.">
+          {ausgabenByKat.length === 0 && fahrtAbsetzbar === 0 ? (
+            <ListRow label="Keine Ausgaben" noChevron />
+          ) : (
+            <>
+              {ausgabenByKat.map(([cat, betrag]) => {
+                const isAfaCat = cat === 'anlagevermoegen_afa';
+                const isAbsetzbar =
+                  BETRIEBSAUSGABEN_CATS.includes(cat) ||
+                  (SONDERAUSGABEN_CATEGORIES as readonly string[]).includes(cat);
+                const steuerlichBetrag = isAfaCat ? afaJahresgesamt : betrag;
+                return (
+                  <ListRow
+                    key={cat}
+                    label={CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
+                    hint={
+                      isAfaCat
+                        ? `Kaufpreis ${fmtCurrency(betrag, privacyMode)} · AfA-korrigiert`
+                        : isAbsetzbar
+                          ? undefined
+                          : 'Nicht absetzbar'
+                    }
+                    value={
+                      isAbsetzbar
+                        ? amount(steuerlichBetrag, isAfaCat && steuerlichBetrag !== betrag ? 'text-violet-600' : undefined)
+                        : <span className="text-[15px]">—</span>
+                    }
+                    noChevron
+                  />
+                );
+              })}
+              {fahrtAbsetzbar > 0 && (
+                <ListRow
+                  label="km-Pauschale"
+                  hint={`${fahrtKmDienst.toFixed(0)} km × ${kmPauschale.toFixed(2).replace('.', ',')} € aus dem Fahrtenbuch`}
+                  value={amount(fahrtAbsetzbar, 'text-blue-600 dark:text-blue-400')}
+                  noChevron
+                />
+              )}
+            </>
+          )}
+        </ListGroup>
+
+        {afaItems.length > 0 && (
+          <ListGroup
+            title={`AfA-Plan ${selectedYear}`}
+            footer={`Jahres-AfA gesamt ${fmtCurrency(afaJahresgesamt, privacyMode)}. Berücksichtigt alle noch nicht vollständig abgeschriebenen Wirtschaftsgüter.`}
+          >
+            {afaItems.map((item) => (
+              <ListRow
+                key={item.invoice.id}
+                label={item.invoice.description || item.invoice.partner || 'Wirtschaftsgut'}
+                hint={`${NUTZUNGSDAUER_LABELS[item.assetType] ?? item.assetType} · ${item.nutzungsdauer} Jahre · ${item.methode}`}
+                value={item.jahresAfa > 0 ? amount(item.jahresAfa, 'text-violet-600') : <span>—</span>}
+                noChevron
+              />
+            ))}
+          </ListGroup>
+        )}
+
+        {sonderausgaben > 0 && (
+          <ListGroup
+            title="Sonderausgaben"
+            footer="Kranken- und Pflegeversicherung, Altersvorsorge, Spenden – in der Einkommensteuererklärung geltend zu machen."
+          >
+            <ListRow label="Privat absetzbar" value={amount(sonderausgaben)} noChevron />
+          </ListGroup>
+        )}
+
+        <ListGroup title={`Monatlich ${selectedYear}`}>
+          {monthly.map((m) => {
+            const leer = m.einnahmen === 0 && m.ausgaben === 0;
+            return (
+              <ListRow
+                key={m.label}
+                label={m.label}
+                hint={
+                  leer
+                    ? 'Keine Buchungen'
+                    : `+${fmtCurrency(m.einnahmen, privacyMode)} · −${fmtCurrency(m.ausgaben, privacyMode)}`
+                }
+                value={leer ? <span>—</span> : amount(m.saldo, m.saldo >= 0 ? 'text-green-600' : 'text-red-600')}
+                noChevron
+              />
+            );
+          })}
+        </ListGroup>
+
+        <ListGroup title="Export">
+          <ListRow
+            tint="green"
+            icon={<Download />}
+            label="Als Excel-Datei"
+            hint="Alle Buchungen des Jahres"
+            noChevron
+            onClick={async () => {
+              try { await exportToXlsx(invoices, selectedYear); toast.success('Excel-Export erstellt'); }
+              catch (e) { toast.error('Export fehlgeschlagen: ' + (e as Error).message); }
+            }}
+          />
+          <ListRow
+            tint="blue"
+            icon={<Download />}
+            label="Als DATEV-Datei"
+            hint="Für die Steuerkanzlei"
+            noChevron
+            onClick={async () => {
+              try { await exportToDatev(invoices, selectedYear); toast.success('DATEV-Export erstellt'); }
+              catch (e) { toast.error('Export fehlgeschlagen: ' + (e as Error).message); }
+            }}
+          />
+        </ListGroup>
+
+        <p className="px-4 text-[13px] leading-snug text-muted-foreground">
+          Diese Auswertung dient der Orientierung und ersetzt keine Steuerberatung. Die AfA beruht auf
+          automatisch erkannten Wirtschaftsgut-Typen und typischen Nutzungsdauern.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-0 md:p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

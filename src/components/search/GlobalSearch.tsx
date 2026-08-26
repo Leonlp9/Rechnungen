@@ -9,7 +9,9 @@ import {
   CommandList,
   CommandSeparator,
 } from 'cmdk';
-import { Loader2, FileSearch, X } from 'lucide-react'; // Loader2 für Ladespinner im Input
+import { Loader2, FileSearch, X, Search, Check } from 'lucide-react'; // Loader2 für Ladespinner im Input
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
 import { getProviders, registerSearchProvider, searchAll } from '@/lib/search/registry';
 import { createNavigationProvider } from '@/lib/search/providers/navigationProvider';
@@ -26,6 +28,7 @@ interface GlobalSearchProps {
 
 export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const darkMode = useAppStore((s) => s.darkMode);
   const setDarkMode = useAppStore((s) => s.setDarkMode);
   const privacyMode = useAppStore((s) => s.privacyMode);
@@ -123,6 +126,105 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
 
   const allProviders = getProviders();
   const totalResults = [...results.values()].reduce((sum, r) => sum + r.length, 0);
+
+  // ── Handy ──
+  // Bewusst nackt: kein Tastaturkürzel-Fußzeile, keine Vorschlags-Chips, kein
+  // Kästchen über der Liste. Auf dem Handy tippt man ein Wort und will das
+  // Ergebnis sehen – alles andere stand nur im Weg.
+  if (isMobile) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex flex-col bg-background"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="flex shrink-0 items-center gap-2 px-3 py-2">
+          <div data-search-field className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-muted px-3 py-2">
+            {loading
+              ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+              : <Search className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Suchen"
+              autoFocus
+              className="w-full bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+            />
+            {query && (
+              <button onClick={() => setQuery('')} aria-label="Eingabe löschen" className="text-muted-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <button onClick={onClose} className="shrink-0 px-1 text-[17px] text-primary active:opacity-60">
+            Abbrechen
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {query && !loading && totalResults === 0 && (
+            <p className="py-12 text-center text-sm text-muted-foreground">Keine Ergebnisse</p>
+          )}
+
+          {allProviders.map((provider) => {
+            const providerResults = results.get(provider.id);
+            if (!providerResults || providerResults.length === 0) return null;
+            return (
+              <div key={provider.id}>
+                <h2 className="px-4 pt-5 pb-1 text-[13px] font-medium text-muted-foreground">
+                  {provider.label}
+                </h2>
+                <div data-list-group className="overflow-hidden bg-card">
+                  {providerResults.map((result) => {
+                    const Icon = result.icon;
+                    return (
+                      <button
+                        key={result.id}
+                        onClick={() => { result.onSelect(); onClose(); }}
+                        className="flex w-full items-stretch text-left active:bg-accent"
+                      >
+                        {Icon && (
+                          <span className="my-[7px] ml-4 flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-muted-foreground">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                        )}
+                        <span className={cn(
+                          'flex min-h-[44px] min-w-0 flex-1 items-center border-b border-border py-2 pr-4',
+                          Icon ? 'ml-3' : 'ml-4',
+                        )}>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[17px] leading-tight">{result.title}</span>
+                            {result.subtitle && (
+                              <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+                                {result.subtitle}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Die Volltextsuche über PDF-Inhalte ist langsam – deshalb nicht von
+              vornherein an, aber genau dann erreichbar, wenn die schnelle
+              Suche nichts Passendes gebracht hat. */}
+          {query && (
+            <button
+              onClick={() => setPdfEnabled((v) => !v)}
+              className="mt-4 flex w-full items-center gap-2 px-4 py-3 text-[13px] text-muted-foreground"
+            >
+              <FileSearch className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Auch in PDF-Inhalten suchen</span>
+              {pdfEnabled && <Check className="h-4 w-4 text-primary" />}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

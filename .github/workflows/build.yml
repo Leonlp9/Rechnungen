@@ -199,12 +199,16 @@ jobs:
             cp -r /tmp/klevr-res/. src-tauri/gen/android/app/src/main/res/
           fi
 
-      - name: Patch AndroidManifest (Kamera + Portrait-Lock)
+      - name: Patch AndroidManifest (Kamera + Update-Installation + Portrait-Lock)
         shell: bash
         run: |
           MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
           # Kamera-Berechtigung für den Beleg-Scan
           perl -0pi -e 's|<application|<uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <application|' "$MANIFEST"
+          # Update-Installation: Ohne diese Berechtigung darf die App die
+          # heruntergeladene APK nicht an den Paket-Installer übergeben –
+          # Android blockt das dann als "unbekannte Quelle" ohne Ausweg.
+          perl -0pi -e 's|<application|<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <application|' "$MANIFEST"
           # Rotation-Lock: App läuft nur im Hochformat
           perl -0pi -e 's|<activity(?![^>]*screenOrientation)|<activity android:screenOrientation="portrait"|g' "$MANIFEST"
           cat "$MANIFEST"

@@ -7,6 +7,7 @@ import { NewInvoiceDialog } from '@/components/invoices/NewInvoiceDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { FileText, Plus } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function AllInvoices() {
   const invoices = useAppStore((s) => s.invoices);
@@ -54,7 +55,7 @@ export default function AllInvoices() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Alle Rechnungen</h1>
+      <PageHeader title="Alle Rechnungen" />
 
       {invoices.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">

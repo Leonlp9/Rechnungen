@@ -114,7 +114,10 @@ Das Dashboard ist ein **drag-and-drop-fähiges Widget-System** mit 7 Standard-Se
 
 ### 🎨 Design-System
 - **Light + Dark Mode** per Toggle
-- **8 Themes**: `default`, `liquid-glass`, `aurora-borealis`, `crimson-dusk`, `zinc`, `stone`, `windows11`, `chroma`
+- **5 Themes**: `default` (schlicht), `apple26` (iOS 26), `liquid-glass` (Apple + Glas), `oneui` (Samsung One UI 9), `windows11` (Fluent)
+  – `apple26` („Apple UI Kit 26") bildet iOS 26 nach: semantische iOS-Systemfarben,
+  Gruppenlisten-Layout, Kapsel-Buttons, iOS-Federn und eine frei schwebende
+  Navigationsleiste. Glas liegt bewusst nur auf der Navigationsebene.
 - **Privacy Mode**: Geldbeträge werden ausgeblendet (Augen-Symbol)
 - Animationen an/aus schaltbar
 - Font: **Geist** (Variable)

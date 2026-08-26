@@ -17,6 +17,7 @@ import {
   FileSearch,
   Sparkles,
   ArrowLeft,
+  GraduationCap,
   TrendingUp,
   Shield,
   Calculator,
@@ -26,6 +27,22 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { SearchField } from '@/components/ui/search-field';
+import { Chip } from '@/components/ui/chip';
+import { ListGroup, ListRow, type ListTint } from '@/components/ui/list-group';
+
+/** Farbe der Symbolkachel je Kategorie – das Apple-Theme färbt danach ein. */
+const CATEGORY_TINTS: Record<string, ListTint> = {
+  Allgemein: 'blue',
+  Rechnungen: 'green',
+  Auswertungen: 'purple',
+  Designer: 'pink',
+  Einstellungen: 'gray',
+  Suche: 'orange',
+  Steuern: 'red',
+  Compliance: 'indigo',
+};
 
 interface HelpArticle {
   id: string;
@@ -987,111 +1004,95 @@ export default function HelpPage() {
   const article = ARTICLES.find((a) => a.id === selected) ?? ARTICLES[0];
   const ArticleIcon = article.icon;
 
-  // ── Handy: Master/Detail statt zweispaltig ──
-  if (isMobile) {
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        {mobileView === 'article' ? (
-          <>
-            <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-3 py-2.5">
-              <button
-                onClick={() => setMobileView('list')}
-                aria-label="Zur Artikelliste"
-                className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-muted"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                <ArticleIcon className="h-4 w-4 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-                  {article.category}
-                </p>
-                <h1 className="truncate text-sm font-bold">{article.title}</h1>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-4 py-4">
-              <div className="prose-sm space-y-5 pb-6">{article.content}</div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="shrink-0 space-y-2.5 border-b border-border px-3 py-3">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5 shrink-0 text-primary" />
-                <span className="flex-1 text-base font-semibold">Hilfe & Anleitungen</span>
-              </div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Artikel suchen…"
-                  // 16px – sonst zoomt iOS beim Fokus hinein
-                  className="w-full rounded-md border border-input bg-background py-2 pr-3 pl-8 text-base placeholder:text-muted-foreground focus:ring-1 focus:ring-ring focus:outline-none"
-                />
-              </div>
-              <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <button
-                  onClick={() => setActiveCategory(null)}
-                  className={cn(
-                    'shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors',
-                    !activeCategory
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border text-muted-foreground',
-                  )}
-                >
-                  Alle
-                </button>
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-                    className={cn(
-                      'shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors',
-                      activeCategory === cat
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border text-muted-foreground',
-                    )}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
+  /** Gefundene Artikel nach Kategorie, in der Reihenfolge der Kategorien. */
+  const groupedArticles = CATEGORIES
+    .map((cat) => [cat, filtered.filter((a) => a.category === cat)] as const)
+    .filter(([, items]) => items.length > 0);
 
-            <nav className="min-h-0 flex-1 overflow-y-auto p-3">
-              {filtered.length === 0 && (
-                <p className="px-3 py-8 text-center text-sm text-muted-foreground">Kein Artikel gefunden</p>
-              )}
-              <div className="overflow-hidden rounded-xl border">
-                {filtered.map((a, idx) => {
-                  const Icon = a.icon;
-                  return (
-                    <button
-                      key={a.id}
-                      onClick={() => { setSelected(a.id); setMobileView('article'); }}
-                      className={cn(
-                        'flex w-full items-center gap-3 px-3 py-3 text-left transition-colors active:bg-muted',
-                        idx > 0 && 'border-t',
-                      )}
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{a.title}</span>
-                        <span className="block text-[11px] text-muted-foreground">{a.category}</span>
-                      </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
-                    </button>
-                  );
-                })}
-              </div>
-            </nav>
-          </>
+  // ── Handy: erst die Liste, dann der Artikel ──
+  // Beide Ansichten sind gewöhnliche Seiten mit Kopfzeile – damit gilt hier
+  // dasselbe wie überall sonst: großer Titel, ein einziger Scrollbereich,
+  // im One-UI-Theme der einklappende Titel, im Apple-Theme der Weg zurück
+  // darüber. Vorher brachte die Seite ihre eigene Leiste mit und scrollte in
+  // sich selbst – daher die zweite Bildlaufleiste mitten auf der Seite.
+  if (isMobile) {
+    if (mobileView === 'article') {
+      return (
+        <div className="space-y-5 pb-6">
+          <PageHeader
+            title={article.title}
+            subtitle={article.category}
+            back={{ label: 'Hilfe', onClick: () => setMobileView('list') }}
+            // Artikeltitel sind lang und dürfen umbrechen – abgeschnitten
+            // („Rechnung manuell …“) verlieren sie ihren Sinn.
+            className='[&_h1]:overflow-visible [&_h1]:whitespace-normal'
+          />
+          {/* Eigener Haken: Die Artikel enthalten Tabellen mit zwei bis drei
+              Spalten. Auf 375 px wären die unlesbar schmal, deshalb stellt
+              das Stylesheet sie hier untereinander (siehe App.css). */}
+          <div data-help-article className="space-y-5 text-[15px] leading-relaxed">
+            {article.content}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4 pb-6">
+        <PageHeader title="Hilfe" />
+        <SearchField value={search} onChange={setSearch} placeholder="Artikel suchen" />
+
+        {/* Kategorien brechen um, statt seitwärts zu scrollen – verborgene
+            Einträge rechts außerhalb des Bildes findet niemand. */}
+        <div className="flex flex-wrap gap-2">
+          <Chip active={!activeCategory} onClick={() => setActiveCategory(null)}>Alle</Chip>
+          {CATEGORIES.map((cat) => (
+            <Chip
+              key={cat}
+              active={activeCategory === cat}
+              onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+            >
+              {cat}
+            </Chip>
+          ))}
+        </div>
+
+        {filtered.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">Kein Artikel gefunden</p>
+        ) : (
+          // Nach Kategorien gruppiert: 20 Artikel in einer einzigen Liste
+          // sind eine Wand, mit Zwischenüberschriften findet man sich zurecht.
+          // Der Haken am Behälter erlaubt den Titeln, umzubrechen – sonst
+          // stünde dort „PDF hochladen & KI-Erkennu…“.
+          <div data-help-list className="space-y-4">
+            {groupedArticles.map(([cat, items]) => (
+            <ListGroup key={cat} title={cat}>
+              {items.map((a) => {
+                const Icon = a.icon;
+                return (
+                  <ListRow
+                    key={a.id}
+                    icon={<Icon />}
+                    tint={CATEGORY_TINTS[a.category] ?? 'gray'}
+                    label={a.title}
+                    onClick={() => { setSelected(a.id); setMobileView('article'); }}
+                  />
+                );
+              })}
+            </ListGroup>
+            ))}
+          </div>
         )}
+
+        <ListGroup>
+          <ListRow
+            icon={<GraduationCap />}
+            tint="orange"
+            label="Geführtes Tutorial neu starten"
+            hint="Zeigt die Einführung noch einmal von vorn"
+            onClick={() => { resetTutorial(); setTimeout(() => startTutorial(), 100); }}
+          />
+        </ListGroup>
       </div>
     );
   }

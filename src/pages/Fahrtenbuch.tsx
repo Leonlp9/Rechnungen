@@ -21,6 +21,12 @@ import { useAppStore } from '@/store';
 import { Plus, Car, Trash2, Download, Settings2, FileDown, Map, Navigation, Clock, Ruler, Pencil, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PlaceSearchInput } from '@/components/fahrtenbuch/PlaceSearchInput';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { FormGroup, FormRow, FormFullRow, FIELD, FIELD_DATE } from '@/components/ui/form-list';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
+import { Segmented } from '@/components/ui/segmented';
 import { FahrtRouteMap } from '@/components/fahrtenbuch/FahrtRouteMap';
 import { AlleFahrtenMap } from '@/components/fahrtenbuch/AlleFahrtenMap';
 
@@ -171,6 +177,9 @@ export default function FahrtenbuchPage() {
   const kmPauschale  = useAppStore((s) => s.kmPauschale);
   const setKmPauschale = useAppStore((s) => s.setKmPauschale);
   const [kmInput, setKmInput] = useState(String(kmPauschale));
+  const isMobile = useIsMobile();
+  const [showKm, setShowKm] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Fahrt | null>(null);
 
   const reload = () => fahrtenbuch.getAll().then(setFahrten).finally(() => setLoading(false));
   // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
@@ -187,8 +196,211 @@ export default function FahrtenbuchPage() {
     finally { setPdfGenerating(false); }
   };
 
+  const applyKmPauschale = () => {
+    const v = parseFloat(kmInput.replace(',', '.'));
+    if (!isNaN(v) && v > 0) {
+      setKmPauschale(v);
+      setShowKm(false);
+      toast.success(`km-Pauschale auf ${v.toFixed(2).replace('.', ',')} €/km gesetzt`);
+    } else {
+      toast.error('Ungültiger Wert');
+    }
+  };
+
+  const addDialog = (
+    <ResponsiveModal
+      open={showAdd}
+      onClose={() => setShowAdd(false)}
+      title="Neue Fahrt"
+      desktopClassName="max-w-2xl max-h-[90vh] overflow-y-auto"
+    >
+      <FahrtForm
+        onSave={async (data) => {
+          await fahrtenbuch.add(data);
+          await reload();
+          setShowAdd(false);
+          toast.success('Fahrt eingetragen');
+        }}
+      />
+    </ResponsiveModal>
+  );
+
+  // ── Handy ──
+  // Die Tabelle hatte sieben Spalten – auf dem Handy blieb davon
+  // „25.08. | Ber… | Ham…" übrig. Als Liste steht die Strecke in der ersten
+  // Zeile und alles Weitere darunter.
+  if (isMobile) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Fahrtenbuch"
+          subtitle={`${kmPauschale.toFixed(2).replace('.', ',')} € pro Kilometer`}
+          actions={
+            <Button size="icon" onClick={() => setShowAdd(true)} aria-label="Fahrt eintragen">
+              <Plus className="h-5 w-5" />
+            </Button>
+          }
+        />
+
+        <ListGroup>
+          <ListRow label="Dienstfahrten" value={`${dienstKm.toFixed(0)} km`} noChevron />
+          <ListRow
+            label="Absetzbar"
+            hint={`${dienstKm.toFixed(0)} km × ${kmPauschale.toFixed(2).replace('.', ',')} €`}
+            value={<span className="text-green-600">{fmtCurrency(absetzbar, privacyMode)}</span>}
+            noChevron
+          />
+          <ListRow label="Einträge" value={String(fahrten.length)} noChevron />
+        </ListGroup>
+
+        {loading ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Lade …</p>
+        ) : fahrten.length === 0 ? (
+          <ListGroup>
+            <ListRow icon={<Car />} label="Noch keine Fahrten" hint="Mit + oben rechts eintragen" noChevron />
+          </ListGroup>
+        ) : (
+          <ListGroup title="Fahrten" footer="Tippe eine Fahrt an, um Details und Route zu sehen.">
+            {fahrten.map((f) => (
+              <div key={f.id} className="flex w-full items-stretch">
+                <button
+                  type="button"
+                  onClick={() => setDetailFahrt(f)}
+                  className="flex min-w-0 flex-1 items-stretch text-left active:bg-accent"
+                >
+                  <span
+                    data-tint={f.art === 'dienst' ? 'blue' : 'gray'}
+                    className="my-[7px] ml-4 flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-muted-foreground"
+                  >
+                    {f.art === 'dienst' ? <Navigation className="h-4 w-4" /> : <Car className="h-4 w-4" />}
+                  </span>
+                  <span data-row-body className="ml-3 flex min-h-[44px] min-w-0 flex-1 flex-col justify-center border-b border-border py-2 pr-3">
+                    <span className="truncate text-[17px] leading-tight">{f.abfahrt} → {f.ziel}</span>
+                    <span className="mt-0.5 truncate text-[13px] text-muted-foreground">
+                      {new Date(f.datum).toLocaleDateString('de-DE')} · {f.km.toFixed(1)} km
+                      {f.zweck ? ` · ${f.zweck}` : ''}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(f)}
+                  aria-label="Fahrt löschen"
+                  className="flex shrink-0 items-center active:opacity-60"
+                >
+                  <span data-row-body className="flex h-full items-center border-b border-border pr-4 pl-1 text-destructive">
+                    <Trash2 className="h-[18px] w-[18px]" />
+                  </span>
+                </button>
+              </div>
+            ))}
+          </ListGroup>
+        )}
+
+        <ListGroup title="Mehr">
+          <ListRow
+            tint="gray"
+            icon={<Settings2 />}
+            label="km-Pauschale"
+            hint="Steuerlich anerkannter Satz je Kilometer"
+            value={`${kmPauschale.toFixed(2).replace('.', ',')} €`}
+            onClick={() => setShowKm(true)}
+          />
+          {fahrten.length > 0 && (
+            <ListRow tint="blue" icon={<Map />} label="Alle Fahrten auf Karte" onClick={() => setShowAllMap(true)} />
+          )}
+          {fahrten.length > 0 && (
+            <ListRow tint="green" icon={<Download />} label="Als CSV exportieren" noChevron onClick={() => exportFahrtenbuchCsv(fahrten)} />
+          )}
+          {fahrten.length > 0 && (
+            <ListRow
+              tint="red"
+              icon={<FileDown />}
+              label={pdfGenerating ? 'Erstelle PDF …' : 'Als PDF exportieren'}
+              noChevron
+              onClick={() => { if (!pdfGenerating) void handleExportPdf(); }}
+            />
+          )}
+        </ListGroup>
+
+        {addDialog}
+
+        <ResponsiveModal
+          open={showKm}
+          onClose={() => setShowKm(false)}
+          title="km-Pauschale"
+          description="Ab 2022: 0,30 € für die ersten 20 km, 0,38 € ab km 21."
+        >
+          <div className="space-y-4">
+            <FormGroup>
+              <FormRow label="Satz je km">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={kmInput}
+                  onChange={(e) => setKmInput(e.target.value)}
+                  className={FIELD}
+                />
+              </FormRow>
+            </FormGroup>
+            <div className="flex gap-2">
+              <Button variant="secondary" className="h-11 flex-1 text-[17px]" onClick={() => setKmInput('0.30')}>0,30 €</Button>
+              <Button variant="secondary" className="h-11 flex-1 text-[17px]" onClick={() => setKmInput('0.38')}>0,38 €</Button>
+            </div>
+            <Button className="h-[50px] w-full text-[17px] font-semibold" onClick={applyKmPauschale}>Übernehmen</Button>
+          </div>
+        </ResponsiveModal>
+
+        {detailFahrt && (
+          <FahrtDetailDialog
+            fahrt={detailFahrt}
+            onClose={() => setDetailFahrt(null)}
+            onSaved={async () => { await reload(); setDetailFahrt(null); }}
+          />
+        )}
+
+        <Dialog open={showAllMap} onOpenChange={setShowAllMap}>
+          <DialogContent className="h-[80vh] max-w-4xl flex flex-col p-0 gap-0">
+            <DialogHeader className="shrink-0 border-b px-4 pt-4 pb-3">
+              <DialogTitle className="flex items-center gap-2 text-[17px]">
+                <Map className="h-5 w-5" /> Alle Fahrten
+              </DialogTitle>
+            </DialogHeader>
+            <div className="min-h-0 flex-1">
+              <AlleFahrtenMap fahrten={fahrten} className="h-full w-full rounded-b-lg" />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={!!confirmDelete} onOpenChange={(v) => { if (!v) setConfirmDelete(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Fahrt löschen?</AlertDialogTitle>
+              <AlertDialogDescription>Diese Aktion kann nicht rückgängig gemacht werden.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (!confirmDelete) return;
+                  await fahrtenbuch.delete(confirmDelete.id);
+                  setConfirmDelete(null);
+                  await reload();
+                  toast.success('Fahrt gelöscht');
+                }}
+              >
+                Löschen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-0 md:p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Car className="h-6 w-6" /> Fahrtenbuch</h1>
@@ -308,20 +520,7 @@ export default function FahrtenbuchPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog: Fahrt eintragen */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Neue Fahrt eintragen</DialogTitle></DialogHeader>
-          <FahrtForm
-            onSave={async (data) => {
-              await fahrtenbuch.add(data);
-              await reload();
-              setShowAdd(false);
-              toast.success('Fahrt eingetragen');
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+      {addDialog}
 
       {/* Dialog: Fahrt-Details + Karte */}
       {detailFahrt && (
@@ -531,6 +730,7 @@ function FahrtForm({
   );
   const [route,     setRoute]     = useState<RouteResult | null | undefined>(undefined);
   const [routeLoading, setRouteLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   // Fetch route when both places are known
   useEffect(() => {
@@ -568,6 +768,111 @@ function FahrtForm({
   };
 
   const showMap = fromPlace && toPlace;
+
+  const routeMap = showMap && (
+    <div className="overflow-hidden rounded-xl border" style={{ height: isMobile ? 200 : 260 }}>
+      {routeLoading ? (
+        <div className="flex h-full items-center justify-center gap-2 bg-muted/30 text-sm text-muted-foreground">
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Route wird berechnet…
+        </div>
+      ) : (
+        <FahrtRouteMap from={fromPlace} to={toPlace} route={route} className="h-full w-full" />
+      )}
+    </div>
+  );
+
+  // ── Handy ──
+  // Zwei Spalten auf 375 px hießen: halbe Felder, abgeschnittene Ortsnamen.
+  // Hier steht jedes Feld in einer eigenen Zeile, Ortssuche über die volle
+  // Breite – die Vorschlagsliste braucht den Platz.
+  if (isMobile) {
+    return (
+      <div className="space-y-6">
+        <FormGroup title="Fahrt">
+          <FormRow label="Datum">
+            <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} className={FIELD_DATE} />
+          </FormRow>
+          <FormRow label="Kennzeichen">
+            <input value={kfzKennz} onChange={(e) => setKfzKennz(e.target.value)} className={FIELD} placeholder="B-AB 1234" />
+          </FormRow>
+        </FormGroup>
+
+        <FormGroup
+          title="Strecke"
+          footer={
+            route && !routeLoading
+              ? `Berechnete Route: ${(route.distance / 1000).toFixed(1)} km, ca. ${Math.round(route.duration / 60)} Minuten.`
+              : undefined
+          }
+        >
+          <FormFullRow>
+            <span className="mb-1 block text-[13px] text-muted-foreground">Von</span>
+            <PlaceSearchInput
+              value={abfahrt}
+              onChange={(v, place) => { setAbfahrt(v); setFromPlace(place ?? null); }}
+              placeholder="z. B. Berlin Mitte"
+            />
+          </FormFullRow>
+          <FormFullRow>
+            <span className="mb-1 block text-[13px] text-muted-foreground">Nach</span>
+            <PlaceSearchInput
+              value={ziel}
+              onChange={(v, place) => { setZiel(v); setToPlace(place ?? null); }}
+              placeholder="z. B. Hamburg Hauptbahnhof"
+            />
+          </FormFullRow>
+          <FormRow label="Kilometer">
+            <input
+              type="number"
+              step="0.1"
+              value={km}
+              onChange={(e) => setKm(e.target.value)}
+              className={FIELD}
+              placeholder="25,5"
+            />
+          </FormRow>
+        </FormGroup>
+
+        {routeMap}
+
+        {route && !routeLoading && km && Math.abs(parseFloat(km) - route.distance / 1000) > 2 && (
+          <button
+            type="button"
+            onClick={() => setKm((route.distance / 1000).toFixed(1))}
+            className="w-full px-4 text-left text-[13px] text-amber-600 dark:text-amber-400"
+          >
+            Eingetragene {km} km weichen von der Route ab – auf {(route.distance / 1000).toFixed(1)} km setzen
+          </button>
+        )}
+
+        <FormGroup title="Zweck">
+          <FormFullRow>
+            <Segmented
+              value={art}
+              onChange={setArt}
+              options={[
+                { value: 'dienst', label: 'Dienstlich' },
+                { value: 'privat', label: 'Privat' },
+              ]}
+            />
+          </FormFullRow>
+          <FormFullRow>
+            <input
+              value={zweck}
+              onChange={(e) => setZweck(e.target.value)}
+              placeholder="Kundenbesuch bei Firma XYZ"
+              className="w-full bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+            />
+          </FormFullRow>
+        </FormGroup>
+
+        <Button onClick={handleSave} disabled={saving} className="h-[50px] w-full text-[17px] font-semibold">
+          {saving ? 'Speichere…' : submitLabel}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -18,6 +18,8 @@ import { Pinboard } from '@/components/lists/Pinboard';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, CheckSquare, Kanban, StickyNote, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
 
 const TYPE_ICON: Record<ListType, React.ReactNode> = {
   todo: <CheckSquare className="h-4 w-4 shrink-0" />,
@@ -38,6 +40,7 @@ export default function ListsPage() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const isMobile = useIsMobile();
 
   const selected = lists.find((l) => l.id === selectedId) ?? null;
 
@@ -62,6 +65,118 @@ export default function ListsPage() {
   const handleDataChange = (id: string, newData: TodoListData | KanbanListData | PinboardData) => {
     updateList(id, { data: newData });
   };
+
+  const listBody = selected && (
+    selected.type === 'todo' ? (
+      <TodoList
+        data={selected.data as TodoListData}
+        onChange={(d) => handleDataChange(selected.id, d)}
+        listName={selected.name}
+      />
+    ) : selected.type === 'kanban' ? (
+      <KanbanBoard
+        data={selected.data as KanbanListData}
+        onChange={(d) => handleDataChange(selected.id, d)}
+        listName={selected.name}
+      />
+    ) : (
+      <Pinboard
+        data={selected.data as PinboardData}
+        onChange={(d) => handleDataChange(selected.id, d)}
+        listName={selected.name}
+      />
+    )
+  );
+
+  // ── Handy ──
+  // Eine 208 px breite Seitenspalte neben dem Inhalt lässt auf einem Handy
+  // für beides zu wenig Platz. Deshalb wie in den Einstellungen: erst die
+  // Übersicht, dann die Liste selbst über die volle Breite.
+  if (isMobile) {
+    if (!selectedId || !selected) {
+      return (
+        <div
+          className="h-full overflow-y-auto px-4 pt-3"
+          style={{ paddingBottom: 'var(--app-main-pb, 2rem)' }}
+        >
+          <div className="mb-5 flex items-start gap-3">
+            <h1 className="min-w-0 flex-1 truncate text-[34px] leading-tight font-bold tracking-tight">Listen</h1>
+            <Button size="icon" className="mt-1 shrink-0" onClick={() => setDialogOpen(true)} aria-label="Neue Liste">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {lists.length === 0 ? (
+            <ListGroup footer="To-do-Listen, Kanban-Boards und Pinnwände liegen nur auf diesem Gerät.">
+              <ListRow icon={<CheckSquare />} label="Noch keine Listen" hint="Mit + oben rechts anlegen" noChevron />
+            </ListGroup>
+          ) : (
+            <ListGroup>
+              {lists.map((l) => (
+                <div key={l.id} className="flex w-full items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(l.id)}
+                    className="flex min-w-0 flex-1 items-stretch text-left active:bg-accent"
+                  >
+                    <span
+                      data-tint={l.type === 'todo' ? 'blue' : l.type === 'kanban' ? 'purple' : 'orange'}
+                      className="my-[7px] ml-4 flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-muted-foreground"
+                    >
+                      {TYPE_ICON[l.type]}
+                    </span>
+                    <span data-row-body className="ml-3 flex min-h-[44px] min-w-0 flex-1 items-center gap-2 border-b border-border py-2 pr-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[17px] leading-tight">{l.name}</span>
+                        <span className="mt-0.5 block text-[13px] text-muted-foreground">{TYPE_LABEL[l.type]}</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteList(l.id)}
+                    aria-label={`${l.name} löschen`}
+                    className="flex shrink-0 items-center active:opacity-60"
+                  >
+                    <span data-row-body className="flex h-full items-center border-b border-border pr-4 pl-1 text-destructive">
+                      <Trash2 className="h-[18px] w-[18px]" />
+                    </span>
+                  </button>
+                </div>
+              ))}
+            </ListGroup>
+          )}
+
+          <NewListDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onCreate={handleCreate} />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-2">
+          <button
+            onClick={() => setSelectedId(null)}
+            className="-ml-1 flex h-9 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1 text-[17px] text-primary active:opacity-60"
+          >
+            <ChevronLeft className="h-5 w-5" />
+            Listen
+          </button>
+          <span className="min-w-0 flex-1 truncate px-1 text-center text-[17px] font-semibold">{selected.name}</span>
+          <span className="w-[5.5rem] shrink-0" aria-hidden />
+        </div>
+        {/* Das Board endet über der schwebenden Leiste, statt darunter
+            weiterzulaufen – sonst liegen Karten und Notizen dahinter. */}
+        <div
+          className="min-h-0 flex-1 overflow-hidden"
+          style={{ paddingBottom: 'var(--app-main-pb, 0px)' }}
+        >
+          {listBody}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full overflow-hidden bg-muted/30">

@@ -6,13 +6,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import type { Project } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { DialogFooter } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +22,11 @@ import { toast } from 'sonner';
 import { FolderKanban, Plus, Trash2, ChevronRight, Receipt } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { fmtCurrency } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
+import { FormGroup, FormFullRow } from '@/components/ui/form-list';
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -38,6 +37,7 @@ export default function ProjectsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const invoices = useAppStore((s) => s.invoices);
   const privacyMode = useAppStore((s) => s.privacyMode);
+  const isMobile = useIsMobile();
 
   const { data: projectList = [], isLoading } = useQuery<Project[]>({
     queryKey: queryKeys.projects.all,
@@ -91,8 +91,168 @@ export default function ProjectsPage() {
     }
   };
 
+  // Beschreibung kommt als HTML aus dem Editor – für die Listenzeile reicht
+  // der reine Text, sonst stünden dort Auszeichnungen mitten im Satz.
+  const plainText = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const createModal = (
+    <ResponsiveModal
+      open={createOpen}
+      onClose={() => setCreateOpen(false)}
+      title="Neues Projekt"
+      desktopClassName="max-w-sm"
+    >
+      {isMobile ? (
+        <div className="space-y-6">
+          <FormGroup footer="Rechnungen lassen sich später einem Projekt zuordnen.">
+            <FormFullRow>
+              <input
+                autoFocus
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="z. B. Website-Relaunch 2026"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+                className="w-full bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+              />
+            </FormFullRow>
+          </FormGroup>
+          <Button
+            onClick={handleCreate}
+            disabled={creating || !newTitle.trim()}
+            className="h-[50px] w-full text-[17px] font-semibold"
+          >
+            Projekt erstellen
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2 py-1">
+            <Label>Projektname</Label>
+            <Input
+              autoFocus
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="z. B. Website-Relaunch 2026"
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleCreate} disabled={creating || !newTitle.trim()}>
+              Erstellen
+            </Button>
+          </DialogFooter>
+        </>
+      )}
+    </ResponsiveModal>
+  );
+
+  const deleteConfirm = (
+    <AlertDialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Projekt löschen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Das Projekt wird gelöscht. Die verknüpften Rechnungen bleiben erhalten, verlieren aber die Projektzuordnung.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Löschen
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  // ── Handy ──
+  if (isMobile) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Projekte"
+          subtitle={projectList.length > 0 ? `${projectList.length} angelegt` : undefined}
+          actions={
+            <Button size="icon" onClick={() => { setNewTitle(''); setCreateOpen(true); }} aria-label="Neues Projekt">
+              <Plus className="h-5 w-5" />
+            </Button>
+          }
+        />
+
+        {isLoading ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Lade …</p>
+        ) : projectList.length === 0 ? (
+          <ListGroup footer="Projekte bündeln Rechnungen, damit die Gesamtkosten sichtbar bleiben.">
+            <ListRow
+              icon={<FolderKanban />}
+              label="Noch keine Projekte"
+              hint="Mit + oben rechts anlegen"
+              noChevron
+            />
+          </ListGroup>
+        ) : (
+          <ListGroup>
+            {projectList.map((project) => {
+              const stats = statsById[project.id] ?? { count: 0, total: 0 };
+              const desc = project.description ? plainText(project.description) : '';
+              return (
+                <div key={project.id} className="flex w-full items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                    className="flex min-w-0 flex-1 items-stretch text-left active:bg-accent"
+                  >
+                    <span
+                      data-tint="yellow"
+                      className="my-[7px] ml-4 flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-muted-foreground"
+                    >
+                      <FolderKanban className="h-4 w-4" />
+                    </span>
+                    <span data-row-body className="ml-3 flex min-h-[44px] min-w-0 flex-1 items-center gap-3 border-b border-border py-2 pr-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[17px] leading-tight">{project.title}</span>
+                        <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+                          {stats.count} Rechnung{stats.count !== 1 ? 'en' : ''}{desc ? ` · ${desc}` : ''}
+                        </span>
+                      </span>
+                      {stats.total !== 0 && (
+                        <span className={`shrink-0 text-[17px] ${stats.total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {fmtCurrency(stats.total, privacyMode)}
+                        </span>
+                      )}
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeletingId(project.id)}
+                    aria-label={`${project.title} löschen`}
+                    className="flex shrink-0 items-center active:opacity-60"
+                  >
+                    <span data-row-body className="flex h-full items-center border-b border-border pr-4 pl-1 text-destructive">
+                      <Trash2 className="h-[18px] w-[18px]" />
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </ListGroup>
+        )}
+
+        {createModal}
+        {deleteConfirm}
+      </div>
+    );
+  }
+
   return (
-      <div className="p-0 md:p-6 space-y-6">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <FolderKanban className="h-6 w-6" />
@@ -182,53 +342,8 @@ export default function ProjectsPage() {
             </div>
         )}
 
-        {/* Create Dialog */}
-        <Dialog open={createOpen} onOpenChange={(o) => { if (!o) setCreateOpen(false); }}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Neues Projekt</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2 py-1">
-              <Label>Projektname</Label>
-              <Input
-                  autoFocus
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="z. B. Website-Relaunch 2026"
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
-                Abbrechen
-              </Button>
-              <Button onClick={handleCreate} disabled={creating || !newTitle.trim()}>
-                Erstellen
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirm */}
-        <AlertDialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null); }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Projekt löschen?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Das Projekt wird gelöscht. Die verknüpften Rechnungen bleiben erhalten, verlieren aber die Projektzuordnung.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-              <AlertDialogAction
-                  onClick={handleDelete}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Löschen
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {createModal}
+        {deleteConfirm}
       </div>
   );
 }

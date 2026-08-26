@@ -15,6 +15,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { useSheetDrag, SheetGrabber } from '@/components/ui/sheet-drag';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { Segmented } from '@/components/ui/segmented';
+import { FormGroup, FormRow, FormFullRow, FIELD, FIELD_DATE, FIELD_SELECT } from '@/components/ui/form-list';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -80,6 +85,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
   const isMobile = useIsMobile();
   // Mobile: Formular und Vorschau passen nicht nebeneinander → Umschalter
   const [mobileView, setMobileView] = useState<'form' | 'pdf'>('form');
+  const { contentRef: sheetRef, onGrabberMouseDown } = useSheetDrag(() => handleClose());
 
   /** Erzeugt aus Base64 eine Blob-URL für die Vorschau (alte URL wird freigegeben). */
   const setPreviewFromBase64 = (b64: string | null) => {
@@ -378,6 +384,301 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
     await performSave(data);
   };
 
+  const mobileCurrency = normalizeCurrency(form.watch('currency'));
+
+  const duplicateDialog = (
+    <>
+        {/* Duplicate Warning Dialog */}
+        <Dialog open={showDuplicateWarning} onOpenChange={(v) => { if (!v) setShowDuplicateWarning(false); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="h-5 w-5" />
+                Möglicher Duplikat-Beleg
+              </DialogTitle>
+              <DialogDescription>
+                Es gibt bereits {duplicates.length} Beleg{duplicates.length > 1 ? 'e' : ''} mit demselben Datum, Partner und Betrag. Bitte prüfe, ob dieser Beleg bereits erfasst wurde.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="divide-y rounded-lg border overflow-hidden my-2">
+              {duplicates.map((inv) => (
+                  <div
+                      key={inv.id}
+                      className="flex items-center justify-between px-3 py-2 hover:bg-muted/60 cursor-pointer group transition-colors"
+                      onClick={() => {
+                        setShowDuplicateWarning(false);
+                        navigate(`/invoices/${inv.id}`);
+                      }}
+                      title="Beleg öffnen"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate flex items-center gap-1">
+                        {inv.partner}
+                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{inv.description}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</p>
+                    </div>
+                    <span className={`font-semibold text-sm shrink-0 ml-3 ${inv.type === 'einnahme' ? 'text-green-600' : 'text-red-600'}`}>
+                {inv.type === 'einnahme' ? '+' : inv.type === 'ausgabe' ? '−' : ''}{fmtCurrency(inv.brutto, false)}
+              </span>
+                  </div>
+              ))}
+            </div>
+
+            <DialogFooter className="gap-2 flex-row justify-end">
+              <Button
+                  variant="outline"
+                  onClick={() => setShowDuplicateWarning(false)}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                  variant="destructive"
+                  disabled={saving}
+                  onClick={async () => {
+                    setShowDuplicateWarning(false);
+                    if (pendingData) await performSave(pendingData);
+                  }}
+              >
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Trotzdem speichern
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+    </>
+  );
+
+  // ── Handy ──
+  // Statt eines Dialogkastens ein Blatt über fast die volle Höhe, mit der
+  // iOS-üblichen Leiste oben: „Abbrechen" links, „Sichern" rechts. Der Kasten
+  // davor ließ auf dem Handy kaum Platz für das Formular – und drei Knöpfe am
+  // Ende einer engen Spalte fanden sich schlecht.
+  if (isMobile) {
+    return (
+      <>
+        <Sheet open={isOpen} onOpenChange={(v) => { if (!v) handleClose(); }}>
+          <SheetContent
+            ref={sheetRef}
+            side="bottom"
+            showCloseButton={false}
+            aria-describedby={undefined}
+            className="gap-0 rounded-t-2xl p-0"
+            // Höhe als Stil, nicht als Klasse: Die Sheet-Basis setzt
+            // `data-[side=bottom]:h-auto`, und das gewinnt gegen eine
+            // Utility-Klasse – das Blatt wuchs dann über den Bildschirm hinaus.
+            style={{ height: '94dvh' }}
+          >
+            <SheetTitle className="sr-only">Neue Rechnung</SheetTitle>
+            <SheetGrabber onMouseDown={onGrabberMouseDown} />
+
+            <div className="flex h-11 shrink-0 items-center px-4">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-24 text-left text-[17px] text-primary active:opacity-60"
+              >
+                Abbrechen
+              </button>
+              <span className="min-w-0 flex-1 truncate text-center text-[17px] font-semibold">
+                {step === 1 ? 'Neuer Beleg' : 'Beleg erfassen'}
+              </span>
+              <div className="flex w-24 justify-end">
+                {step === 2 && (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void form.handleSubmit(onSubmit, (errs) => reportInvalid(errs))()}
+                    className="text-[17px] font-semibold text-primary active:opacity-60 disabled:opacity-40"
+                  >
+                    {saving ? 'Sichere …' : 'Sichern'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {step === 1 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 pb-12 text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+                  <Upload className="h-9 w-9 text-muted-foreground" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[17px] font-semibold">Beleg als PDF hinzufügen</p>
+                  <p className="text-[13px] leading-snug text-muted-foreground">
+                    Mehrere Dateien landen als Entwürfe in der Liste.
+                  </p>
+                </div>
+                <Button className="h-[50px] w-full max-w-xs text-[17px] font-semibold" onClick={selectPdf}>
+                  <FileText className="mr-2 h-5 w-5" />
+                  PDF auswählen
+                </Button>
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pt-1">
+                <Segmented
+                  value={mobileView}
+                  onChange={setMobileView}
+                  options={[
+                    { value: 'form', label: 'Erfassen' },
+                    { value: 'pdf', label: 'Vorschau' },
+                  ]}
+                />
+
+                {/* ── Erfassen ── */}
+                <div
+                  className={cn(
+                    'min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain',
+                    mobileView === 'pdf' && 'hidden',
+                  )}
+                  style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)' }}
+                >
+                  <ListGroup>
+                    <ListRow
+                      icon={<FileText />}
+                      label={pdfName || 'Beleg'}
+                      hint="Angehängtes Dokument"
+                      noChevron
+                    />
+                    <ListRow
+                      tint="blue"
+                      icon={aiLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                      label={aiLoading ? 'Analysiere …' : 'Mit KI ausfüllen'}
+                      hint="Beträge und Partner automatisch auslesen"
+                      onClick={() => { if (!aiLoading) void handleAiAnalyze(); }}
+                      noChevron
+                    />
+                  </ListGroup>
+
+                  <FormGroup title="Beleg">
+                    <FormRow label="Datum">
+                      <input type="date" {...form.register('date')} className={FIELD_DATE} />
+                    </FormRow>
+                    <FormRow label="Partner">
+                      <input {...form.register('partner')} className={FIELD} placeholder="Name" />
+                    </FormRow>
+                    <FormRow label="Beschreibung">
+                      <input {...form.register('description')} className={FIELD} placeholder="Wofür?" />
+                    </FormRow>
+                  </FormGroup>
+
+                  <FormGroup
+                    title={mobileCurrency === 'EUR' ? 'Beträge' : `Beträge in ${mobileCurrency}`}
+                    footer="Netto + USt muss dem Brutto entsprechen. Gebühren stehen daneben und zählen nicht hinein."
+                  >
+                    <FormRow label="Netto">
+                      <input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} className={FIELD} />
+                    </FormRow>
+                    <FormRow label="USt">
+                      <input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} className={FIELD} />
+                    </FormRow>
+                    <FormRow label="Brutto">
+                      <input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} className={FIELD} />
+                    </FormRow>
+                    <FormRow label="Gebühren">
+                      <input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} className={FIELD} />
+                    </FormRow>
+                    <FormRow label="Währung">
+                      <CurrencySelect
+                        value={form.watch('currency')}
+                        onChange={(v) => form.setValue('currency', v, { shouldDirty: true })}
+                      />
+                    </FormRow>
+                  </FormGroup>
+
+                  {mobileCurrency !== 'EUR' && (
+                    <CurrencyConversionHint
+                      brutto={form.watch('brutto') || 0}
+                      currency={form.watch('currency')}
+                      date={form.watch('date')}
+                    />
+                  )}
+
+                  <FormGroup title="Einordnung">
+                    <FormRow label="Typ">
+                      <Select
+                        value={form.watch('type')}
+                        onValueChange={(v) => {
+                          const newType = v as 'einnahme' | 'ausgabe' | 'info';
+                          form.setValue('type', newType);
+                          form.setValue('category', getDefaultCategoryForType(newType));
+                        }}
+                      >
+                        <SelectTrigger className={FIELD_SELECT}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {INVOICE_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormRow>
+                    <FormRow label="Kategorie">
+                      <Select
+                        value={form.watch('category')}
+                        onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}
+                      >
+                        <SelectTrigger className={FIELD_SELECT}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {getCategoriesForBranche(form.watch('type'), branchenprofil, form.watch('category')).map((c) => (
+                            <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormRow>
+                    <FormRow label="Projekt">
+                      <ProjectSelector
+                        value={form.watch('project_id')}
+                        onChange={(v) => form.setValue('project_id', v)}
+                      />
+                    </FormRow>
+                  </FormGroup>
+
+                  <FormGroup title="Notiz">
+                    <FormFullRow>
+                      <input
+                        {...form.register('note')}
+                        className="w-full bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+                        placeholder="Optionale Notiz"
+                      />
+                    </FormFullRow>
+                  </FormGroup>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-11 w-full text-[17px]"
+                    onClick={saveAsDraft}
+                  >
+                    <BookmarkPlus className="mr-2 h-4 w-4" />
+                    {currentDraftId ? 'Entwurf behalten' : 'Als Entwurf speichern'}
+                  </Button>
+                </div>
+
+                {/* ── Vorschau ── */}
+                <div
+                  className={cn(
+                    'min-h-0 flex-1 overflow-hidden rounded-xl bg-muted/30',
+                    mobileView === 'form' && 'hidden',
+                  )}
+                >
+                  {pdfPreviewUrl ? (
+                    <PdfCanvasViewer url={pdfPreviewUrl} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      Keine Vorschau verfügbar
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+        {duplicateDialog}
+      </>
+    );
+  }
+
   return (
       <>
         <Dialog open={isOpen} onOpenChange={(v) => { if (!v) handleClose(); }}>
@@ -629,66 +930,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
           </DialogContent>
         </Dialog>
 
-        {/* Duplicate Warning Dialog */}
-        <Dialog open={showDuplicateWarning} onOpenChange={(v) => { if (!v) setShowDuplicateWarning(false); }}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-amber-600">
-                <AlertTriangle className="h-5 w-5" />
-                Möglicher Duplikat-Beleg
-              </DialogTitle>
-              <DialogDescription>
-                Es gibt bereits {duplicates.length} Beleg{duplicates.length > 1 ? 'e' : ''} mit demselben Datum, Partner und Betrag. Bitte prüfe, ob dieser Beleg bereits erfasst wurde.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="divide-y rounded-lg border overflow-hidden my-2">
-              {duplicates.map((inv) => (
-                  <div
-                      key={inv.id}
-                      className="flex items-center justify-between px-3 py-2 hover:bg-muted/60 cursor-pointer group transition-colors"
-                      onClick={() => {
-                        setShowDuplicateWarning(false);
-                        navigate(`/invoices/${inv.id}`);
-                      }}
-                      title="Beleg öffnen"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate flex items-center gap-1">
-                        {inv.partner}
-                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">{inv.description}</p>
-                      <p className="text-xs text-muted-foreground">{format(new Date(inv.date), 'dd.MM.yyyy', { locale: de })}</p>
-                    </div>
-                    <span className={`font-semibold text-sm shrink-0 ml-3 ${inv.type === 'einnahme' ? 'text-green-600' : 'text-red-600'}`}>
-                {inv.type === 'einnahme' ? '+' : inv.type === 'ausgabe' ? '−' : ''}{fmtCurrency(inv.brutto, false)}
-              </span>
-                  </div>
-              ))}
-            </div>
-
-            <DialogFooter className="gap-2 flex-row justify-end">
-              <Button
-                  variant="outline"
-                  onClick={() => setShowDuplicateWarning(false)}
-              >
-                Abbrechen
-              </Button>
-              <Button
-                  variant="destructive"
-                  disabled={saving}
-                  onClick={async () => {
-                    setShowDuplicateWarning(false);
-                    if (pendingData) await performSave(pendingData);
-                  }}
-              >
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Trotzdem speichern
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {duplicateDialog}
       </>
   );
 }

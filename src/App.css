@@ -282,706 +282,2277 @@
   scrollbar-color: var(--muted-foreground) var(--muted);
 }
 
-/* ── Liquid Glass Theme (Light) ── */
-.liquid-glass {
-  --background: oklch(0.96 0.005 240);
-  --foreground: oklch(0.15 0.01 250);
-  --card: oklch(1 0 0 / 55%);
-  --card-foreground: oklch(0.15 0.01 250);
-  --popover: oklch(1 0 0 / 70%);
-  --popover-foreground: oklch(0.15 0.01 250);
-  --primary: oklch(0.52 0.22 265);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.92 0.01 240 / 60%);
-  --secondary-foreground: oklch(0.15 0.01 250);
-  --muted: oklch(0.92 0.01 240 / 50%);
-  --muted-foreground: oklch(0.45 0.01 250);
-  --accent: oklch(0.88 0.04 265 / 60%);
-  --accent-foreground: oklch(0.15 0.01 250);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.7 0.01 240 / 30%);
-  --input: oklch(0.85 0.01 240 / 50%);
-  --ring: oklch(0.52 0.22 265 / 50%);
-  --radius: 1rem;
-  --sidebar: oklch(0.97 0.005 240 / 60%);
-  --sidebar-foreground: oklch(0.15 0.01 250);
-  --sidebar-primary: oklch(0.52 0.22 265);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.88 0.04 265 / 50%);
-  --sidebar-accent-foreground: oklch(0.15 0.01 250);
-  --sidebar-border: oklch(0.7 0.01 240 / 20%);
-  --sidebar-ring: oklch(0.52 0.22 265 / 40%);
-  --chart-1: oklch(0.52 0.22 265);
-  --chart-2: oklch(0.62 0.18 200);
-  --chart-3: oklch(0.65 0.15 150);
-  --chart-4: oklch(0.72 0.18 90);
-  --chart-5: oklch(0.60 0.20 30);
-}
-
-/* ── Liquid Glass Theme (Dark) ── */
-.liquid-glass.dark {
-  --background: oklch(0.12 0.015 255);
-  --foreground: oklch(0.95 0.005 240);
-  --card: oklch(1 0 0 / 8%);
-  --card-foreground: oklch(0.95 0.005 240);
-  --popover: oklch(0.18 0.02 255 / 80%);
-  --popover-foreground: oklch(0.95 0.005 240);
-  --primary: oklch(0.65 0.22 265);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(1 0 0 / 8%);
-  --secondary-foreground: oklch(0.95 0.005 240);
-  --muted: oklch(1 0 0 / 6%);
-  --muted-foreground: oklch(0.65 0.01 250);
-  --accent: oklch(1 0 0 / 10%);
-  --accent-foreground: oklch(0.95 0.005 240);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.65 0.22 265 / 50%);
-  --sidebar: oklch(1 0 0 / 5%);
-  --sidebar-foreground: oklch(0.95 0.005 240);
-  --sidebar-primary: oklch(0.65 0.22 265);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(1 0 0 / 8%);
-  --sidebar-accent-foreground: oklch(0.95 0.005 240);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.22 265 / 40%);
-  --chart-1: oklch(0.65 0.22 265);
-  --chart-2: oklch(0.70 0.18 200);
-  --chart-3: oklch(0.72 0.15 150);
-  --chart-4: oklch(0.78 0.18 90);
-  --chart-5: oklch(0.68 0.20 30);
-}
-
-/* ── Liquid Glass: Frosted glass surfaces ── */
-.liquid-glass body {
-  background-image:
-    radial-gradient(ellipse at 20% 20%, oklch(0.75 0.18 265 / 25%) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 80%, oklch(0.72 0.15 200 / 20%) 0%, transparent 55%),
-    radial-gradient(ellipse at 60% 10%, oklch(0.78 0.12 300 / 15%) 0%, transparent 45%);
-  background-attachment: fixed;
-}
-
-.liquid-glass.dark body {
-  background-image:
-    radial-gradient(ellipse at 20% 20%, oklch(0.45 0.22 265 / 30%) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 80%, oklch(0.42 0.18 200 / 25%) 0%, transparent 55%),
-    radial-gradient(ellipse at 60% 10%, oklch(0.40 0.15 300 / 20%) 0%, transparent 45%);
-  background-attachment: fixed;
-}
-
-.liquid-glass [data-slot="card"],
-.liquid-glass .glass-surface {
-  backdrop-filter: blur(12px) saturate(140%) brightness(1.08);
-  -webkit-backdrop-filter: blur(12px) saturate(140%) brightness(1.08);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow:
-    /* äußerer Abwurfschatten */
-    0 6px 6px rgba(0, 0, 0, 0.18),
-    0 0 20px rgba(0, 0, 0, 0.10),
-    /* spekularer Glanzpunkt oben-links */
-    inset 1px 1px 0 rgba(255, 255, 255, 0.75),
-    /* inneres Leuchten */
-    inset 0 0 8px rgba(255, 255, 255, 0.55);
-}
-
-.liquid-glass.dark [data-slot="card"],
-.liquid-glass.dark .glass-surface {
-  backdrop-filter: blur(12px) saturate(150%) brightness(1.12);
-  -webkit-backdrop-filter: blur(12px) saturate(150%) brightness(1.12);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow:
-    /* äußerer Abwurfschatten */
-    0 6px 6px rgba(0, 0, 0, 0.40),
-    0 0 20px rgba(0, 0, 0, 0.28),
-    /* spekularer Glanzpunkt oben-links */
-    inset 1px 1px 0 rgba(255, 255, 255, 0.18),
-    /* inneres Leuchten */
-    inset 0 0 8px rgba(255, 255, 255, 0.08);
-}
-
-.liquid-glass nav,
-.liquid-glass aside,
-.liquid-glass header {
-  backdrop-filter: blur(16px) saturate(150%) brightness(1.06);
-  -webkit-backdrop-filter: blur(16px) saturate(150%) brightness(1.06);
-}
-
-.liquid-glass button:not([data-variant="ghost"]):not([data-variant="link"]) {
-  backdrop-filter: blur(8px) saturate(130%);
-  -webkit-backdrop-filter: blur(8px) saturate(130%);
-}
-
-/* AI Chat Float – Liquid Glass */
-.liquid-glass .ai-chat-float {
-  backdrop-filter: blur(20px) saturate(160%) brightness(1.08) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(160%) brightness(1.08) !important;
-  background: oklch(1 0 0 / 45%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.40) !important;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.14),
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.80),
-    inset 0 0 12px rgba(255, 255, 255, 0.45) !important;
-}
-.liquid-glass.dark .ai-chat-float {
-  backdrop-filter: blur(20px) saturate(170%) brightness(1.15) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(170%) brightness(1.15) !important;
-  background: oklch(1 0 0 / 9%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    0 2px 8px rgba(0, 0, 0, 0.30),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 0 12px rgba(255, 255, 255, 0.06) !important;
-}
-.liquid-glass .ai-chat-fab {
-  backdrop-filter: blur(14px) saturate(150%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
-  background: oklch(0.52 0.22 265 / 72%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.38) !important;
-  box-shadow:
-    0 4px 18px oklch(0.52 0.22 265 / 40%),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.50) !important;
-}
-.liquid-glass.dark .ai-chat-fab {
-  background: oklch(0.65 0.22 265 / 58%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  box-shadow:
-    0 4px 20px oklch(0.65 0.22 265 / 38%),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.18) !important;
-}
-.liquid-glass .ai-chat-header {
-  background: oklch(1 0 0 / 22%) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.28) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.liquid-glass.dark .ai-chat-header {
-  background: oklch(1 0 0 / 8%) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10) !important;
-}
-
 /* ══════════════════════════════════════════
-   Aurora Borealis Theme (Light)
-   ══════════════════════════════════════════ */
-.aurora-borealis {
-  --background: oklch(0.97 0.012 165);
-  --foreground: oklch(0.12 0.02 200);
-  --card: oklch(0.99 0.008 165);
-  --card-foreground: oklch(0.12 0.02 200);
-  --popover: oklch(0.99 0.008 165);
-  --popover-foreground: oklch(0.12 0.02 200);
-  --primary: oklch(0.48 0.18 175);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.91 0.03 170);
-  --secondary-foreground: oklch(0.12 0.02 200);
-  --muted: oklch(0.92 0.02 170);
-  --muted-foreground: oklch(0.42 0.04 190);
-  --accent: oklch(0.88 0.06 280 / 70%);
-  --accent-foreground: oklch(0.12 0.02 200);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.84 0.04 170);
-  --input: oklch(0.88 0.03 170);
-  --ring: oklch(0.48 0.18 175 / 50%);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.93 0.025 165);
-  --sidebar-foreground: oklch(0.12 0.02 200);
-  --sidebar-primary: oklch(0.48 0.18 175);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.88 0.05 280 / 50%);
-  --sidebar-accent-foreground: oklch(0.12 0.02 200);
-  --sidebar-border: oklch(0.84 0.04 170);
-  --sidebar-ring: oklch(0.48 0.18 175 / 40%);
-  --chart-1: oklch(0.48 0.18 175);
-  --chart-2: oklch(0.55 0.20 280);
-  --chart-3: oklch(0.60 0.16 200);
-  --chart-4: oklch(0.65 0.14 150);
-  --chart-5: oklch(0.52 0.22 240);
-}
+   Windows 11 – Fluent Design
+   ══════════════════════════════════════════
+   Die Farben sind die WinUI-Systemfarben, nicht frei gewählte Blautöne:
+   SolidBackgroundFillColorBase #F3F3F3 / #202020, CardBackgroundFillColor,
+   CardStrokeColor, TextFillColorPrimary/Secondary, Akzent #0067C0 / #60CDFF.
 
-/* Aurora Borealis (Dark) */
-.aurora-borealis.dark {
-  --background: oklch(0.10 0.025 220);
-  --foreground: oklch(0.93 0.015 175);
-  --card: oklch(0.14 0.03 210);
-  --card-foreground: oklch(0.93 0.015 175);
-  --popover: oklch(0.14 0.03 210);
-  --popover-foreground: oklch(0.93 0.015 175);
-  --primary: oklch(0.62 0.20 175);
-  --primary-foreground: oklch(0.08 0.02 200);
-  --secondary: oklch(0.18 0.04 210);
-  --secondary-foreground: oklch(0.93 0.015 175);
-  --muted: oklch(0.17 0.03 215);
-  --muted-foreground: oklch(0.58 0.06 185);
-  --accent: oklch(0.22 0.06 280);
-  --accent-foreground: oklch(0.93 0.015 175);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.62 0.20 175 / 50%);
-  --sidebar: oklch(0.12 0.03 215);
-  --sidebar-foreground: oklch(0.93 0.015 175);
-  --sidebar-primary: oklch(0.62 0.20 175);
-  --sidebar-primary-foreground: oklch(0.08 0.02 200);
-  --sidebar-accent: oklch(0.20 0.06 280);
-  --sidebar-accent-foreground: oklch(0.93 0.015 175);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.62 0.20 175 / 40%);
-  --chart-1: oklch(0.62 0.20 175);
-  --chart-2: oklch(0.65 0.22 280);
-  --chart-3: oklch(0.68 0.16 200);
-  --chart-4: oklch(0.70 0.14 150);
-  --chart-5: oklch(0.60 0.22 240);
-}
+   Fluent erkennt man weniger an der Farbe als an vier Details:
+     * zwei Radien – 4 px für Steuerelemente, 8 px für Flächen und Overlays,
+     * Karten mit 1-px-Kante statt Schatten, dazu eine dunklere Unterkante,
+     * der senkrechte Akzentbalken links am ausgewählten Navigationseintrag,
+     * der 2-px-Akzentstrich unter dem Eingabefeld, sobald es den Fokus hat.
+   Genau die bildet dieser Block nach. */
 
-.aurora-borealis body {
-  background-image:
-    radial-gradient(ellipse at 15% 30%, oklch(0.65 0.20 175 / 20%) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 20%, oklch(0.60 0.22 280 / 18%) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 90%, oklch(0.62 0.18 200 / 15%) 0%, transparent 55%);
-  background-attachment: fixed;
-}
-
-.aurora-borealis.dark body {
-  background-image:
-    radial-gradient(ellipse at 10% 25%, oklch(0.45 0.22 175 / 35%) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 15%, oklch(0.42 0.24 280 / 30%) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 85%, oklch(0.40 0.18 200 / 25%) 0%, transparent 55%);
-  background-attachment: fixed;
-}
-
-/* ══════════════════════════════════════════
-   Crimson Dusk Theme (Light)
-   ══════════════════════════════════════════ */
-.crimson-dusk {
-  --background: oklch(0.97 0.010 40);
-  --foreground: oklch(0.14 0.025 30);
-  --card: oklch(0.99 0.006 40);
-  --card-foreground: oklch(0.14 0.025 30);
-  --popover: oklch(0.99 0.006 40);
-  --popover-foreground: oklch(0.14 0.025 30);
-  --primary: oklch(0.52 0.22 25);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.92 0.03 40);
-  --secondary-foreground: oklch(0.14 0.025 30);
-  --muted: oklch(0.92 0.02 40);
-  --muted-foreground: oklch(0.46 0.04 35);
-  --accent: oklch(0.88 0.08 55 / 70%);
-  --accent-foreground: oklch(0.14 0.025 30);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.85 0.04 35);
-  --input: oklch(0.88 0.03 38);
-  --ring: oklch(0.52 0.22 25 / 50%);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.94 0.02 38);
-  --sidebar-foreground: oklch(0.14 0.025 30);
-  --sidebar-primary: oklch(0.52 0.22 25);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.88 0.08 55 / 50%);
-  --sidebar-accent-foreground: oklch(0.14 0.025 30);
-  --sidebar-border: oklch(0.85 0.04 35);
-  --sidebar-ring: oklch(0.52 0.22 25 / 40%);
-  --chart-1: oklch(0.52 0.22 25);
-  --chart-2: oklch(0.60 0.20 50);
-  --chart-3: oklch(0.65 0.18 15);
-  --chart-4: oklch(0.70 0.14 70);
-  --chart-5: oklch(0.55 0.24 5);
-}
-
-/* Crimson Dusk (Dark) */
-.crimson-dusk.dark {
-  --background: oklch(0.10 0.025 20);
-  --foreground: oklch(0.94 0.015 40);
-  --card: oklch(0.15 0.03 20);
-  --card-foreground: oklch(0.94 0.015 40);
-  --popover: oklch(0.15 0.03 20);
-  --popover-foreground: oklch(0.94 0.015 40);
-  --primary: oklch(0.65 0.22 25);
-  --primary-foreground: oklch(0.10 0 0);
-  --secondary: oklch(0.19 0.04 22);
-  --secondary-foreground: oklch(0.94 0.015 40);
-  --muted: oklch(0.18 0.03 22);
-  --muted-foreground: oklch(0.58 0.06 35);
-  --accent: oklch(0.22 0.06 50);
-  --accent-foreground: oklch(0.94 0.015 40);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.65 0.22 25 / 50%);
-  --sidebar: oklch(0.12 0.03 20);
-  --sidebar-foreground: oklch(0.94 0.015 40);
-  --sidebar-primary: oklch(0.65 0.22 25);
-  --sidebar-primary-foreground: oklch(0.10 0 0);
-  --sidebar-accent: oklch(0.20 0.06 50);
-  --sidebar-accent-foreground: oklch(0.94 0.015 40);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.65 0.22 25 / 40%);
-  --chart-1: oklch(0.65 0.22 25);
-  --chart-2: oklch(0.70 0.20 50);
-  --chart-3: oklch(0.68 0.18 15);
-  --chart-4: oklch(0.72 0.14 70);
-  --chart-5: oklch(0.62 0.24 5);
-}
-
-.crimson-dusk body {
-  background-image:
-    radial-gradient(ellipse at 75% 15%, oklch(0.65 0.22 25 / 18%) 0%, transparent 50%),
-    radial-gradient(ellipse at 20% 75%, oklch(0.68 0.18 50 / 16%) 0%, transparent 50%),
-    radial-gradient(ellipse at 55% 50%, oklch(0.62 0.20 10 / 12%) 0%, transparent 55%);
-  background-attachment: fixed;
-}
-
-.crimson-dusk.dark body {
-  background-image:
-    radial-gradient(ellipse at 75% 15%, oklch(0.48 0.24 25 / 35%) 0%, transparent 50%),
-    radial-gradient(ellipse at 20% 75%, oklch(0.50 0.20 50 / 28%) 0%, transparent 50%),
-    radial-gradient(ellipse at 55% 50%, oklch(0.44 0.22 10 / 22%) 0%, transparent 55%);
-  background-attachment: fixed;
-}
-
-/* ══════════════════════════════════════════
-   Chroma Theme – animierter Regenbogen-Farbwechsel
-   ══════════════════════════════════════════ */
-
-/* Registriert --chroma-hue als animierbaren Zahlenwert */
-@property --chroma-hue {
-  syntax: '<number>';
-  inherits: true;
-  initial-value: 0;
-}
-
-@keyframes chroma-hue-spin {
-  from { --chroma-hue: 0; }
-  to   { --chroma-hue: 360; }
-}
-
-/* Light */
-.chroma {
-  animation: chroma-hue-spin 16s linear infinite;
-
-  --background: oklch(0.980 0.006 var(--chroma-hue));
-  --foreground: oklch(0.140 0.020 var(--chroma-hue));
-  --card: oklch(0.993 0.004 var(--chroma-hue));
-  --card-foreground: oklch(0.140 0.020 var(--chroma-hue));
-  --popover: oklch(0.993 0.004 var(--chroma-hue));
-  --popover-foreground: oklch(0.140 0.020 var(--chroma-hue));
-  --primary: oklch(0.520 0.240 var(--chroma-hue));
-  --primary-foreground: oklch(0.980 0 0);
-  --secondary: oklch(0.920 0.040 var(--chroma-hue));
-  --secondary-foreground: oklch(0.140 0.020 var(--chroma-hue));
-  --muted: oklch(0.920 0.030 var(--chroma-hue));
-  --muted-foreground: oklch(0.480 0.060 var(--chroma-hue));
-  --accent: oklch(0.900 0.070 var(--chroma-hue));
-  --accent-foreground: oklch(0.140 0.020 var(--chroma-hue));
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.860 0.050 var(--chroma-hue));
-  --input: oklch(0.860 0.050 var(--chroma-hue));
-  --ring: oklch(0.520 0.240 var(--chroma-hue));
-  --radius: 0.75rem;
-  --sidebar: oklch(0.960 0.020 var(--chroma-hue));
-  --sidebar-foreground: oklch(0.140 0.020 var(--chroma-hue));
-  --sidebar-primary: oklch(0.520 0.240 var(--chroma-hue));
-  --sidebar-primary-foreground: oklch(0.980 0 0);
-  --sidebar-accent: oklch(0.900 0.060 var(--chroma-hue));
-  --sidebar-accent-foreground: oklch(0.140 0.020 var(--chroma-hue));
-  --sidebar-border: oklch(0.860 0.050 var(--chroma-hue));
-  --sidebar-ring: oklch(0.520 0.240 var(--chroma-hue));
-  --chart-1: oklch(0.520 0.240 var(--chroma-hue));
-  --chart-2: oklch(0.560 0.220 calc(var(--chroma-hue) + 72));
-  --chart-3: oklch(0.580 0.200 calc(var(--chroma-hue) + 144));
-  --chart-4: oklch(0.570 0.210 calc(var(--chroma-hue) + 216));
-  --chart-5: oklch(0.550 0.230 calc(var(--chroma-hue) + 288));
-}
-
-/* Dark */
-.chroma.dark {
-  --background: oklch(0.130 0.020 var(--chroma-hue));
-  --foreground: oklch(0.960 0.008 var(--chroma-hue));
-  --card: oklch(0.190 0.026 var(--chroma-hue));
-  --card-foreground: oklch(0.960 0.008 var(--chroma-hue));
-  --popover: oklch(0.190 0.026 var(--chroma-hue));
-  --popover-foreground: oklch(0.960 0.008 var(--chroma-hue));
-  --primary: oklch(0.700 0.220 var(--chroma-hue));
-  --primary-foreground: oklch(0.100 0 0);
-  --secondary: oklch(0.250 0.040 var(--chroma-hue));
-  --secondary-foreground: oklch(0.960 0.008 var(--chroma-hue));
-  --muted: oklch(0.240 0.030 var(--chroma-hue));
-  --muted-foreground: oklch(0.660 0.060 var(--chroma-hue));
-  --accent: oklch(0.280 0.060 var(--chroma-hue));
-  --accent-foreground: oklch(0.960 0.008 var(--chroma-hue));
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.700 0.220 var(--chroma-hue));
-  --sidebar: oklch(0.170 0.024 var(--chroma-hue));
-  --sidebar-foreground: oklch(0.960 0.008 var(--chroma-hue));
-  --sidebar-primary: oklch(0.700 0.220 var(--chroma-hue));
-  --sidebar-primary-foreground: oklch(0.100 0 0);
-  --sidebar-accent: oklch(0.260 0.050 var(--chroma-hue));
-  --sidebar-accent-foreground: oklch(0.960 0.008 var(--chroma-hue));
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.700 0.220 var(--chroma-hue));
-  --chart-1: oklch(0.700 0.220 var(--chroma-hue));
-  --chart-2: oklch(0.720 0.200 calc(var(--chroma-hue) + 72));
-  --chart-3: oklch(0.730 0.180 calc(var(--chroma-hue) + 144));
-  --chart-4: oklch(0.720 0.190 calc(var(--chroma-hue) + 216));
-  --chart-5: oklch(0.710 0.210 calc(var(--chroma-hue) + 288));
-}
-
-/* ══════════════════════════════════════════
-   Zinc Theme – kühl-neutral, kein Farbakzent
-   ══════════════════════════════════════════ */
-.zinc {
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.141 0 0);
-  --card: oklch(0.985 0 0);
-  --card-foreground: oklch(0.141 0 0);
-  --popover: oklch(0.985 0 0);
-  --popover-foreground: oklch(0.141 0 0);
-  --primary: oklch(0.271 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.920 0 0);
-  --secondary-foreground: oklch(0.271 0 0);
-  --muted: oklch(0.920 0 0);
-  --muted-foreground: oklch(0.520 0 0);
-  --accent: oklch(0.920 0 0);
-  --accent-foreground: oklch(0.271 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.870 0 0);
-  --input: oklch(0.870 0 0);
-  --ring: oklch(0.600 0 0);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.960 0 0);
-  --sidebar-foreground: oklch(0.141 0 0);
-  --sidebar-primary: oklch(0.271 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.920 0 0);
-  --sidebar-accent-foreground: oklch(0.271 0 0);
-  --sidebar-border: oklch(0.870 0 0);
-  --sidebar-ring: oklch(0.600 0 0);
-  --chart-1: oklch(0.271 0 0);
-  --chart-2: oklch(0.420 0 0);
-  --chart-3: oklch(0.550 0 0);
-  --chart-4: oklch(0.680 0 0);
-  --chart-5: oklch(0.800 0 0);
-}
-
-.zinc.dark {
-  --background: oklch(0.141 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.200 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.200 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.920 0 0);
-  --primary-foreground: oklch(0.200 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.650 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.500 0 0);
-  --sidebar: oklch(0.185 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.920 0 0);
-  --sidebar-primary-foreground: oklch(0.200 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.500 0 0);
-  --chart-1: oklch(0.920 0 0);
-  --chart-2: oklch(0.750 0 0);
-  --chart-3: oklch(0.600 0 0);
-  --chart-4: oklch(0.450 0 0);
-  --chart-5: oklch(0.320 0 0);
-}
-
-/* ══════════════════════════════════════════
-   Stone Theme – warm-neutral, leicht beige
-   ══════════════════════════════════════════ */
-.stone {
-  --background: oklch(0.982 0.012 75);
-  --foreground: oklch(0.147 0.012 75);
-  --card: oklch(0.982 0.012 75);
-  --card-foreground: oklch(0.147 0.012 75);
-  --popover: oklch(0.982 0.012 75);
-  --popover-foreground: oklch(0.147 0.012 75);
-  --primary: oklch(0.268 0.018 75);
-  --primary-foreground: oklch(0.982 0.012 75);
-  --secondary: oklch(0.910 0.022 75);
-  --secondary-foreground: oklch(0.268 0.018 75);
-  --muted: oklch(0.910 0.022 75);
-  --muted-foreground: oklch(0.520 0.020 75);
-  --accent: oklch(0.910 0.022 75);
-  --accent-foreground: oklch(0.268 0.018 75);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.858 0.026 75);
-  --input: oklch(0.858 0.026 75);
-  --ring: oklch(0.580 0.022 75);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.950 0.018 75);
-  --sidebar-foreground: oklch(0.147 0.012 75);
-  --sidebar-primary: oklch(0.268 0.018 75);
-  --sidebar-primary-foreground: oklch(0.982 0.012 75);
-  --sidebar-accent: oklch(0.910 0.022 75);
-  --sidebar-accent-foreground: oklch(0.268 0.018 75);
-  --sidebar-border: oklch(0.858 0.026 75);
-  --sidebar-ring: oklch(0.580 0.022 75);
-  --chart-1: oklch(0.268 0.018 75);
-  --chart-2: oklch(0.420 0.020 75);
-  --chart-3: oklch(0.560 0.022 75);
-  --chart-4: oklch(0.700 0.018 75);
-  --chart-5: oklch(0.820 0.012 75);
-}
-
-.stone.dark {
-  --background: oklch(0.147 0.004 75);
-  --foreground: oklch(0.985 0.002 75);
-  --card: oklch(0.205 0.005 75);
-  --card-foreground: oklch(0.985 0.002 75);
-  --popover: oklch(0.205 0.005 75);
-  --popover-foreground: oklch(0.985 0.002 75);
-  --primary: oklch(0.923 0.005 75);
-  --primary-foreground: oklch(0.205 0.005 75);
-  --secondary: oklch(0.272 0.006 75);
-  --secondary-foreground: oklch(0.985 0.002 75);
-  --muted: oklch(0.272 0.006 75);
-  --muted-foreground: oklch(0.655 0.008 75);
-  --accent: oklch(0.272 0.006 75);
-  --accent-foreground: oklch(0.985 0.002 75);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.510 0.008 75);
-  --sidebar: oklch(0.190 0.005 75);
-  --sidebar-foreground: oklch(0.985 0.002 75);
-  --sidebar-primary: oklch(0.923 0.005 75);
-  --sidebar-primary-foreground: oklch(0.205 0.005 75);
-  --sidebar-accent: oklch(0.272 0.006 75);
-  --sidebar-accent-foreground: oklch(0.985 0.002 75);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.510 0.008 75);
-  --chart-1: oklch(0.923 0.005 75);
-  --chart-2: oklch(0.760 0.008 75);
-  --chart-3: oklch(0.610 0.010 75);
-  --chart-4: oklch(0.460 0.008 75);
-  --chart-5: oklch(0.330 0.005 75);
-}
-
-
-/* ══════════════════════════════════════════
-   Windows 11 Theme (Light) – Mica/Fluent Design
-   Akzentfarbe: Windows-Blau #0067C0  ≈  oklch(0.50 0.19 257)
-   ══════════════════════════════════════════ */
 .windows11 {
-  --background: oklch(0.975 0.006 240);
-  --foreground: oklch(0.12 0.01 250);
-  --card: oklch(0.995 0.003 240);
-  --card-foreground: oklch(0.12 0.01 250);
-  --popover: oklch(0.995 0.003 240);
-  --popover-foreground: oklch(0.12 0.01 250);
-  --primary: oklch(0.50 0.19 257);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.930 0.010 240);
-  --secondary-foreground: oklch(0.12 0.01 250);
-  --muted: oklch(0.930 0.008 240);
-  --muted-foreground: oklch(0.44 0.012 250);
-  --accent: oklch(0.920 0.030 255);
-  --accent-foreground: oklch(0.12 0.01 250);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.870 0.012 240);
-  --input: oklch(0.870 0.012 240);
-  --ring: oklch(0.50 0.19 257 / 55%);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.955 0.008 240);
-  --sidebar-foreground: oklch(0.12 0.01 250);
-  --sidebar-primary: oklch(0.50 0.19 257);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.920 0.025 255);
-  --sidebar-accent-foreground: oklch(0.12 0.01 250);
-  --sidebar-border: oklch(0.870 0.012 240);
-  --sidebar-ring: oklch(0.50 0.19 257 / 40%);
-  --chart-1: oklch(0.50 0.19 257);
-  --chart-2: oklch(0.56 0.16 210);
-  --chart-3: oklch(0.58 0.14 185);
-  --chart-4: oklch(0.62 0.12 280);
-  --chart-5: oklch(0.55 0.18 230);
+  --background: #F3F3F3;
+  --foreground: #1A1A1A;
+  --card: #FBFBFB;
+  --card-foreground: #1A1A1A;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1A1A;
+  --primary: #0067C0;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EDEDED;
+  --secondary-foreground: #1A1A1A;
+  --muted: #EDEDED;
+  --muted-foreground: rgba(0, 0, 0, 0.61);
+  --accent: #E8F0FA;
+  --accent-foreground: #1A1A1A;
+  --destructive: #C42B1C;
+  --border: rgba(0, 0, 0, 0.0803);
+  --input: rgba(0, 0, 0, 0.16);
+  --ring: rgba(0, 103, 192, 0.55);
+  /* ControlCornerRadius – Flächen setzen weiter unten 8 px */
+  --radius: 0.25rem;
+  --sidebar: #F3F3F3;
+  --sidebar-foreground: #1A1A1A;
+  --sidebar-primary: #0067C0;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: rgba(0, 0, 0, 0.0373);
+  --sidebar-accent-foreground: #1A1A1A;
+  --sidebar-border: rgba(0, 0, 0, 0.0803);
+  --sidebar-ring: rgba(0, 103, 192, 0.4);
+  --chart-1: #0067C0;
+  --chart-2: #2D7D9A;
+  --chart-3: #038387;
+  --chart-4: #8764B8;
+  --chart-5: #0078D4;
+
+  --w11-card-stroke: rgba(0, 0, 0, 0.0578);
+  --w11-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --w11-control-fill: rgba(255, 255, 255, 0.7);
+  --w11-control-stroke: rgba(0, 0, 0, 0.0578);
+  --w11-control-stroke-bottom: rgba(0, 0, 0, 0.16);
+  --w11-subtle-hover: rgba(0, 0, 0, 0.0373);
+  --w11-overlay-radius: 8px;
 }
 
-/* Windows 11 Theme (Dark) – Dark Mica */
 .windows11.dark {
-  --background: oklch(0.115 0.012 248);
-  --foreground: oklch(0.945 0.008 240);
-  --card: oklch(0.155 0.015 248);
-  --card-foreground: oklch(0.945 0.008 240);
-  --popover: oklch(0.175 0.016 248);
-  --popover-foreground: oklch(0.945 0.008 240);
-  --primary: oklch(0.60 0.20 257);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.210 0.018 248);
-  --secondary-foreground: oklch(0.945 0.008 240);
-  --muted: oklch(0.200 0.015 248);
-  --muted-foreground: oklch(0.62 0.014 248);
-  --accent: oklch(0.230 0.030 255);
-  --accent-foreground: oklch(0.945 0.008 240);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.60 0.20 257 / 50%);
-  --sidebar: oklch(0.140 0.014 248);
-  --sidebar-foreground: oklch(0.945 0.008 240);
-  --sidebar-primary: oklch(0.60 0.20 257);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.210 0.025 255);
-  --sidebar-accent-foreground: oklch(0.945 0.008 240);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.60 0.20 257 / 40%);
-  --chart-1: oklch(0.60 0.20 257);
-  --chart-2: oklch(0.64 0.16 210);
-  --chart-3: oklch(0.66 0.14 185);
-  --chart-4: oklch(0.68 0.12 280);
-  --chart-5: oklch(0.62 0.18 230);
+  --background: #202020;
+  --foreground: #FFFFFF;
+  --card: #2B2B2B;
+  --card-foreground: #FFFFFF;
+  --popover: #2C2C2C;
+  --popover-foreground: #FFFFFF;
+  --primary: #60CDFF;
+  --primary-foreground: #003966;
+  --secondary: #2D2D2D;
+  --secondary-foreground: #FFFFFF;
+  --muted: #2D2D2D;
+  --muted-foreground: rgba(255, 255, 255, 0.786);
+  --accent: #1F3A4D;
+  --accent-foreground: #FFFFFF;
+  --destructive: #FF99A4;
+  --border: rgba(255, 255, 255, 0.0837);
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: rgba(96, 205, 255, 0.5);
+  --sidebar: #202020;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #60CDFF;
+  --sidebar-primary-foreground: #003966;
+  --sidebar-accent: rgba(255, 255, 255, 0.0605);
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255, 255, 255, 0.0837);
+  --sidebar-ring: rgba(96, 205, 255, 0.4);
+  --chart-1: #60CDFF;
+  --chart-2: #4CC2FF;
+  --chart-3: #6BB700;
+  --chart-4: #B4A0FF;
+  --chart-5: #0099BC;
+
+  --w11-card-stroke: rgba(255, 255, 255, 0.0698);
+  --w11-card-shadow: none;
+  --w11-control-fill: rgba(255, 255, 255, 0.0605);
+  --w11-control-stroke: rgba(255, 255, 255, 0.0698);
+  --w11-control-stroke-bottom: rgba(255, 255, 255, 0.0698);
+  --w11-subtle-hover: rgba(255, 255, 255, 0.0605);
 }
 
-/* Mica-ähnlicher Hintergrund-Verlauf */
+/* Segoe UI Variable ist die Systemschrift von Windows 11; auf anderen
+   Systemen greift die Kette zurück. */
+.windows11 body,
+.windows11 button,
+.windows11 input,
+.windows11 select,
+.windows11 textarea {
+  font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+/* Mica: eine leichte Einfärbung des Fensterhintergrunds, KEIN Effekt auf
+   den Flächen darüber. Karten bleiben deckend – so macht es Windows auch. */
 .windows11 body {
   background-image:
-    radial-gradient(ellipse at 30% 15%, oklch(0.60 0.18 257 / 12%) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 85%, oklch(0.58 0.14 210 / 10%) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 0%, rgba(0, 103, 192, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(45, 125, 154, 0.06) 0%, transparent 55%);
   background-attachment: fixed;
 }
 
 .windows11.dark body {
   background-image:
-    radial-gradient(ellipse at 30% 15%, oklch(0.40 0.18 257 / 25%) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 85%, oklch(0.38 0.14 210 / 20%) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 0%, rgba(96, 205, 255, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(76, 194, 255, 0.06) 0%, transparent 55%);
   background-attachment: fixed;
 }
 
-/* Acrylic-Effekt auf Cards */
+/* ── Flächen: 8 px Radius, feine Kante, kaum Schatten ── */
 .windows11 [data-slot="card"],
+.windows11 [data-list-group],
+.windows11 [data-slot="table-container"],
 .windows11 .glass-surface {
-  backdrop-filter: blur(8px) saturate(130%);
-  -webkit-backdrop-filter: blur(8px) saturate(130%);
-  border: 1px solid rgba(255, 255, 255, 0.60);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(0, 80, 180, 0.06);
+  border-radius: var(--w11-overlay-radius);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--w11-card-stroke), var(--w11-card-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
-.windows11.dark [data-slot="card"],
-.windows11.dark .glass-surface {
-  backdrop-filter: blur(8px) saturate(140%);
-  -webkit-backdrop-filter: blur(8px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* ── Overlays: gleiche 8 px, aber mit echtem Schatten ── */
+.windows11 [data-slot="dialog-content"],
+.windows11 [data-slot="alert-dialog-content"],
+.windows11 [data-slot="dropdown-menu-content"],
+.windows11 [data-slot="popover-content"],
+.windows11 [data-slot="select-content"],
+.windows11 [data-slot="sheet-content"] {
+  border-radius: var(--w11-overlay-radius);
+  border: 1px solid var(--w11-card-stroke);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12);
+}
+.windows11 [data-slot="sheet-content"][data-side="bottom"] {
+  border-radius: var(--w11-overlay-radius) var(--w11-overlay-radius) 0 0;
+}
+
+/* ── Steuerelemente: 4 px, 32 px hoch, Kante unten dunkler ──
+   Diese dunklere Unterkante ist ein Fluent-Merkmal: Sie ersetzt den
+   Schlagschatten und lässt den Knopf minimal erhaben wirken. */
+.windows11 [data-slot="button"] {
+  border-radius: 4px;
+  font-weight: 600;
+  box-shadow: inset 0 -1px 0 0 var(--w11-control-stroke-bottom);
+}
+.windows11 [data-slot="button"][data-variant="default"] {
+  box-shadow: inset 0 -1px 0 0 rgba(0, 0, 0, 0.22);
+}
+.windows11 [data-slot="button"][data-variant="ghost"],
+.windows11 [data-slot="button"][data-variant="link"] {
+  box-shadow: none;
+}
+
+.windows11 [data-slot="input"],
+.windows11 input:not([type="checkbox"]):not([type="radio"]),
+.windows11 textarea,
+.windows11 [data-slot="select-trigger"] {
+  border-radius: 4px;
+  background: var(--w11-control-fill);
+  border: 1px solid var(--w11-control-stroke);
+  /* Die Unterkante ist kräftiger als der Rest – Fluent-Eingabefeld */
+  border-bottom-color: var(--w11-control-stroke-bottom);
+}
+
+/* Der Akzentstrich beim Fokus: 2 px, in Akzentfarbe, nur unten. */
+.windows11 [data-slot="input"]:focus-visible,
+.windows11 input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+.windows11 textarea:focus-visible,
+.windows11 [data-slot="select-trigger"]:focus-visible {
+  background: var(--card);
+  border-bottom: 2px solid var(--primary);
+  outline: none;
+}
+
+/* Eingaben in Listenzeilen bleiben Teil der Zeile */
+.windows11 [data-list-group] input:not([type="checkbox"]):not([type="radio"]),
+.windows11 [data-list-group] textarea:not([hidden]),
+.windows11 [data-list-group] [data-slot="select-trigger"]:not([hidden]),
+.windows11 [data-search-field] input:not([hidden]) {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ── Auswahl: der senkrechte Akzentbalken ──
+   Windows markiert den aktiven Navigationseintrag nicht mit Farbe, sondern
+   mit einem kurzen, abgerundeten Balken am linken Rand. */
+.windows11 aside nav a {
+  position: relative;
+  border-radius: 4px;
+}
+.windows11 aside nav a[aria-current="page"] {
+  background: var(--sidebar-accent);
+}
+.windows11 aside nav a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+/* Dasselbe Prinzip in der unteren Leiste des Handys: kurzer Balken,
+   hier oben am Reiter statt links. */
+.windows11 [data-mobile-nav] a[aria-current="page"],
+.windows11 [data-mobile-nav] .text-primary {
+  position: relative;
+}
+.windows11 [data-mobile-nav] a[aria-current="page"]::before,
+.windows11 [data-mobile-nav] .text-primary::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+.windows11 [data-mobile-nav] span.rounded-full:not(.bg-foreground) {
+  border-radius: 4px;
+}
+/* Die Hauptaktion trägt die Akzentfarbe des Systems, nicht Schwarz */
+.windows11 [data-mobile-nav] .bg-foreground {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 4px;
+}
+
+/* ── Listenzeilen ── */
+.windows11 [data-list-row] {
+  border-radius: 4px;
+}
+.windows11 [data-list-row]:hover {
+  background: var(--w11-subtle-hover);
+}
+
+/* ── Schalter: Fluent ToggleSwitch, 40×20 mit Kontur ──
+   Aus ist die Bahn leer und nur umrandet, der Knopf ein kleiner Punkt in
+   Textfarbe; an füllt sie sich mit dem Akzent und der Punkt wird hell.
+   Genau so verhält sich der Schalter in den Windows-Einstellungen. */
+.windows11 [data-slot="switch"] {
+  height: 20px;
+  width: 40px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+}
+.windows11.dark [data-slot="switch"] {
+  border-color: rgba(255, 255, 255, 0.54);
+  background: rgba(255, 255, 255, 0.06);
+}
+.windows11 [data-slot="switch"][data-state="checked"],
+.windows11.dark [data-slot="switch"][data-state="checked"] {
+  background: var(--primary);
+  border-color: transparent;
+}
+.windows11 [data-slot="switch-thumb"] {
+  height: 12px;
+  width: 12px;
+  background: rgba(0, 0, 0, 0.62);
+  box-shadow: none;
+  translate: 3px 0;
+}
+.windows11.dark [data-slot="switch-thumb"] {
+  background: rgba(255, 255, 255, 0.79);
+}
+.windows11 [data-slot="switch-thumb"][data-state="checked"] {
+  background: var(--primary-foreground);
+  translate: 23px 0;
+}
+
+/* ── Reiter als Pivot: Unterstrich statt Pille ── */
+.windows11 [data-segmented] {
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  gap: 0.5rem;
+}
+.windows11 [data-segmented] > button {
+  position: relative;
+  font-size: 14px;
+  min-height: 32px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  padding-bottom: 0.5rem;
+}
+.windows11 [data-segmented] > button[data-selected] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--foreground);
+}
+/* Filtermarken sind hier gewöhnliche Fluent-Schaltflächen: 4 px Radius,
+   gefüllte Fläche mit feiner Kontur, gewählt in der Akzentfarbe. */
+.windows11 [data-filter-chip] {
+  min-height: 32px;
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--w11-control-fill);
   box-shadow:
-    0 2px 12px rgba(0, 0, 0, 0.30),
-    0 0 0 1px rgba(100, 160, 255, 0.08);
+    inset 0 0 0 1px var(--w11-control-stroke),
+    inset 0 -1px 0 0 var(--w11-control-stroke-bottom);
+}
+.windows11 [data-filter-chip][data-active] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: none;
+}
+
+.windows11 [data-segmented] > button[data-selected]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.windows11 [data-slot="tabs-list"] {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0;
+}
+.windows11 [role="tab"][data-state="active"] {
+  background: transparent;
+  box-shadow: inset 0 -3px 0 0 var(--primary);
+}
+
+/* ── Kleinteile ── */
+.windows11 [data-slot="checkbox"] {
+  border-radius: 3px;
+}
+.windows11 [data-slot="badge"] {
+  border-radius: 4px;
+}
+.windows11 [data-search-field] {
+  border-radius: 4px;
+  background: var(--w11-control-fill);
+  box-shadow: inset 0 0 0 1px var(--w11-control-stroke), inset 0 -1px 0 0 var(--w11-control-stroke-bottom);
+}
+.windows11 [data-sheet-grabber] {
+  display: none;
+}
+
+/* ── Das 32/40-Raster ──
+   Fluent ist spürbar kompakter als jede Mobil-Oberfläche: Steuerelemente
+   32 px, Listenzeilen 40 px, Symbole 16 px. */
+.windows11 [data-list-row] [data-row-body],
+.windows11 [data-form-row] {
+  min-height: 40px;
+}
+.windows11 [data-tint] {
+  height: 24px;
+  width: 24px;
+  border-radius: 4px;
+}
+.windows11 [data-tint] svg {
+  height: 14px;
+  width: 14px;
+}
+/* Fluent trennt Zeilen mit Linien – das Gegenteil von One UI */
+.windows11 [data-row-body],
+.windows11 [data-form-row] {
+  border-bottom-color: var(--border);
+}
+
+/* Acrylic: Flyouts sind milchig durchscheinend, nicht deckend */
+.windows11 [data-slot="dropdown-menu-content"],
+.windows11 [data-slot="popover-content"],
+.windows11 [data-slot="select-content"],
+.windows11 [data-slot="context-menu-content"] {
+  background: color-mix(in oklab, var(--popover) 85%, transparent);
+  backdrop-filter: blur(30px) saturate(125%);
+  -webkit-backdrop-filter: blur(30px) saturate(125%);
+}
+
+/* Zweifarbiges Fokus-Visual: 2 px außen dunkel, 1 px innen hell.
+   Windows zeigt das auf jedem Untergrund – ein Ring allein verschwindet
+   auf gleichfarbigem Grund. */
+.windows11 [data-slot="button"]:focus-visible,
+.windows11 a:focus-visible,
+.windows11 [data-list-row]:focus-visible,
+.windows11 [data-segmented] > button:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px var(--background);
+}
+
+/* Fluent ist dichter beschriftet: 14 px Body statt 17 px wie auf dem Handy */
+.windows11 [data-row-label] {
+  font-size: 14px;
+}
+.windows11 [data-row-hint] {
+  font-size: 12px;
+}
+.windows11 [data-row-value] {
+  font-size: 14px;
+}
+.windows11 [data-search-field] input {
+  font-size: 14px;
+}
+
+/* Titel: Windows setzt Seitentitel deutlich kleiner als iOS */
+.windows11 main h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* ══════════════════════════════════════════
+   Apple UI Kit 26 – iOS-26-Design („Liquid Glass")
+
+   Farben sind 1:1 die semantischen iOS-Systemfarben (systemBackground,
+   secondarySystemGroupedBackground, label, separator, systemBlue …).
+   Layout folgt der iOS-Gruppenliste: getönte Seitenfläche, weiße Karten,
+   Trennlinien statt Rahmen, Kapsel-Buttons, 44-pt-Trefferflächen.
+
+   Das Glas-Material bleibt bewusst der Navigationsebene vorbehalten
+   (Leiste unten, Kopfzeile, Seitenleiste, Sheets) – genau so empfiehlt es
+   Apples HIG: Liquid Glass gehört auf die Navigationsebene, die über dem
+   Inhalt schwebt. Inhaltskarten bleiben deckend und damit lesbar.
+   ══════════════════════════════════════════ */
+
+.apple26 {
+  /* systemGroupedBackground / secondarySystemGroupedBackground */
+  --background: #F2F2F7;
+  --foreground: #000000;
+  --card: #FFFFFF;
+  --card-foreground: #000000;
+  --popover: rgba(255, 255, 255, 0.86);
+  --popover-foreground: #000000;
+  /* systemBlue */
+  --primary: #007AFF;
+  --primary-foreground: #FFFFFF;
+  /* systemFill / secondarySystemFill */
+  --secondary: rgba(120, 120, 128, 0.12);
+  --secondary-foreground: #000000;
+  --muted: rgba(120, 120, 128, 0.08);
+  /* secondaryLabel */
+  --muted-foreground: rgba(60, 60, 67, 0.6);
+  --accent: rgba(120, 120, 128, 0.12);
+  --accent-foreground: #000000;
+  /* systemRed */
+  --destructive: #FF3B30;
+  /* separator */
+  --border: rgba(60, 60, 67, 0.29);
+  --input: rgba(120, 120, 128, 0.12);
+  --ring: rgba(0, 122, 255, 0.5);
+  /* iOS-Karten liegen bei ~16 px; daraus leitet die App sm/md/xl ab */
+  --radius: 0.875rem;
+  --sidebar: rgba(242, 242, 247, 0.8);
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #007AFF;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: rgba(120, 120, 128, 0.14);
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: rgba(60, 60, 67, 0.2);
+  --sidebar-ring: rgba(0, 122, 255, 0.4);
+  /* Diagramme in den iOS-Systemfarben */
+  --chart-1: #007AFF;
+  --chart-2: #34C759;
+  --chart-3: #FF9500;
+  --chart-4: #AF52DE;
+  --chart-5: #FF2D55;
+
+  /* Theme-eigene Kennwerte */
+  --a26-glass-blur: 30px;
+  --a26-glass-bg: rgba(255, 255, 255, 0.72);
+  --a26-glass-border: rgba(255, 255, 255, 0.6);
+  --a26-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --a26-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --a26-fill: rgba(120, 120, 128, 0.12);
+  --a26-segment-thumb: #FFFFFF;
+
+  /* Platz für die schwebende Navigationsleiste (siehe unten) */
+  --app-main-pb: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+  /* Meldungen müssen über der schwebenden Leiste bleiben */
+  --toast-offset-bottom: 6.5rem;
+}
+
+.apple26.dark {
+  --background: #000000;
+  --foreground: #FFFFFF;
+  --card: #1C1C1E;
+  --card-foreground: #FFFFFF;
+  --popover: rgba(28, 28, 30, 0.86);
+  --popover-foreground: #FFFFFF;
+  --primary: #0A84FF;
+  --primary-foreground: #FFFFFF;
+  --secondary: rgba(120, 120, 128, 0.24);
+  --secondary-foreground: #FFFFFF;
+  --muted: rgba(120, 120, 128, 0.16);
+  --muted-foreground: rgba(235, 235, 245, 0.6);
+  --accent: rgba(120, 120, 128, 0.24);
+  --accent-foreground: #FFFFFF;
+  --destructive: #FF453A;
+  --border: rgba(84, 84, 88, 0.6);
+  --input: rgba(120, 120, 128, 0.24);
+  --ring: rgba(10, 132, 255, 0.5);
+  --sidebar: rgba(28, 28, 30, 0.8);
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #0A84FF;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: rgba(120, 120, 128, 0.24);
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(84, 84, 88, 0.45);
+  --sidebar-ring: rgba(10, 132, 255, 0.4);
+  --chart-1: #0A84FF;
+  --chart-2: #30D158;
+  --chart-3: #FF9F0A;
+  --chart-4: #BF5AF2;
+  --chart-5: #FF375F;
+
+  --a26-glass-bg: rgba(30, 30, 32, 0.72);
+  --a26-glass-border: rgba(255, 255, 255, 0.12);
+  --a26-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --a26-card-shadow: none;
+  --a26-fill: rgba(120, 120, 128, 0.24);
+  --a26-segment-thumb: #636366;
+}
+
+/* ── Typografie: SF Pro, wo vorhanden ── */
+.apple26 body,
+.apple26 button,
+.apple26 input,
+.apple26 select,
+.apple26 textarea {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Geist Variable', 'Segoe UI Variable Text', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* SF setzt große Überschriften eng und schwer – iOS Large Title */
+.apple26 h1 {
+  letter-spacing: -0.022em;
+  font-weight: 700;
+}
+.apple26 h2,
+.apple26 h3 {
+  letter-spacing: -0.015em;
+}
+
+/* ── Inhaltskarten: deckend, randlos, weiche Ecken ── */
+.apple26 [data-slot="card"] {
+  border: none;
+  border-radius: 1rem;
+  box-shadow: var(--a26-card-shadow);
+}
+
+/* ── Navigationsebene: hier – und nur hier – liegt das Glas ── */
+.apple26 [data-mobile-nav],
+.apple26 header,
+.apple26 aside,
+.apple26 [data-slot="sheet-content"],
+.apple26 [data-slot="popover-content"],
+.apple26 [data-slot="dropdown-menu-content"],
+.apple26 [data-slot="select-content"] {
+  backdrop-filter: blur(var(--a26-glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--a26-glass-blur)) saturate(180%);
+}
+
+.apple26 header {
+  background: var(--a26-glass-bg);
+  border-bottom: 0.5px solid var(--border);
+}
+
+.apple26 aside {
+  background: var(--a26-glass-bg);
+  border-right: 0.5px solid var(--border);
+}
+
+/* ── Frei schwebende Navigationsleiste (iOS 26) ──
+   Kein Balken am Bildschirmrand mehr, sondern eine Kapsel, die über dem
+   Inhalt schwebt. Den Platz darunter schafft --app-main-pb weiter oben. */
+.apple26 [data-mobile-nav] {
+  position: absolute;
+  z-index: 40;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+  transform: translateX(-50%);
+  width: auto;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.25rem 0.375rem;
+  border: 0.5px solid var(--a26-glass-border);
+  border-top: 0.5px solid var(--a26-glass-border);
+  border-radius: 9999px;
+  background: var(--a26-glass-bg);
+  box-shadow: var(--a26-glass-shadow);
+}
+
+.apple26 [data-mobile-nav] > * {
+  flex: 0 0 auto;
+  gap: 0.125rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+/* Der hervorgehobene Slot wird zur kompakten Kapsel */
+.apple26 [data-mobile-nav] span.rounded-full {
+  height: 2rem;
+  width: 2.25rem;
+  border-radius: 9999px;
+}
+
+/* In iOS ist der aktive Tab schlicht blau eingefärbt – ohne Fläche dahinter.
+   Zwei Hervorhebungen nebeneinander (Pille + gefüllter Knopf) wirkten unruhig. */
+.apple26 [data-mobile-nav] span.rounded-full:not(.bg-foreground) {
+  background: transparent;
+}
+
+/* ── Segmentierte Auswahl ──
+   In iOS liegt der ausgewählte Reiter als HELLERE Kachel auf einer dunklen
+   Spur – nicht umgekehrt. Mit der neutralen Hintergrundfarbe wäre er im
+   Dunkelmodus schwarz auf grau gewesen, also genau verkehrt herum.
+   Beide Beschriftungen sind voll deckend; die Auswahl zeigt die Kachel. */
+.apple26 [data-segmented] {
+  background: var(--a26-fill);
+  border-radius: 9px;
+  padding: 2px;
+  gap: 0;
+}
+.apple26 [data-segmented] > button {
+  border-radius: 7px;
+  font-weight: 590;
+  letter-spacing: -0.006em;
+  color: var(--foreground);
+}
+.apple26 [data-segmented] > button[data-selected] {
+  background: var(--a26-segment-thumb);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+/* ── Schalter: 51×31 pt, Systemgrün, weißer Knopf ──
+   Apples Maße aus der HIG. Der Knopf ist 27 pt groß und sitzt mit 2 pt
+   Luft in der Bahn; sein Schatten macht ihn plastisch, das ist an iOS
+   sichtbar und fällt sofort auf, wenn es fehlt. */
+.apple26 [data-slot="switch"] {
+  height: 31px;
+  width: 51px;
+  border-radius: 15.5px;
+  background: rgba(120, 120, 128, 0.16);
+}
+.apple26 [data-slot="switch"][data-state="checked"] {
+  background: #34C759;
+}
+.apple26.dark [data-slot="switch"] {
+  background: rgba(120, 120, 128, 0.32);
+}
+.apple26.dark [data-slot="switch"][data-state="checked"] {
+  background: #30D158;
+}
+.apple26 [data-slot="switch-thumb"] {
+  height: 27px;
+  width: 27px;
+  background: #FFFFFF;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.15),
+    0 1px 1px rgba(0, 0, 0, 0.16);
+  translate: 2px 0;
+}
+.apple26 [data-slot="switch-thumb"][data-state="checked"] {
+  translate: 22px 0;
+}
+
+/* ── Kapsel-Buttons mit iOS-Trefferfläche ── */
+.apple26 [data-slot="button"] {
+  border-radius: 9999px;
+  font-weight: 590;
+  letter-spacing: -0.01em;
+}
+
+/* ── Eingabefelder: gefüllt statt umrandet ── */
+.apple26 [data-slot="input"],
+.apple26 input:not([type="checkbox"]):not([type="radio"]),
+.apple26 textarea,
+.apple26 [data-slot="select-trigger"] {
+  border-radius: 0.625rem;
+  border-color: transparent;
+  background: var(--a26-fill);
+}
+
+.apple26 [data-slot="input"]:focus-visible,
+.apple26 input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+.apple26 textarea:focus-visible,
+.apple26 [data-slot="select-trigger"]:focus-visible {
+  border-color: var(--primary);
+  background: var(--card);
+}
+
+/* In Gruppenlisten sind Eingaben Teil der Zeile, keine eigenen Flächen –
+   sonst sitzt in jeder Zeile eine graue Pille. */
+/* Spezifität muss über der Regel für gefüllte Eingabefelder weiter oben
+   liegen – sonst gewinnt dort die graue Füllung. */
+.apple26 [data-list-group] input:not([type="checkbox"]):not([type="radio"]),
+.apple26 [data-list-group] textarea:not([hidden]),
+.apple26 [data-list-group] [data-slot="select-trigger"]:not([hidden]),
+/* Das Suchfeld bringt seine Füllung selbst mit – ohne das hier säße eine
+   zweite, hellere Pille darin. */
+.apple26 [data-search-field] input:not([hidden]) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* ── Tabs als Segmented Control ── */
+.apple26 [data-slot="tabs-list"] {
+  background: var(--a26-fill);
+  border-radius: 0.625rem;
+  padding: 0.125rem;
+}
+.apple26 [role="tab"] {
+  border-radius: 0.5rem;
+  font-weight: 590;
+}
+.apple26 [role="tab"][data-state="active"] {
+  background: var(--card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Tabellen als Gruppenliste: Trennlinien statt Gitter ── */
+.apple26 [data-slot="table-container"] {
+  border-radius: 1rem;
+  background: var(--card);
+}
+.apple26 thead tr,
+.apple26 tbody tr {
+  border-bottom: 0.5px solid var(--border);
+}
+.apple26 tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* ── Sheets: iOS-Radius oben, Glas dahinter ── */
+.apple26 [data-slot="sheet-content"][data-side="bottom"] {
+  border-radius: 1.25rem 1.25rem 0 0;
+  border: none;
+  background: var(--a26-glass-bg);
+  box-shadow: var(--a26-glass-shadow);
+}
+.apple26 [data-slot="sheet-overlay"] {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+/* iOS stapelt Flächen statt sie zu umranden: Ein Sheet trägt den
+   Gruppen-Hintergrund, die Listen darin liegen eine Stufe höher. Ohne das
+   ist im Dark Mode Karte und Untergrund praktisch dieselbe Farbe. */
+.apple26 [data-slot="sheet-content"][data-side="bottom"] {
+  background: rgba(242, 242, 247, 0.86);
+}
+.apple26.dark [data-slot="sheet-content"][data-side="bottom"] {
+  background: rgba(20, 20, 22, 0.88);
+  /* secondarySystemGroupedBackground „elevated" */
+  --card: #2C2C2E;
+}
+/* Im Apple-Theme trennt die Höhenstufe, nicht eine Linie. Eine Klasse
+   reicht dafür – mit `.apple26.dark` zusätzlich hätte Apple auch das
+   aufgesetzte Liquid-Glass-Theme überstimmt, dessen Glaskante im
+   Dunkelmodus dann verschwunden wäre. */
+.apple26 [data-list-group] {
+  box-shadow: none;
+}
+
+/* ── Dialoge, Menüs, Popover ── */
+.apple26 [data-slot="dialog-content"] {
+  border-radius: 1.125rem;
+  border: none;
+}
+.apple26 [data-slot="dropdown-menu-content"],
+.apple26 [data-slot="popover-content"],
+.apple26 [data-slot="select-content"] {
+  border-radius: 0.875rem;
+  border: 0.5px solid var(--a26-glass-border);
+  background: var(--popover);
+  box-shadow: var(--a26-glass-shadow);
+}
+.apple26 [data-slot="dropdown-menu-item"],
+.apple26 [data-slot="select-item"] {
+  border-radius: 0.5rem;
+}
+
+/* ── Seitenleiste: Auswahl als gefüllte Kapsel ── */
+.apple26 aside nav a {
+  border-radius: 0.625rem;
+  font-weight: 510;
+}
+
+/* ── Badges ── */
+.apple26 [data-slot="badge"] {
+  border-radius: 9999px;
+  font-weight: 590;
+}
+
+/* ── Apple UI Kit 26: Formensprache ──
+   Der zweite Teil des Themes. Farben allein machen noch kein iOS – was den
+   Unterschied ausmacht, sind: keine Hairline-Rahmen um Flächen, große
+   Titel, viel Weißraum, 44-pt-Zeilen und Kapsel-Buttons in Systemblau. */
+
+/* Karten tragen in dieser App einen `ring-1`, keinen Rahmen – der muss weg,
+   sonst bleibt der typische Kasten-Look. */
+.apple26 [data-slot="card"] {
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  box-shadow: var(--a26-card-shadow);
+  border-radius: 1.125rem;
+  padding-block: 1.125rem;
+  gap: 0.875rem;
+}
+.apple26 [data-slot="card-header"],
+.apple26 [data-slot="card-content"],
+.apple26 [data-slot="card-footer"] {
+  padding-inline: 1.125rem;
+}
+.apple26 [data-slot="card-title"] {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+}
+.apple26 [data-slot="card-description"] {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+/* Die App umrandet Flächen häufig mit `rounded-xl border`. In iOS gibt es
+   solche Rahmen nicht – dort sind es flächige Karten mit weichem Schatten.
+   Absichtlich eingefärbte Hinweisboxen (border-primary/30, border-destructive
+   …) und gestrichelte Platzhalter bleiben ausgenommen. */
+.apple26 main .rounded-xl.border:not([class*="border-primary"]):not([class*="border-destructive"]):not([class*="border-amber"]):not([class*="border-emerald"]):not([class*="border-blue"]):not([class*="border-orange"]):not([class*="border-violet"]):not([class*="border-dashed"]),
+.apple26 main .rounded-lg.border:not([class*="border-primary"]):not([class*="border-destructive"]):not([class*="border-amber"]):not([class*="border-emerald"]):not([class*="border-blue"]):not([class*="border-orange"]):not([class*="border-violet"]):not([class*="border-dashed"])
+{
+  border-color: transparent;
+  background-color: var(--card);
+  border-radius: 1.125rem;
+  box-shadow: var(--a26-card-shadow);
+}
+
+/* ── Große Titel wie in iOS ──
+   Seitenüberschriften sind Large Titles (34 pt, fett, eng gesetzt).
+   Der Titel in der Navigationsleiste bleibt dagegen klein und mittig. */
+.apple26 main h1 {
+  font-size: 2.125rem;
+  line-height: 1.18;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  /* In dieser Größe passt manches lange Wort in keine Handy-Zeile mehr –
+     dann lieber umbrechen als rechts aus dem Bild laufen. */
+  overflow-wrap: break-word;
+}
+.apple26 header h1 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+/* Mehr Seitenrand auf dem Handy – iOS setzt 16 pt statt 12 */
+.apple26 {
+  --app-main-px: 1rem;
+}
+
+/* ── Buttons: gefüllte Kapsel, getönte Kapsel, blauer Klartext ── */
+.apple26 [data-slot="button"] {
+  border-radius: 9999px;
+  font-weight: 590;
+  letter-spacing: -0.01em;
+}
+.apple26 [data-slot="button"][data-variant="default"] {
+  box-shadow: none;
+}
+/* iOS „tinted button": graue Füllung, blaue Schrift, kein Rahmen.
+   Der :not()-Block lässt absichtlich gefärbte Buttons (destruktiv, violett …)
+   in Ruhe. Ein pauschales :not([class*="text-"]) ginge nicht – jeder Button
+   trägt ohnehin `text-sm`. */
+.apple26 [data-slot="button"][data-variant="outline"]:not([class*="text-destructive"]):not([class*="text-primary"]):not([class*="text-violet"]):not([class*="text-emerald"]):not([class*="text-amber"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-white"]):not([class*="text-muted"]),
+.apple26 [data-slot="button"][data-variant="secondary"]:not([class*="text-destructive"]):not([class*="text-primary"]):not([class*="text-violet"]):not([class*="text-emerald"]):not([class*="text-amber"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-white"]):not([class*="text-muted"]) {
+  background: var(--a26-fill);
+  border-color: transparent;
+  color: var(--primary);
+}
+.apple26 [data-slot="button"][data-variant="outline"] {
+  border-color: transparent;
+  background: var(--a26-fill);
+}
+/* iOS „plain button": nur blaue Schrift */
+.apple26 [data-slot="button"][data-variant="ghost"]:not([class*="text-destructive"]):not([class*="text-primary"]):not([class*="text-violet"]):not([class*="text-emerald"]):not([class*="text-amber"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-white"]):not([class*="text-muted"]) {
+  color: var(--primary);
+}
+/* Glyphen in der Navigationsleiste sind in iOS blau */
+.apple26 header [data-slot="button"]:not([data-variant="default"]):not([class*="text-destructive"]):not([class*="text-primary"]):not([class*="text-violet"]):not([class*="text-emerald"]):not([class*="text-amber"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-white"]):not([class*="text-muted"]) {
+  color: var(--primary);
+}
+
+/* ── Listenzeilen mit iOS-Höhe (44 pt) ── */
+.apple26 tbody td {
+  padding-top: 0.8125rem;
+  padding-bottom: 0.8125rem;
+}
+.apple26 thead th {
+  font-weight: 590;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* Auswahlkästchen sind in iOS runde blaue Häkchen */
+.apple26 [data-slot="checkbox"] {
+  border-radius: 9999px;
+}
+
+/* Trennlinien statt Rahmen – überall halbe Pixelbreite wie im System */
+.apple26 .border-b,
+.apple26 .border-t {
+  border-color: var(--border);
+}
+
+/* ── Kopfzeile am Desktop etwas luftiger, ohne harte Kante ── */
+.apple26 header {
+  border-bottom-width: 0.5px;
+}
+
+/* Der schwebenden Leiste steht ein aktiver Punkt besser als eine Fläche */
+
+
+/* ── Akzente laufen in Systemblau, nicht in Schwarz ──
+   Die hervorgehobenen Aktionen (Scannen in der Leiste, KI in der Kopfzeile)
+   sind in den übrigen Themes bewusst schwarz/weiß. In iOS gibt es das nicht:
+   Dort ist die betonte Aktion blau. */
+.apple26 [data-mobile-nav] .bg-foreground,
+.apple26 header .bg-foreground {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Der Sync-Status ist in iOS ein blanker Glyph, kein umrandeter Kasten. */
+.apple26 header button[aria-label^="Cloud-Sync"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--primary);
+}
+.apple26 header button[aria-label^="Cloud-Sync"] svg {
+  color: inherit;
+}
+
+/* Aktiver Tab in der schwebenden Leiste: blauer Glyph, blaues Label. */
+.apple26 [data-mobile-nav] .text-primary {
+  color: var(--primary);
+}
+
+/* ── Gruppenlisten: farbige Icon-Kacheln wie in den iOS-Einstellungen ──
+   Die Komponente selbst bleibt neutral; erst hier bekommen die Kacheln die
+   Systemfarben. So sieht die App nur im Apple-Theme nach Apple aus. */
+.apple26 [data-tint] { color: #fff; border-radius: 7px; }
+.apple26 [data-tint="blue"]   { background: #007AFF; }
+.apple26 [data-tint="green"]  { background: #34C759; }
+.apple26 [data-tint="red"]    { background: #FF3B30; }
+.apple26 [data-tint="orange"] { background: #FF9500; }
+.apple26 [data-tint="purple"] { background: #AF52DE; }
+.apple26 [data-tint="teal"]   { background: #5AC8FA; }
+.apple26 [data-tint="pink"]   { background: #FF2D55; }
+.apple26 [data-tint="indigo"] { background: #5856D6; }
+.apple26 [data-tint="yellow"] { background: #FFCC00; }
+.apple26 [data-tint="gray"]   { background: #8E8E93; }
+.apple26.dark [data-tint="blue"]   { background: #0A84FF; }
+.apple26.dark [data-tint="green"]  { background: #30D158; }
+.apple26.dark [data-tint="red"]    { background: #FF453A; }
+.apple26.dark [data-tint="orange"] { background: #FF9F0A; }
+.apple26.dark [data-tint="purple"] { background: #BF5AF2; }
+.apple26.dark [data-tint="teal"]   { background: #64D2FF; }
+.apple26.dark [data-tint="pink"]   { background: #FF375F; }
+.apple26.dark [data-tint="indigo"] { background: #5E5CE6; }
+.apple26.dark [data-tint="yellow"] { background: #FFD60A; }
+
+/* ── Dezente Scrollbalken wie unter macOS ── */
+.apple26 ::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+.apple26 ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.apple26 ::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.4);
+  border: none;
+  border-radius: 9999px;
+}
+
+/* ══════════════════════════════════════════
+   Liquid Glass – Erweiterung des Apple UI Kits
+   ══════════════════════════════════════════
+   Dieses Theme ist KEIN eigenständiges Design: Es setzt auf dem Apple-Theme
+   auf. Beim Umschalten trägt <html> deshalb beide Klassen (siehe App.tsx) –
+   Form, Maße und Typografie kommen aus `.apple26`, hier kommt nur das Glas
+   dazu.
+   iOS 26 hält Glas der Navigationsebene vor; wer dieses Theme wählt, will es
+   überall: Karten, Listen, Blätter und Menüs werden durchscheinend, und der
+   Hintergrund bekommt Farbe, damit es hinter dem Glas etwas zu sehen gibt.
+   Alle Regeln stehen NACH dem Apple-Block, damit sie ihn bei gleicher
+   Spezifität überschreiben. */
+
+.liquid-glass {
+  --lg-tint: rgba(255, 255, 255, 0.55);
+  --lg-tint-strong: rgba(255, 255, 255, 0.72);
+  --lg-edge: rgba(255, 255, 255, 0.65);
+  --lg-blur: 24px;
+  --lg-shadow: 0 8px 32px rgba(31, 38, 135, 0.10), 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  /* Glas der Navigationsebene – dünner und heller als eine Fläche, weil
+     man hindurchsehen soll. Die Lichtkante ist oben am hellsten und läuft
+     nach unten aus; genau das macht aus einer getönten Fläche eine
+     Scheibe mit Dicke. */
+  --lg-nav-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.34));
+  --lg-nav-rim:
+    inset 0 1px 0 0 rgba(255, 255, 255, 1),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.7),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  /* Lichtkante der übrigen Glasflächen */
+  --lg-rim-top: rgba(255, 255, 255, 0.85);
+  --lg-nav-shadow: 0 12px 30px rgba(31, 38, 135, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --lg-nav-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.14) 22%, transparent 46%);
+  /* Kissen unter dem aktiven Reiter. Auf heller Scheibe ist es GRAU, nicht
+     weißer – sonst hebt es sich vom weißen Glas nicht ab. Genau so macht es
+     iOS in Musik und Fotos. */
+  --lg-pill-fill: rgba(120, 120, 128, 0.2);
+  --lg-pill-rim: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+.liquid-glass.dark {
+  --lg-tint: rgba(30, 30, 34, 0.55);
+  --lg-tint-strong: rgba(30, 30, 34, 0.74);
+  --lg-edge: rgba(255, 255, 255, 0.10);
+  --lg-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+
+  /* Im Dunkeln trägt nicht die Tönung das Glas, sondern die Kante: eine
+     helle Haarlinie oben, die zu den Seiten hin ausläuft. */
+  --lg-nav-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+  --lg-nav-rim:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.3),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  --lg-nav-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), 0 3px 10px rgba(0, 0, 0, 0.28);
+  --lg-nav-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.08) 22%, transparent 46%);
+  --lg-pill-fill: rgba(255, 255, 255, 0.22);
+  --lg-pill-rim: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.38);
+  --lg-rim-top: rgba(255, 255, 255, 0.35);
+}
+
+/* Farbiger Grund – ohne ihn wäre die Unschärfe unsichtbar */
+.liquid-glass body {
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 0%, oklch(0.86 0.09 265 / 55%) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 95% 25%, oklch(0.88 0.08 200 / 45%) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 50% 105%, oklch(0.90 0.07 320 / 40%) 0%, transparent 65%),
+    var(--background);
+  background-attachment: fixed;
+}
+
+.liquid-glass.dark body {
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 0%, oklch(0.42 0.15 265 / 40%) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 95% 25%, oklch(0.40 0.13 200 / 32%) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 50% 105%, oklch(0.38 0.14 320 / 30%) 0%, transparent 65%),
+    var(--background);
+  background-attachment: fixed;
+}
+
+/* Flächen werden durchscheinend statt deckend */
+.liquid-glass [data-slot="card"],
+.liquid-glass [data-list-group],
+.liquid-glass [data-slot="table-container"],
+.liquid-glass .glass-surface {
+  background: var(--lg-tint);
+  backdrop-filter: blur(var(--lg-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(180%);
+  /* Oben eine hellere Haarlinie als ringsum: So bekommt die Scheibe eine
+     Oberkante, an der sich das Licht fängt – dasselbe Prinzip wie bei der
+     schwebenden Leiste, nur zurückhaltender. */
+  box-shadow:
+    inset 0 0.5px 0 0 var(--lg-rim-top),
+    inset 0 0 0 0.5px var(--lg-edge),
+    var(--lg-shadow);
+}
+
+/* Blätter, Menüs und Auswahllisten ebenfalls */
+.liquid-glass [data-slot="sheet-content"][data-side="bottom"],
+.liquid-glass [data-slot="dialog-content"],
+.liquid-glass [data-slot="dropdown-menu-content"],
+.liquid-glass [data-slot="popover-content"],
+.liquid-glass [data-slot="select-content"] {
+  background: var(--lg-tint-strong);
+  backdrop-filter: blur(var(--lg-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(180%);
+  box-shadow:
+    inset 0 0.5px 0 0 var(--lg-rim-top),
+    inset 0 0 0 0.5px var(--lg-edge),
+    var(--lg-shadow);
+}
+
+/* Apple setzt seine Blattfarbe mit zwei Klassen (.apple26.dark) – dagegen
+   kommt eine einfache .liquid-glass-Regel nicht an, deshalb hier ebenfalls
+   mit zwei Klassen. */
+.liquid-glass.dark [data-slot="sheet-content"][data-side="bottom"] {
+  background: var(--lg-tint-strong);
+}
+
+/* Im Blatt liegt die Liste eine Stufe höher – sonst verschwimmt beides
+   ineinander und man sieht keine Zeilen mehr. */
+.liquid-glass [data-slot="sheet-content"] [data-list-group] {
+  background: var(--lg-tint-strong);
+}
+
+/* Kopf- und Seitenleiste tragen dasselbe Glas wie die schwebende Leiste */
+.liquid-glass header,
+.liquid-glass aside {
+  background: var(--lg-tint-strong);
+}
+
+/* ── Die schwebende Leiste als Glasscheibe ──
+   Die Form (Kapsel, freischwebend) kommt aus dem Apple-Theme; hier kommt
+   das Material dazu. Drei Dinge machen bei iOS 26 den Unterschied zwischen
+   „mattiertem Kasten“ und Glas:
+
+     1. Die Scheibe bricht das Dahinterliegende – nicht nur Unschärfe,
+        sondern auch mehr Farbe und etwas mehr Licht (saturate/brightness).
+     2. Eine haarfeine Lichtkante läuft oben um die Kapsel und wird nach
+        unten schwächer. Sie gibt der Scheibe ihre Dicke.
+     3. Ein Glanzlicht liegt schräg über der Fläche, als käme das Licht
+        von links oben.
+
+   Der Rest ist Zurückhaltung: viel Durchsicht, wenig Tönung. */
+.liquid-glass [data-mobile-nav] {
+  border: none;
+  background: var(--lg-nav-fill);
+  backdrop-filter: blur(40px) saturate(210%) brightness(1.12);
+  -webkit-backdrop-filter: blur(40px) saturate(210%) brightness(1.12);
+  box-shadow: var(--lg-nav-rim), var(--lg-nav-shadow);
+  isolation: isolate;
+  padding: 0.375rem 0.5rem;
+  /* Unten denselben Rand wie oben: Die Leiste schwebt bereits über der
+     Sicherheitszone, der Innenabstand aus dem Markup ist hier also frei.
+     Ohne ihn stüeßen die Beschriftungen an die gerundete Unterkante. */
+  --nav-safe-bottom: 0.375rem;
+}
+
+/* Das Glanzlicht liegt über dem Glas, aber unter den Symbolen. */
+.liquid-glass [data-mobile-nav]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-nav-sheen);
+  pointer-events: none;
+}
+
+/* ── Aktiver Reiter: ein eigenes kleines Glaskissen ──
+   In Musik und Fotos liegt der aktive Reiter auf einer hellen Kapsel, die
+   Symbol UND Beschriftung umschließt – nicht nur eine eingefärbte Schrift.
+   Die hervorgehobene Mitte bleibt ausgenommen: Sie hat schon eine Füllung,
+   zwei Hervorhebungen übereinander wirkten unruhig. */
+.liquid-glass [data-mobile-nav] > a[aria-current="page"]:not(:has(.bg-foreground)),
+.liquid-glass [data-mobile-nav] > .text-primary:not(:has(.bg-foreground)) {
+  position: relative;
+  z-index: 0;
+  /* Auf dem Kissen trägt der Reiter die Textfarbe, nicht das Akzentblau:
+     Blau auf hellem Glas ist bei 10 px kaum zu erkennen – und genau darum
+     ging es, man soll auf einen Blick sehen, wo man ist. Die Kapsel selbst
+     markiert die Auswahl, die Farbe muss es nicht noch einmal tun. */
+  color: var(--foreground);
+  font-weight: 600;
+}
+/* Als eigene Fläche dahinter statt als Hintergrund des Eintrags: So lässt
+   sie sich einrücken. Randbündig stoßen ihre Ecken sonst gegen die Rundung
+   der Kapsel, und die Beschriftung klebt an der Kante.
+   Bewusst kein voller Radius – die Einträge sind höher als breit, eine
+   Kapsel würde zur stehenden Ellipse. */
+.liquid-glass [data-mobile-nav] > a[aria-current="page"]:not(:has(.bg-foreground))::before,
+.liquid-glass [data-mobile-nav] > .text-primary:not(:has(.bg-foreground))::before {
+  content: "";
+  position: absolute;
+  inset: 3px 1px;
+  z-index: -1;
+  border-radius: 1.125rem;
+  background: var(--lg-pill-fill);
+  box-shadow: var(--lg-pill-rim);
+}
+
+/* Auf dem Kissen braucht das Symbol keine eigene Fläche mehr. Sonst liegt
+   eine getönte Kachel in einer getönten Kapsel – zwei Hervorhebungen
+   übereinander, und genau das sah unruhig aus. (Die allgemeine Handy-Regel
+   färbt die Kachel ein; sie ist spezifischer als der Apple-Block, deshalb
+   steht das hier mit einem Attribut mehr.) */
+.liquid-glass [data-mobile-nav] a[aria-current="page"] > span.rounded-full:not(.bg-foreground),
+.liquid-glass [data-mobile-nav] .text-primary > span.rounded-full:not(.bg-foreground) {
+  background: transparent;
+}
+
+/* Die hervorgehobene Mitte ist im Glas kein weißer Fleck, sondern eine
+   Kapsel in der Akzentfarbe mit derselben Lichtkante. */
+.liquid-glass [data-mobile-nav] span.bg-foreground {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow:
+    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.55),
+    0 1px 4px color-mix(in oklab, var(--primary) 32%, transparent);
+}
+
+/* Auch die Kopfleiste ist Glas – sie gehört zur selben Ebene wie die
+   Navigationsleiste, und der Inhalt läuft sichtbar darunter durch. */
+.liquid-glass [data-back-link] {
+  /* Anders als die Leiste unten braucht sie einen Schleier: Unter ihr läuft
+     Fließtext durch, und zwei Zeilen Text übereinander liest niemand. Der
+     Glanz liegt darum über einer getönten Fläche, nicht auf blankem Glas. */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)), var(--lg-tint-strong);
+  backdrop-filter: blur(30px) saturate(200%) brightness(1.06);
+  -webkit-backdrop-filter: blur(30px) saturate(200%) brightness(1.06);
+  box-shadow: inset 0 -0.5px 0 0 var(--lg-edge);
+}
+
+/* Gefüllte Eingabefelder werden zu Glasflächen */
+.liquid-glass [data-slot="input"],
+.liquid-glass input:not([type="checkbox"]):not([type="radio"]),
+.liquid-glass textarea,
+.liquid-glass [data-slot="select-trigger"],
+.liquid-glass [data-search-field] {
+  background: var(--lg-tint);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* … aber nicht die, die in einer Listenzeile sitzen (dort ist die Zeile die
+   Fläche – siehe Apple-Block, hier nur nachgezogen, weil die Regel darüber
+   sonst gewinnt). */
+.liquid-glass [data-list-group] input:not([type="checkbox"]):not([type="radio"]),
+.liquid-glass [data-list-group] textarea:not([hidden]),
+.liquid-glass [data-list-group] [data-slot="select-trigger"]:not([hidden]),
+.liquid-glass [data-search-field] input:not([hidden]) {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Gefüllte Knöpfe bleiben deckend (Lesbarkeit), getönte werden Glas */
+.liquid-glass [data-slot="button"][data-variant="outline"],
+.liquid-glass [data-slot="button"][data-variant="secondary"] {
+  background: var(--lg-tint);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+
+/* Die Kopfleiste klebt oben im Scrollbereich. Sobald Inhalt darunter
+   durchläuft, braucht sie eine Fläche – sonst schiebt sich Text hindurch.
+   Themes mit eigener Behandlung (One UI) überschreiben das. */
+[data-back-link] {
+  background: color-mix(in oklab, var(--background) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Wo die Kopfleiste steht, übernimmt sie den oberen Abstand. Ohne das klebt
+   sie erst unterhalb des Innenabstands von <main> – und in dem Streifen
+   darüber schob sich Inhalt vorbei. Bewusst als Nachfahre gesucht: Seit die
+   Leiste unter der großen Überschrift sitzt, ist sie kein direktes Kind von
+   <main> mehr. */
+[data-app-main]:has([data-back-link]) {
+  --app-main-pt: 0px;
+}
+
+/* Auf Hauptseiten steht dort standardmäßig gar nichts: Der Seitentitel ist
+   die große Überschrift im Inhalt, eine zweite Zeile darüber wäre doppelt.
+   One UI blendet den kleinen Titel dagegen beim Scrollen ein und braucht die
+   Leiste deshalb auch dort. */
+[data-back-link]:not([data-has-back]) {
+  display: none;
+}
+
+/* ══════════════════════════════════════════
+   One UI 9 (Samsung)
+   ══════════════════════════════════════════
+   Die Werte stammen nicht aus dem Gefühl, sondern aus Samsungs
+   One-UI-Design-Guideline und den ausgelieferten SESL-Ressourcen:
+
+     Farben   Grauskala L1–L8 / D1–D5, Text-Stufen text1–text4,
+              Blau in drei Rollen: Fläche #0381FE (Schalter, Symbole),
+              Text/gefüllte Knöpfe #0072DE hell bzw. #3E91FF dunkel,
+              aktive Bedienelemente #3E91FF. Die Trennung ist keine Kosmetik –
+              #0381FE erreicht auf Weiß nur 3,8:1 und taugt nicht für Text.
+     Radien   Karten/„Focus Blocks" 26 dp, Buttons 18 dp, Suchfeld 22 dp
+              (= halbe Höhe, also volle Pille).
+     Zeilen   Listenzeile mind. 56 dp, Titel 17 sp, Untertitel 13 sp,
+              Icon 36 dp, Textbeginn bei 68 dp.
+     Titel    Die „Expandable App Bar" nimmt expandiert rund 39 % der
+              Bildschirmhöhe ein, Titel 34 sp und ZENTRIERT; kollabiert
+              64 dp mit 21 sp linksbündig. Daher hier der tief sitzende,
+              mittige Seitentitel – das ist DAS Erkennungsmerkmal.
+     Sonstiges One UI teilt den Bildschirm in „Viewing area" (oben, ruhig)
+              und „Interaction area" (unten, bedienbar). Seit One UI 8.5
+              schwebt die Tab-Leiste als Pille ohne Beschriftungen; One UI 9
+              vereinheitlicht die Icons auf Kreise und lässt die
+              Beschreibungstexte in Listen weg.
+
+   Bewusste Abweichung: Die Beschreibungen unter den Listeneinträgen bleiben
+   stehen. In dieser App tragen sie Information (Beträge, Datum), die One UI
+   in seinen Einstellungen schlicht nicht hat. */
+
+.oneui {
+  /* Fläche, auf der die Karten liegen (roundedCornerColor = sesl_gray_L3) */
+  --background: #F1F1F3;
+  --foreground: #010102;
+  /* Karte/Gruppe = sesl_gray_L1 */
+  --card: #FCFCFF;
+  --card-foreground: #010102;
+  --popover: #FCFCFF;
+  --popover-foreground: #010102;
+  /* Rollen getrennt: Flächen tragen das helle Primary (#0381FE), Text und
+     gefüllte Knöpfe das dunklere 'Primary dark'. #0381FE auf Weiß kommt nur
+     auf 3,8:1 – für Beschriftungen zu wenig, #0072DE auf 4,7:1. */
+  --primary: #0072DE;
+  --primary-foreground: #FAFAFA;
+  --secondary: #E9E9EC;
+  --secondary-foreground: #010102;
+  --muted: #E9E9EC;
+  /* text4 – Untertitel und Werte */
+  --muted-foreground: #636368;
+  --accent: #E4E4E7;
+  --accent-foreground: #010102;
+  --destructive: #D93E36;
+  --border: #E4E4E7;
+  --input: #DEDEE1;
+  --ring: rgba(3, 129, 254, 0.45);
+  /* Basisradius = Button (18 dp). Karten setzen 26 dp gesondert – als Basis
+     würde 26 dp die abgeleiteten Tailwind-Stufen auf absurde Werte treiben. */
+  --radius: 1.125rem;
+  --sidebar: #F6F6F8;
+  --sidebar-foreground: #010102;
+  --sidebar-primary: #0072DE;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E4E4E7;
+  --sidebar-accent-foreground: #010102;
+  --sidebar-border: #E4E4E7;
+  --sidebar-ring: rgba(3, 129, 254, 0.35);
+  --chart-1: #0381FE;
+  --chart-2: #00A5A5;
+  --chart-3: #7F5AF0;
+  --chart-4: #FF8A00;
+  --chart-5: #E0447C;
+
+  --oneui-subheader: #848487;
+  --oneui-fill: rgba(0, 0, 0, 0.05);
+  /* Flächenblau (FAB, Slider, Schalter) – heller als die Textfarbe */
+  --oneui-accent-fill: #0381FE;
+  --oneui-control-on: #3E91FF;
+  --oneui-radius-card: 26px;
+  --oneui-radius-button: 18px;
+  --oneui-nav: rgba(252, 252, 255, 0.82);
+  --oneui-nav-edge: rgba(255, 255, 255, 0.9);
+
+  /* 24 dp Mindestrand, wie in der Guideline gefordert */
+  --app-main-px: 1.5rem;
+  --app-main-pt: 0.5rem;
+  --app-main-pb: 1rem;
+  --toast-offset-bottom: 1.5rem;
+}
+
+.oneui.dark {
+  --background: #010102;
+  --foreground: #FAFAFF;
+  --card: #17171A;
+  --card-foreground: #FAFAFF;
+  --popover: #17171A;
+  --popover-foreground: #FAFAFF;
+  /* Im Dunkelmodus ist der aktive Ton heller (Color control activated) */
+  --primary: #3E91FF;
+  --primary-foreground: #FAFAFA;
+  --secondary: #2D2D30;
+  --secondary-foreground: #FAFAFF;
+  --muted: #2D2D30;
+  --muted-foreground: #CCCCCE;
+  --accent: #3A3A3D;
+  --accent-foreground: #FAFAFF;
+  --destructive: #FC6C65;
+  --border: #3A3A3D;
+  --input: #3A3A3D;
+  --ring: rgba(62, 145, 255, 0.45);
+  --sidebar: #17171A;
+  --sidebar-foreground: #FAFAFF;
+  --sidebar-primary: #3E91FF;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #3A3A3D;
+  --sidebar-accent-foreground: #FAFAFF;
+  --sidebar-border: #3A3A3D;
+  --sidebar-ring: rgba(62, 145, 255, 0.35);
+
+  --oneui-subheader: #99999E;
+  --oneui-fill: rgba(250, 250, 255, 0.17);
+  --oneui-accent-fill: #3E91FF;
+  --chart-1: #3E91FF;
+  --chart-2: #2ED3C6;
+  --chart-3: #9B87FF;
+  --chart-4: #FFA53E;
+  --chart-5: #FF6FA0;
+  --oneui-nav: rgba(23, 23, 26, 0.86);
+  --oneui-nav-edge: rgba(255, 255, 255, 0.12);
+}
+
+/* One UI Sans liegt auf Samsung-Geräten vor; sonst greift die Kette. */
+.oneui body,
+.oneui button,
+.oneui input,
+.oneui select,
+.oneui textarea {
+  font-family: "One UI Sans", "OneUI Sans", "SamsungOne", Roboto, system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+/* ── Seitentitel: die Expandable App Bar ──
+   Groß, mittig und tief sitzend – oben bleibt Anzeigefläche frei.
+   Ausdrücklich nur auf dem Handy: Am Desktop bliebe sonst über jeder Seite
+   ein halber Bildschirm leer, und die kleinere Desktop-Titelgröße
+   (md:text-2xl im Markup) würde überschrieben. */
+.oneui [data-page-header] {
+  position: relative;
+}
+.oneui main h1 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: break-word;
+}
+@media (max-width: 767px) {
+  .oneui [data-page-header] {
+    /* One UI stellt den Titel in die obere Bildhälfte – darüber bleibt viel
+       Luft, darunter folgt die Bedienzeile. */
+    padding-top: 5rem;
+    padding-bottom: 0;
+  }
+  .oneui [data-page-header] > div:first-child {
+    text-align: center;
+  }
+  .oneui [data-page-header] h1,
+  .oneui main h1 {
+    font-size: 2.125rem;
+    line-height: 1.2;
+  }
+  /* Die Aktionen ziehen per Portal in die Leiste um (siehe PageHeader) –
+     dieser Zweig greift nur, falls das einmal nicht klappt. */
+  .oneui [data-page-header] {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .oneui [data-page-header] [data-page-actions] {
+    justify-content: flex-end;
+    padding-top: 0.5rem;
+  }
+
+  /* Die Leiste klebt schlicht oben – kein per Skript gehaltener Versatz.
+     Der große Titel scrollt darunter weg, der kleine blendet sich in der
+     Leiste ein. */
+
+  /* Seiten, die ihre Höhe selbst verwalten (Beleg, Listen …), bekommen die
+     Leiste vom Layout gestellt. Dort schwebt sie über dem Inhalt, statt als
+     Zeile darüber zu sitzen – nur so läuft etwas darunter durch. Den Platz
+     schafft der Innenabstand im Scrollbereich der Seite. */
+  .oneui [data-app-main] > [data-back-link] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+  }
+  .oneui [data-app-main] > [data-back-link] ~ * .overflow-y-auto {
+    padding-top: 2.75rem;
+  }
+}
+
+/* ── Gruppen: 26 dp Rundung, Trennlinien nur zwischen den Zeilen ──
+   Nachgemessen an einem echten One UI 9: Die Zeilen einer Karte SIND durch
+   dünne Linien getrennt, und die Linie beginnt erst an der Beschriftung –
+   also hinter dem Symbol. Genau das ergibt sich hier von selbst, weil die
+   Trennlinie am Zeilenkörper hängt, der nach der Symbolkachel anfängt.
+   Flächenfarben ebenfalls am Gerät abgenommen: Karte #171619 auf #010101. */
+.oneui [data-list-group],
+.oneui [data-slot="card"],
+.oneui [data-slot="table-container"] {
+  border-radius: var(--oneui-radius-card);
+  background: var(--card);
+  box-shadow: none;
+}
+.oneui [data-list-row] [data-row-body] {
+  min-height: 60px;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.oneui [data-form-row] {
+  min-height: 60px;
+}
+
+/* Sektionsüberschrift: 13 px fett, Grau, dicht am folgenden Block.
+   (Die Überschrift ist ein Geschwister der Gruppe, kein Kind – deshalb der
+   eigene Haken statt eines Nachfahren-Selektors.) */
+.oneui [data-list-title] {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--oneui-subheader);
+  padding-left: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.125rem;
+}
+
+/* Icons: One UI 9 vereinheitlicht sie zu Kreisen, 36 dp, weißes Symbol */
+.oneui [data-tint] {
+  height: 36px;
+  width: 36px;
+  border-radius: 9999px;
+  color: #fff;
+}
+.oneui [data-tint] svg {
+  height: 1.125rem;
+  width: 1.125rem;
+  stroke-width: 2;
+}
+.oneui [data-tint="blue"]   { background: #0381FE; }
+.oneui [data-tint="green"]  { background: #15B76D; }
+.oneui [data-tint="red"]    { background: #FF4C4C; }
+.oneui [data-tint="orange"] { background: #FF8A00; }
+.oneui [data-tint="purple"] { background: #7F5AF0; }
+.oneui [data-tint="teal"]   { background: #00A5A5; }
+.oneui [data-tint="pink"]   { background: #E0447C; }
+.oneui [data-tint="indigo"] { background: #4B5BE0; }
+.oneui [data-tint="yellow"] { background: #F5B301; }
+.oneui [data-tint="gray"]   { background: #8E8E93; }
+
+/* ── Knöpfe: 18 dp Radius, kräftige Fläche ── */
+/* Am Gerät nachgesehen: Die Knöpfe sind vollständig gerundet – der
+   Radius entspricht immer der halben Höhe, unabhängig von der Größe. */
+.oneui [data-slot="button"] {
+  border-radius: 9999px;
+  font-weight: 600;
+}
+.oneui [data-slot="button"][data-variant="outline"],
+.oneui [data-slot="button"][data-variant="secondary"] {
+  background: var(--oneui-fill);
+  border-color: transparent;
+  color: var(--foreground);
+}
+
+/* ── Eingaben: gefüllt, stark gerundet ── */
+.oneui [data-slot="input"],
+.oneui input:not([type="checkbox"]):not([type="radio"]),
+.oneui textarea,
+.oneui [data-slot="select-trigger"] {
+  border-radius: var(--oneui-radius-button);
+  border-color: transparent;
+  background: var(--oneui-fill);
+}
+.oneui [data-slot="input"]:focus-visible,
+.oneui input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+.oneui textarea:focus-visible,
+.oneui [data-slot="select-trigger"]:focus-visible {
+  background: var(--card);
+  border-color: var(--primary);
+}
+.oneui [data-list-group] input:not([type="checkbox"]):not([type="radio"]),
+.oneui [data-list-group] textarea:not([hidden]),
+.oneui [data-list-group] [data-slot="select-trigger"]:not([hidden]),
+.oneui [data-search-field] input:not([hidden]) {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* Suchfeld: 44 dp hohe Pille mit sehr transparenter Füllung */
+.oneui [data-search-field] {
+  min-height: 44px;
+  border-radius: 22px;
+  background: var(--oneui-fill);
+}
+.oneui [data-search-field] input {
+  font-size: 1rem;
+}
+
+/* Überschriften außerhalb der Seitentitel: One UI setzt 600 statt 700 */
+.oneui h2,
+.oneui h3 {
+  font-weight: 600;
+}
+
+/* ── Segmentierte Auswahl: Pille mit gefülltem Akzent-Reiter ── */
+.oneui [data-segmented] {
+  background: var(--oneui-fill);
+  border-radius: 9999px;
+  padding: 3px;
+}
+.oneui [data-segmented] > button {
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 15px;
+  min-height: 40px;
+  color: var(--muted-foreground);
+}
+/* Der Indikator der One-UI-Sub-Tabs ist eine 40 dp hohe Pille mit
+   1-dp-Kontur – nicht die vollflächig eingefärbte Kachel von iOS. */
+.oneui [data-segmented] > button[data-selected] {
+  background: var(--card);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  box-shadow: none;
+}
+
+/* Filtermarken folgen denselben Vorgaben wie die Sub-Tabs: 36 dp hohe
+   Pille, gewählt nicht vollflächig gefärbt, sondern mit Akzentkontur.
+   Die Kontur liegt als Innenschatten an – ein echter Rahmen würde die
+   Marke beim Antippen um zwei Pixel wachsen lassen. */
+.oneui [data-filter-chip] {
+  min-height: 36px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--oneui-fill);
+  color: var(--muted-foreground);
+}
+.oneui [data-filter-chip][data-active] {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+/* ── Untere Leiste: flach am Bildschirmrand ──
+   Bewusst KEINE schwebende Pille. In Samsungs eigenen Ressourcen ist der
+   aktive Indikator abgeschaltet (itemActiveIndicatorStyle=@null) und die
+   Leiste 56–60 dp hoch, ohne Schatten – so sieht sie auf einem echten Gerät
+   auch aus. Der aktive Reiter unterscheidet sich allein durch die Farbe. */
+.oneui [data-mobile-nav] {
+  background: var(--background);
+  border-top: 1px solid var(--border);
+  box-shadow: none;
+}
+.oneui [data-mobile-nav] > * {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  gap: 0.1875rem;
+}
+/* One UI markiert den aktiven Reiter NUR über die Farbe – der aktive
+   Hintergrund-Indikator von Material ist in SESL ausdrücklich abgeschaltet
+   (itemActiveIndicatorStyle=@null). Also keine Fläche hinter dem Symbol.
+   Icon 24 dp, Beschriftung 12 sp – beides aus Samsungs Ressourcen. */
+/* Alle Symbolflächen gleich groß – sonst sitzt die hervorgehobene Mitte
+   höher als ihre Nachbarn und die Beschriftungen stehen versetzt. */
+.oneui [data-mobile-nav] span.rounded-full {
+  height: 2rem;
+  width: 2.25rem;
+  border-radius: 9999px;
+}
+.oneui [data-mobile-nav] span.rounded-full:not(.bg-foreground) {
+  background: transparent;
+}
+.oneui [data-mobile-nav] svg {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+.oneui [data-mobile-nav] > a > span:last-child,
+.oneui [data-mobile-nav] > button > span:last-child {
+  font-size: 12px;
+  font-weight: 500;
+}
+/* Die Hauptaktion trägt die Systemfarbe statt Schwarz */
+.oneui [data-mobile-nav] .bg-foreground {
+  background-color: var(--oneui-accent-fill);
+  color: #fff;
+}
+
+/* ── Zurück-Leiste ──
+   Android beschriftet den Weg zurück mit dem Namen der AKTUELLEN Seite
+   (iOS nennt das Ziel). Beim Scrollen bleibt nur noch das runde Symbol
+   stehen – genau so verhält sich One UI. */
+.oneui [data-back-link] [data-back-target],
+.windows11 [data-back-link] [data-back-target] {
+  display: none;
+}
+.oneui [data-back-link] [data-back-title],
+.windows11 [data-back-link] [data-back-title] {
+  /* inline-block, weil max-width auf reinen Inline-Elementen wirkungslos
+     ist – der Titel ließe sich sonst nicht einklappen. */
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Trägt der Inhalt schon eine große Überschrift, stünde der Name in der
+   Leiste ein zweites Mal darunter. One UI klappt ihn dort beim Scrollen
+   gezielt hinein – in Fluent bleibt oben links schlicht der Pfeil. */
+.windows11 [data-back-link][data-has-title] [data-back-title] {
+  display: none;
+}
+
+/* Der Seitenname sitzt neben dem Knopf, nicht darin – also bringt er seine
+   Schrift selbst mit. */
+.oneui [data-back-link] > [data-back-title] {
+  font-size: 1.3125rem;
+  font-weight: 600;
+  color: var(--foreground);
+  padding-left: 0.25rem;
+}
+/* Die Leiste schneidet ab, was oben hinausläuft. */
+.oneui [data-back-link] {
+  overflow: hidden;
+}
+
+/* Der kleine Titel klebt NICHT oben: Er wandert genau so schnell nach oben
+   wie der Inhalt und ist dann aus dem Bild – die Leiste schneidet ab, was
+   hinausläuft. Sticky ist allein der Pfeil.
+   Gezählt wird ab dem Punkt, an dem die große Überschrift weg ist
+   (`--bar-distance`); auf Seiten ohne große Überschrift ist der 0, dort
+   wandert er also sofort mit. */
+.oneui [data-back-link] > [data-back-title] {
+  translate: 0 calc(max(0, var(--bar-scroll, 0) - var(--bar-distance, 0)) * -1px);
+}
+
+/* Ohne Zurück-Pfeil ist der kleine Titel die einzige Ortsangabe – er bleibt
+   deshalb oben stehen, statt hinauszuwandern. */
+.oneui [data-back-link]:not([data-has-back]) > [data-back-title] {
+  translate: none;
+}
+/* Drei Stufen, am Gerät abgeschaut:
+     expanded  ganz oben – nur der Pfeil; der große Titel steht im Inhalt
+     compact   angescrollt – Pfeil und kleiner Titel wandern nach links
+     floating  weiter unten – nur noch der runde Knopf über dem Inhalt
+   Die Bandhöhe bleibt in allen Stufen gleich, damit beim Umschalten nichts
+   springt; es ändern sich nur Form und Beschriftung. */
+/* Damit auch die große Überschrift im Inhalt den Fortschritt kennt, wird er
+   nach oben durchgereicht: Die Leiste setzt ihn, <main> liest ihn über den
+   gemeinsamen Vorfahren. */
+.oneui [data-app-main] {
+  --bar-progress: 1;
+}
+
+.oneui [data-back-link],
+.oneui [data-back-link]:not([data-has-back]) {
+  display: flex;
+  align-items: center;
+  height: 2.75rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+}
+
+/* Wo ein Zurück-Pfeil steht, bleibt die Zeile durchsichtig – der runde Knopf
+   bringt seine eigene Tönung mit, und man soll sehen, was darunter
+   durchläuft. Auf Hauptseiten (Start, Steuer) trägt sie dagegen die
+   Seitenfarbe, damit der kleine Titel nicht auf dem Inhalt klebt. */
+.oneui [data-back-link]:not([data-has-back]) {
+  background: var(--background);
+}
+
+/* Bedienelemente in der Leiste fallen in One UI kompakter aus als im
+   Seiteninhalt – 32 dp hoch, kleinere Schrift. */
+.oneui [data-bar-slot] button {
+  height: 1.75rem;
+  min-height: 0;
+  padding-inline: 0.625rem;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 0.25rem;
+}
+.oneui [data-bar-slot] button svg {
+  height: 0.875rem;
+  width: 0.875rem;
+}
+.oneui [data-bar-slot] button[data-variant="default"] {
+  width: 1.75rem;
+  padding-inline: 0;
+}
+.oneui [data-back-link] > button {
+  color: var(--foreground);
+  font-size: 1.3125rem;
+  font-weight: 600;
+  gap: 0.5rem;
+  height: 2.75rem;
+  padding-left: 0.5rem;
+}
+.oneui [data-back-link] > button svg {
+  height: 1.5rem;
+  width: 1.5rem;
+  stroke-width: 2.5;
+}
+
+/* Er blendet sich ein, während die große Überschrift verblasst – erst ab
+   55 % des Weges, damit nie beide gleichzeitig dastehen. Auf Seiten ohne
+   große Überschrift ist der Fortschritt von Anfang an 1, dort steht er
+   also sofort da. */
+.oneui [data-back-link] [data-back-title] {
+  max-width: 16rem;
+  opacity: clamp(0, (var(--bar-progress, 1) - 0.55) / 0.45, 1);
+}
+.oneui [data-page-header] [data-page-title] {
+  opacity: clamp(0, (0.45 - var(--bar-progress, 0)) / 0.45, 1);
+}
+
+/* Weiter unten bleibt nur der runde Knopf – halbdurchsichtig grau, und der
+   Inhalt läuft darunter durch (die Leiste selbst wird durchsichtig). */
+/* Sobald der Pfeil oben angekommen ist (also der Titelbereich weg ist),
+   bekommt er seine runde Tönung – nicht erst irgendwann weiter unten. Der
+   Inhalt läuft dann darunter durch.
+   Nur mit Pfeil: Auf Hauptseiten ohne Pfeil bleibt die Zeile mitsamt Titel
+   stehen und behält ihre Fläche. */
+.oneui [data-back-link][data-has-back]:not([data-has-title])[data-stage="compact"],
+.oneui [data-back-link][data-has-back][data-stage="floating"] {
+  background: transparent;
+  pointer-events: none;
+}
+.oneui [data-back-link][data-has-back]:not([data-has-title])[data-stage="compact"] > button,
+.oneui [data-back-link][data-has-back][data-stage="floating"] > button {
+  pointer-events: auto;
+  height: 2.75rem;
+  width: 2.75rem;
+  padding: 0;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--oneui-fill);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+/* Der Platzhalter bleibt bedienbar, auch wenn die Zeile durchlässig ist. */
+.oneui [data-back-link][data-has-back][data-stage="compact"] [data-bar-slot],
+.oneui [data-back-link][data-has-back][data-stage="floating"] [data-bar-slot] {
+  pointer-events: auto;
+}
+/* Ohne Zurück-Pfeil gibt es nichts, was stehen bleiben könnte. */
+.oneui [data-back-link]:not([data-has-back])[data-stage="floating"] > button {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ── Blätter, Dialoge, Menüs: 26 dp Rundung ── */
+.oneui [data-slot="sheet-content"][data-side="bottom"] {
+  border-radius: var(--oneui-radius-card) var(--oneui-radius-card) 0 0;
+  border: none;
+  background: var(--background);
+}
+.oneui [data-slot="sheet-content"] [data-list-group] {
+  background: var(--card);
+}
+/* Dialoge, Popup-Menüs und Blätter teilen sich einen Radius: 26 dp.
+   Schatten fallen flacher aus als bei Material (Ambient-Alpha 0,04). */
+.oneui [data-slot="dialog-content"],
+.oneui [data-slot="alert-dialog-content"],
+.oneui [data-slot="dropdown-menu-content"],
+.oneui [data-slot="popover-content"],
+.oneui [data-slot="select-content"] {
+  border-radius: var(--oneui-radius-card);
+  border: none;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.oneui [data-slot="dropdown-menu-item"],
+.oneui [data-slot="select-item"] {
+  border-radius: 16px;
+  min-height: 44px;
+  font-size: 16px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* Dialogknöpfe: One UI stellt sie gleich breit nebeneinander, mit
+   Trennstrich dazwischen – und der Knopftext ist GRÖSSER als der Titel.
+   Der abweisende Knopf trägt ein eigenes Rot. */
+.oneui [data-slot="alert-dialog-footer"],
+.oneui [data-slot="dialog-footer"] {
+  flex-direction: row;
+  gap: 0;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+  padding-top: 0.25rem;
+}
+.oneui [data-slot="alert-dialog-footer"] > *,
+.oneui [data-slot="dialog-footer"] > * {
+  flex: 1 1 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.oneui [data-slot="alert-dialog-footer"] > * + *,
+.oneui [data-slot="dialog-footer"] > * + * {
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+}
+.oneui [data-slot="alert-dialog-footer"] [data-variant="destructive"],
+.oneui [data-slot="alert-dialog-footer"] .bg-destructive,
+.oneui [data-slot="dialog-footer"] [data-variant="destructive"],
+.oneui [data-slot="dialog-footer"] .bg-destructive {
+  background: transparent;
+  color: #D93E36;
+}
+.oneui.dark [data-slot="alert-dialog-footer"] [data-variant="destructive"],
+.oneui.dark [data-slot="alert-dialog-footer"] .bg-destructive,
+.oneui.dark [data-slot="dialog-footer"] [data-variant="destructive"],
+.oneui.dark [data-slot="dialog-footer"] .bg-destructive {
+  color: #FC6C65;
+}
+
+/* Auswahl- und Bestätigungsdialoge sitzen in One UI am UNTEREN Rand und
+   nehmen fast die volle Breite ein – nicht mittig wie bei Material/iOS.
+   Nur auf dem Handy: am Desktop bleibt der Dialog mittig. */
+@media (max-width: 767px) {
+  .oneui [data-slot="dialog-content"],
+  .oneui [data-slot="alert-dialog-content"] {
+    top: auto;
+    bottom: 10px;
+    /* WICHTIG: `translate`, nicht `transform`. Tailwind 4 gibt
+       `-translate-x-1/2` als eigenständige translate-Eigenschaft aus – ein
+       transform daneben hebt sie nicht auf, sondern kommt obendrauf. Der
+       Dialog stand dadurch eine halbe Breite zu weit links, halb außerhalb
+       des Bildschirms. */
+    translate: -50% 0;
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+  }
+}
+
+/* Griff des Blattes: One UI misst 36 x 4 dp (Material: 32 x 4) */
+.oneui [data-sheet-grabber] > div {
+  height: 4px;
+  width: 36px;
+}
+
+/* Die prominente Aktionstaste ist 44 dp hoch – Radius = halbe Höhe */
+.oneui .h-\[50px\] {
+  border-radius: 9999px;
+}
+
+/* Snackbar/Toast: schwebende Pille, 22 dp, nicht über die volle Breite */
+.oneui [data-sonner-toast] {
+  border-radius: 22px;
+}
+
+/* ── Tabellen und Kleinteile ── */
+.oneui thead tr,
+.oneui tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+.oneui tbody tr:last-child {
+  border-bottom: none;
+}
+.oneui [data-slot="badge"] {
+  border-radius: 9999px;
+}
+.oneui [data-slot="checkbox"] {
+  border-radius: 9999px;
+}
+.oneui [data-slot="checkbox"][data-state="checked"] {
+  background: var(--oneui-control-on, #3E91FF);
+  border-color: var(--oneui-control-on, #3E91FF);
+}
+/* ── Schalter: breite Bahn, Knopf füllt sie fast aus ──
+   One UI zeichnet ihn flacher als iOS und färbt die Bahn im Flächenblau
+   (#0381FE) – derselben Rolle wie bei Reglern und Häkchen. Aus bleibt sie
+   neutralgrau; eine Kontur wie in Fluent gibt es dort nicht. */
+.oneui [data-slot="switch"] {
+  height: 30px;
+  width: 52px;
+  border-radius: 15px;
+  background: color-mix(in oklab, var(--muted-foreground) 38%, transparent);
+}
+.oneui [data-slot="switch"][data-state="checked"] {
+  background: var(--oneui-accent-fill, #0381FE);
+}
+.oneui [data-slot="switch-thumb"] {
+  height: 26px;
+  width: 26px;
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  translate: 2px 0;
+}
+.oneui [data-slot="switch-thumb"][data-state="checked"] {
+  translate: 24px 0;
+}
+
+.oneui aside nav a[aria-current="page"] {
+  border-radius: 9999px;
+}
+.oneui [data-slot="card"] {
+  padding-block: 1.25rem;
+}
+.oneui [data-slot="card-header"],
+.oneui [data-slot="card-content"],
+.oneui [data-slot="card-footer"] {
+  padding-inline: 1.25rem;
+}
+
+/* ── Restliche Bausteine, damit One UI überall greift ──
+   Diese Auswahl spiegelt eins zu eins die Stellen, die das Apple-Theme
+   anfasst – sonst fielen einzelne Ecken der App auf die neutralen
+   Grundwerte zurück und sähen zwischen One-UI-Flächen fremd aus. */
+.oneui [data-slot="tabs-list"] {
+  background: var(--oneui-fill);
+  border-radius: 9999px;
+  padding: 3px;
+}
+.oneui [role="tab"] {
+  border-radius: 9999px;
+  font-weight: 600;
+}
+.oneui [role="tab"][data-state="active"] {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+/* Tabellenzeilen auf One-UI-Höhe (56 dp) und Kopfzeile wie ein Subheader */
+.oneui tbody td {
+  padding-top: 1.125rem;
+  padding-bottom: 1.125rem;
+}
+.oneui thead th {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--oneui-subheader);
+}
+
+.oneui [data-slot="card-title"] {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.oneui [data-slot="card-description"] {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Handgebaute Flächen (rounded-xl + border) auf dieselbe Formensprache
+   ziehen. Absichtlich eingefärbte Hinweisboxen bleiben ausgenommen –
+   dieselbe Kette wie im Apple-Block. */
+.oneui main .rounded-xl.border:not([class*="border-primary"]):not([class*="border-destructive"]):not([class*="border-amber"]):not([class*="border-emerald"]):not([class*="border-blue"]):not([class*="border-orange"]):not([class*="border-violet"]):not([class*="border-dashed"]),
+.oneui main .rounded-lg.border:not([class*="border-primary"]):not([class*="border-destructive"]):not([class*="border-amber"]):not([class*="border-emerald"]):not([class*="border-blue"]):not([class*="border-orange"]):not([class*="border-violet"]):not([class*="border-dashed"]) {
+  border-color: transparent;
+  background-color: var(--card);
+  border-radius: var(--oneui-radius-card);
+}
+
+/* Kopfzeile am Desktop und die Sync-Anzeige darin */
+.oneui header {
+  background: var(--background);
+  border-bottom-color: var(--border);
+}
+.oneui header button[aria-label^="Cloud-Sync"] {
+  border-color: transparent;
+  background: var(--oneui-fill);
+  border-radius: 9999px;
+}
+
+/* Blattschicht: Der Grund hinter dem Blatt dunkelt ab, das Blatt selbst
+   liegt im Dunkelmodus eine Stufe über der Seite. */
+.oneui [data-slot="sheet-overlay"] {
+  background: rgba(0, 0, 0, 0.32);
+}
+.oneui.dark [data-slot="sheet-content"][data-side="bottom"] {
+  background: #0E0E10;
+}
+
+/* Schlanke Scrollbalken – One UI zeigt nur einen dünnen Faden */
+.oneui ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.oneui ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.oneui ::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 145, 0.5);
+  border-radius: 9999px;
+  border: none;
+}
+
+/* Zeilentypografie: 17 sp Titel, 13 sp Zusatz – wie im Guide */
+.oneui [data-row-label] {
+  font-size: 17px;
+}
+.oneui [data-row-hint] {
+  font-size: 13px;
+}
+.oneui [data-row-value] {
+  font-size: 15px;
+}
+
+/* ── Bewegung: One UI fährt eine eigene Kurve ──
+   cubic-bezier(0.22, 0.25, 0.00, 1.00) über 100–500 ms. */
+.animations-enabled.oneui {
+  --anim-duration-fast:   0.15s;
+  --anim-duration-base:   0.30s;
+  --anim-duration-slow:   0.45s;
+  --anim-ease-spring:     cubic-bezier(0.22, 0.25, 0, 1);
+  --anim-ease-out:        cubic-bezier(0.22, 0.25, 0, 1);
+  --anim-ease-page:       cubic-bezier(0.22, 0.25, 0, 1);
+  --anim-card-y:          0px;
+  --anim-card-scale:      1;
+  --anim-btn-scale:       1;
+  --anim-fadeup-y:        14px;
+  --anim-fadeup-dur:      0.30s;
+}
+.animations-enabled.oneui [data-slot="button"]:not(:disabled):active,
+.animations-enabled.oneui [data-mobile-nav] a:active,
+.animations-enabled.oneui [data-mobile-nav] button:active,
+.animations-enabled.oneui [data-list-row]:active {
+  transform: scale(0.96);
+  transition-duration: 0.1s;
+}
+
+/* ══════════════════════════════════════════
+   Handy-Anpassungen (themenunabhängig)
+   ══════════════════════════════════════════ */
+/* Gruppenlisten liegen oft auf einer fast gleich hellen (bzw. dunklen)
+   Fläche – Sheet auf Seitenhintergrund – und verschwanden darin. Eine
+   haarfeine Kante trennt sie, ohne wie ein Rahmen zu wirken.
+   Themes mit eigener Formensprache (Apple stapelt Flächen statt sie zu
+   umranden) überschreiben das mit höherer Spezifität. */
+[data-list-group] {
+  /* Innen gezeichnet: Eine nach außen gezeichnete Kante wird von jedem
+     Scrollbereich abgeschnitten, an dessen Rand die Gruppe bündig endet –
+     die Liste hatte dann links und rechts keine Kante mehr. */
+  box-shadow: inset 0 0 0 0.5px var(--border);
+}
+
+@media (max-width: 767px) {
+  /* ── Luft über dem Seitentitel ──
+     Seit die Kopfleiste im Scrollbereich hängt, beginnt der Titel direkt
+     unter der Statusleiste. In den Themes ohne eigene Titelbehandlung sah
+     das gedrängt aus – ein Fingerbreit Abstand stellt die Ruhe wieder her.
+     One UI setzt seinen eigenen Wert (großer, mittiger Titel). */
+  /* `html:not(.oneui)`, weil One UI seinen eigenen, deutlich größeren Wert
+     setzt – ohne die Ausnahme gewänne diese Regel (drei Attribute) gegen
+     die Theme-Regel und der große Titel klebte oben an der Statusleiste. */
+  html:not(.oneui) [data-page-header] {
+    padding-top: 0.75rem;
+  }
+
+  /* Artikelüberschriften dürfen umbrechen: Abgeschnittene Titel wie
+     „PDF hochladen & KI-Erkennu…“ sagen zu wenig über den Inhalt. */
+  [data-help-list] [data-row-label] {
+    white-space: normal;
+    overflow: visible;
+  }
+
+  /* ── Hilfeartikel: Tabellen stapeln statt quetschen ──
+     Die Artikel erklären vieles in Tabellen mit zwei bis drei Spalten. Auf
+     375 px blieben davon Spalten von zwei Wörtern Breite übrig, in denen
+     jedes Wort umbricht. Untereinander gestellt liest sich dasselbe wie ein
+     Eintrag mit Erklärung; die Kopfzeile entfällt dabei, weil die erste
+     Zelle den Begriff schon nennt. */
+  [data-help-article] table,
+  [data-help-article] tbody,
+  [data-help-article] tr,
+  [data-help-article] td {
+    display: block;
+    width: auto;
+  }
+  [data-help-article] thead {
+    display: none;
+  }
+  [data-help-article] tr {
+    padding: 0.5rem 0;
+  }
+  [data-help-article] td {
+    padding-block: 0;
+    padding-inline: 0;
+  }
+  [data-help-article] td:first-child {
+    font-weight: 600;
+  }
+  /* Zweispaltige Aufzählungen (Variablenlisten) ebenso */
+  [data-help-article] .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Begriff links, Erklärung rechts – auf 375 px wird daraus eine Schlucht:
+     Die Marke nimmt die halbe Breite, daneben bleibt eine Spalte von drei
+     Wörtern. Untereinander liest sich dasselbe als Eintrag mit Erläuterung.
+     Die nummerierten Schritte bleiben nebeneinander – dort ist die Ziffer
+     nur 24 px breit. */
+  [data-help-article] .items-start.gap-3,
+  [data-help-article] .flex:has(> .w-40) {
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  [data-help-article] .w-40 {
+    width: auto;
+  }
+  /* Lange Bezeichner brechen um, statt die Seite breit zu machen */
+  [data-help-article] code,
+  [data-help-article] kbd {
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Dialoge passen sich dem Bildschirm an ──
+     Ein Dialog mit fester Maximalbreite (z. B. max-w-lg = 512 px) ragt auf
+     einem 375-px-Gerät links und rechts aus dem Bild – man sieht dann nur
+     die Mitte und kommt an die Knöpfe nicht heran. Diese Grenze gilt für
+     alle Themes und schlägt jede Utility-Klasse. */
+  [data-slot="alert-dialog-content"],
+  [data-slot="dialog-content"] {
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  /* ── Aktiver Tab in der unteren Leiste ──
+     Bisher unterschied ihn nur die Textfarbe; auf einem Handy, das man mit
+     einem Blick liest, war das zu wenig. Die Icon-Fläche bekommt daher eine
+     eigene Füllung. Das Apple-Theme hat dafür eigene Regeln mit höherer
+     Spezifität – dort bleibt es beim reinen Einfärben. */
+  /* :not(.bg-foreground) ist Pflicht – die hervorgehobene Mitte trägt ihre
+     eigene Füllung, und wenn man auf ihrer Seite steht, ist sie zugleich der
+     aktive Reiter. Ohne die Ausnahme überschriebe diese Regel sie. */
+  [data-mobile-nav] a[aria-current="page"] > span.rounded-full:not(.bg-foreground),
+  [data-mobile-nav] .text-primary > span.rounded-full:not(.bg-foreground) {
+    background: color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  /* Diagramme waren mit 260–300 px höher als ein halbes Display und wirkten
+     dadurch leer. Wichtig: Es reicht NICHT, nur das Diagramm zu verkleinern –
+     die Karten reservieren über feste Mindesthöhen weiter den alten Platz,
+     darunter klaffte dann eine Lücke. Deshalb beides. */
+  main [data-slot="chart"] {
+    height: 190px !important;
+    min-height: 0 !important;
+    aspect-ratio: auto !important;
+  }
+  main .min-h-\[240px\],
+  main .min-h-\[260px\],
+  main .min-h-\[220px\],
+  main .min-h-\[200px\] {
+    min-height: 0 !important;
+  }
+  main .h-\[300px\],
+  main .h-\[280px\],
+  main .h-\[260px\],
+  main .h-\[240px\] {
+    height: 190px !important;
+  }
+  /* Die Legende darunter braucht auf dem Handy weniger Luft */
+  main .recharts-legend-wrapper {
+    padding-top: 0 !important;
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -1022,134 +2593,50 @@
   --anim-fadeup-dur:      0.24s;
 }
 
-/* ── Liquid Glass – federnd & verspielt ── */
-.animations-enabled.liquid-glass {
-  --anim-ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
-  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
-  --anim-duration-base:   0.22s;
-  --anim-card-y:          -4px;
-  --anim-card-scale:      1.010;
-  --anim-card-shadow:
-    0 10px 30px -6px oklch(0.52 0.22 265 / 25%),
-    0 3px  10px -3px oklch(0 0 0 / 12%);
-  --anim-btn-y:           -1.5px;
-  --anim-btn-scale:       1.04;
-  --anim-btn-shadow:      0 4px 14px -2px oklch(0.52 0.22 265 / 30%);
-  --anim-nav-icon-rotate: -5deg;
-  --anim-nav-icon-scale:  1.20;
-  --anim-fadeup-y:        12px;
-  --anim-fadeup-dur:      0.28s;
-}
-
-/* ── Aurora Borealis – fließend & ethereal ── */
-.animations-enabled.aurora-borealis {
-  --anim-ease-spring:     cubic-bezier(0.4, 0, 0.2, 1);
-  --anim-ease-out:        cubic-bezier(0.4, 0, 0.2, 1);
-  --anim-ease-page:       cubic-bezier(0.4, 0, 0.2, 1);
-  --anim-duration-fast:   0.18s;
-  --anim-duration-base:   0.32s;
-  --anim-duration-slow:   0.48s;
-  --anim-card-y:          -3px;
+/* ── Apple UI Kit 26 – iOS-Federn ──
+   Apples Bewegungen sind Federn, keine reinen Kurven. Die Werte bilden die
+   iOS-Kennwerte nach: Präsentationen laufen auf cubic-bezier(0.32, 0.72, 0, 1)
+   (die Kurve, mit der iOS Sheets einblendet), interaktive Elemente federn mit
+   leichtem Überschwingen nach (response ~0.3 s, dampingFraction ~0.6).
+   Getippte Elemente schrumpfen kurz – so fühlt sich iOS an. */
+.animations-enabled.apple26 {
+  --anim-duration-fast:   0.15s;
+  --anim-duration-base:   0.30s;
+  --anim-duration-slow:   0.45s;
+  --anim-ease-spring:     cubic-bezier(0.32, 1.28, 0.5, 1);
+  --anim-ease-out:        cubic-bezier(0.32, 0.72, 0, 1);
+  --anim-ease-page:       cubic-bezier(0.32, 0.72, 0, 1);
+  --anim-card-y:          -1px;
   --anim-card-scale:      1.006;
   --anim-card-shadow:
-    0 0  0   1px oklch(0.48 0.18 175 / 20%),
-    0 8px 28px -4px oklch(0.48 0.18 175 / 22%),
-    0 0  18px  0px oklch(0.55 0.20 280 / 12%);
-  --anim-btn-y:           -1px;
-  --anim-btn-scale:       1.025;
-  --anim-btn-shadow:
-    0 0  12px 0px oklch(0.48 0.18 175 / 35%),
-    0 3px 8px -2px oklch(0 0 0 / 12%);
-  --anim-nav-icon-rotate: 0deg;
-  --anim-nav-icon-scale:  1.15;
-  --anim-fadeup-y:        14px;
-  --anim-fadeup-dur:      0.36s;
-}
-
-/* ── Crimson Dusk – warm & dramatisch ── */
-.animations-enabled.crimson-dusk {
-  --anim-ease-spring:     cubic-bezier(0.32, 1.25, 0.54, 1);
-  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
-  --anim-duration-fast:   0.14s;
-  --anim-duration-base:   0.24s;
-  --anim-card-y:          -3px;
-  --anim-card-scale:      1.006;
-  --anim-card-shadow:
-    0 0  0   1px oklch(0.52 0.22 25 / 18%),
-    0 8px 24px -4px oklch(0.52 0.22 25 / 20%),
-    0 0  16px  0px oklch(0.60 0.20 50 / 10%);
-  --anim-btn-y:           -1.5px;
+    0 12px 32px -8px rgba(0, 0, 0, 0.18),
+    0 2px 8px -2px rgba(0, 0, 0, 0.10);
+  --anim-btn-y:           0px;
   --anim-btn-scale:       1.03;
-  --anim-btn-shadow:
-    0 0  14px 0px oklch(0.52 0.22 25 / 35%),
-    0 4px 10px -2px oklch(0 0 0 / 14%);
-  --anim-nav-icon-rotate: -3deg;
-  --anim-nav-icon-scale:  1.16;
-  --anim-fadeup-y:        10px;
-  --anim-fadeup-dur:      0.26s;
-}
-
-/* ── Chroma – leuchtkräftig & verspielt ── */
-.animations-enabled.chroma {
-  --anim-ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
-  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
-  --anim-duration-fast:   0.14s;
-  --anim-duration-base:   0.24s;
-  --anim-card-y:          -4px;
-  --anim-card-scale:      1.008;
-  --anim-card-shadow:
-    0 8px 24px -4px oklch(0.520 0.240 var(--chroma-hue) / 28%),
-    0 2px 8px  -2px oklch(0 0 0 / 10%),
-    0 0 0 1px oklch(0.520 0.240 var(--chroma-hue) / 20%);
-  --anim-btn-y:           -2px;
-  --anim-btn-scale:       1.04;
-  --anim-btn-shadow:      0 4px 14px -2px oklch(0.520 0.240 var(--chroma-hue) / 40%);
-  --anim-nav-icon-rotate: -5deg;
-  --anim-nav-icon-scale:  1.20;
-  --anim-fadeup-y:        10px;
-  --anim-fadeup-dur:      0.26s;
-}
-
-/* ── Zinc – knapp & präzise ── */
-.animations-enabled.zinc {
-  --anim-ease-spring:     cubic-bezier(0.25, 0.1, 0.25, 1);
-  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
-  --anim-duration-fast:   0.10s;
-  --anim-duration-base:   0.16s;
-  --anim-card-y:          -2px;
-  --anim-card-scale:      1.003;
-  --anim-card-shadow:
-    0 4px 14px -4px oklch(0 0 0 / 14%),
-    0 1px 4px  -1px oklch(0 0 0 / 10%),
-    0 0 0 1px oklch(0 0 0 / 10%);
-  --anim-btn-y:           -1px;
-  --anim-btn-scale:       1.015;
-  --anim-btn-shadow:      0 2px 8px -2px oklch(0 0 0 / 18%);
+  --anim-btn-shadow:      0 4px 14px -3px rgba(0, 122, 255, 0.35);
   --anim-nav-icon-rotate: 0deg;
-  --anim-nav-icon-scale:  1.10;
-  --anim-fadeup-y:        6px;
-  --anim-fadeup-dur:      0.18s;
+  --anim-nav-icon-scale:  1.08;
+  --anim-fadeup-y:        10px;
+  --anim-fadeup-dur:      0.34s;
 }
 
-/* ── Stone – warm & ruhig ── */
-.animations-enabled.stone {
-  --anim-ease-spring:     cubic-bezier(0.25, 0.1, 0.25, 1);
-  --anim-ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
-  --anim-duration-fast:   0.12s;
-  --anim-duration-base:   0.18s;
-  --anim-card-y:          -2px;
-  --anim-card-scale:      1.003;
-  --anim-card-shadow:
-    0 4px 16px -4px oklch(0 0 0 / 12%),
-    0 1px 4px  -1px oklch(0 0 0 / 8%),
-    0 0 0 1px oklch(0 0 0 / 9%);
-  --anim-btn-y:           -1px;
-  --anim-btn-scale:       1.015;
-  --anim-btn-shadow:      0 2px 8px -2px oklch(0 0 0 / 15%);
-  --anim-nav-icon-rotate: 0deg;
-  --anim-nav-icon-scale:  1.10;
-  --anim-fadeup-y:        6px;
-  --anim-fadeup-dur:      0.20s;
+/* iOS drückt Elemente beim Antippen zusammen statt sie zu verschieben. */
+.animations-enabled.apple26 [data-slot="button"]:not(:disabled):active,
+.animations-enabled.apple26 [data-mobile-nav] a:active,
+.animations-enabled.apple26 [data-mobile-nav] button:active {
+  transform: scale(0.94);
+  transition-duration: 0.08s;
+}
+
+/* Die schwebende Leiste federt beim Wechsel mit. */
+.animations-enabled.apple26 [data-mobile-nav] span.rounded-full {
+  transition: background-color var(--anim-duration-base) var(--anim-ease-out),
+              transform var(--anim-duration-base) var(--anim-ease-spring);
+}
+
+/* Seitenwechsel gleiten wie in iOS herein statt zu blitzen. */
+.animations-enabled.apple26 main > * {
+  animation: rm-fade-up var(--anim-fadeup-dur) var(--anim-ease-page) both;
 }
 
 /* ── Windows 11 – flüssig & präzise (Fluent Motion) ── */
@@ -1181,6 +2668,24 @@
 @keyframes rm-fade-up {
   from { opacity: 0; transform: translateY(var(--anim-fadeup-y, 8px)); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Seitenwechsel im Handy-Dashboard: die neue Seite schiebt die alte weg. */
+@keyframes rm-page-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes rm-page-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes rm-page-out-left {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(-100%); opacity: 0.6; }
+}
+@keyframes rm-page-out-right {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0.6; }
 }
 
 @keyframes rm-scale-in {
@@ -1321,3 +2826,52 @@
 .animations-enabled [role="menuitem"]:hover {
   transform: translateX(4px);
 }
+
+
+/* Laufbalken der Sync-Anzeige auf dem Handy (siehe MobileSyncBar) */
+@keyframes rm-sync-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+
+/* ── Kartenrahmen nach innen zeichnen ──
+   Karten tragen einen Ring (`ring-1`), und der liegt AUSSERHALB der Fläche.
+   Überall dort, wo eine Karte bündig an einem Scroll- oder Clip-Bereich endet
+   – Dashboard-Seiten, Blätter, waagerechte Streifen –, schnitt dessen Kante
+   den Ring ab: Die Karte stand dann an einer oder zwei Seiten ohne Rahmen da.
+   Nach innen gezeichnet gehört die Linie zur Fläche und kann nicht mehr
+   abgeschnitten werden. Das Apple-Theme überschreibt das weiter oben mit
+   seiner eigenen, rahmenlosen Optik. */
+[data-slot="card"] {
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+
+
+/* ══════════════════════════════════════════
+   Eingaben in eigenen Feldern bleiben auch im Fokus flächenlos
+   ══════════════════════════════════════════
+   Such- und Listenfelder bringen ihre Fläche selbst mit. Die Fokus-Regeln der
+   Themes („gefülltes Feld wird beim Tippen heller") trafen aber auch die
+   Eingabe DARIN – beim Antippen saß dann eine zweite, hellere Pille im Feld.
+   Steht am Dateiende und je Theme, weil die Fokus-Regeln dort vier Klassen
+   bzw. Attribute tief sind; weniger reicht nicht. */
+.apple26 [data-search-field] input:not([hidden]):focus-visible,
+.apple26 [data-list-group] input:not([hidden]):focus-visible,
+.apple26 [data-list-group] textarea:not([hidden]):focus-visible,
+.oneui [data-search-field] input:not([hidden]):focus-visible,
+.oneui [data-list-group] input:not([hidden]):focus-visible,
+.oneui [data-list-group] textarea:not([hidden]):focus-visible,
+.windows11 [data-search-field] input:not([hidden]):focus-visible,
+.windows11 [data-list-group] input:not([hidden]):focus-visible,
+.windows11 [data-list-group] textarea:not([hidden]):focus-visible,
+.liquid-glass [data-search-field] input:not([hidden]):focus-visible,
+.liquid-glass [data-list-group] input:not([hidden]):focus-visible {
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+

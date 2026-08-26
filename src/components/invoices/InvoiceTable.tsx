@@ -18,13 +18,16 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { ArrowUpDown, ArrowUp, ArrowDown, X, ChevronLeft, ChevronRight, ChevronDown, Download, CheckSquare } from 'lucide-react';
 import { useAppStore } from '@/store';
-import { fmtCurrency, saveCsvFile } from '@/lib/utils';
+import { cn, fmtCurrency, saveCsvFile } from '@/lib/utils';
 import { InvoiceContextMenu } from './InvoiceContextMenu';
 import { useState } from 'react';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { SearchField } from '@/components/ui/search-field';
 import { fmtOriginal, normalizeCurrency } from '@/lib/currency';
-import { cn } from '@/lib/utils';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
+import { SlidersHorizontal } from 'lucide-react';
+import { Chip } from '@/components/ui/chip';
 
 type SortKey = 'date' | 'partner' | 'category' | 'brutto' | 'type';
 type SortDir = 'asc' | 'desc';
@@ -34,6 +37,20 @@ interface Props {
   showSearch?: boolean;
   showFilters?: boolean;
   showYearFilter?: boolean;
+}
+
+/**
+ * Abschnitt im Filterblatt: kleine Überschrift, darunter die Marken.
+ * Dieselbe Überschriftenform wie in den Gruppenlisten (`data-list-title`),
+ * damit die Themes sie schon kennen.
+ */
+function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 data-list-title className="px-1 text-[13px] font-medium text-muted-foreground">{title}</h3>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </section>
+  );
 }
 
 export function InvoiceTable({ invoices, showSearch = true, showFilters = true, showYearFilter = true }: Props) {
@@ -101,6 +118,17 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
       return next;
     }, { replace: true });
   };
+
+  /**
+   * Kategorien, die in den Belegen vorkommen. Sie stehen im Filterblatt
+   * obenan, damit dort nicht zwei Dutzend Marken untereinander stehen, von
+   * denen die meisten zu null Treffern führen – über „Alle Kategorien“
+   * kommt man wie am Rechner trotzdem an jede einzelne heran.
+   */
+  const usedCategories = useMemo(() => {
+    const used = new Set(invoices.map((i) => i.category as Category));
+    return CATEGORIES.filter((c) => used.has(c) || filterCategories.includes(c));
+  }, [invoices, filterCategories.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const years = useMemo(() => {
     const s = new Set(invoices.map((i) => i.year));
@@ -170,6 +198,28 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
   };
 
   const hasFilters = (showYearFilter && fyearParam != null) || fmonthParam != null || filterCategories.length > 0 || filterTypes.length > 0;
+  /** Wie viele Filter sind gesetzt – steht auf dem Handy neben dem Filter-Knopf */
+  const activeFilterCount =
+    (showYearFilter && fyearParam != null ? 1 : 0) +
+    (fmonthParam != null ? 1 : 0) +
+    (filterCategories.length > 0 ? 1 : 0) +
+    (filterTypes.length > 0 ? 1 : 0);
+  const [filterOpen, setFilterOpen] = useState(false);
+  /** Zeigt im Filterblatt alle Kategorien statt nur der vorkommenden */
+  const [allCategories, setAllCategories] = useState(false);
+
+  /** Alle Filter loswerden – Jahr fällt damit auf das laufende zurück. */
+  const resetFilters = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('fyear');
+      next.delete('fmonth');
+      next.delete('cat');
+      next.delete('type');
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  };
 
   const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -244,7 +294,39 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
 
   return (
     <div className="space-y-4">
-      {showSearch && (
+      {/* Suche und Filter teilen sich auf dem Handy eine Zeile: Das Feld sagt
+          durch Lupe und Form, dass man darin sucht, und der Filter steht als
+          Symbol daneben statt als zweite, formularartige Zeile darunter. */}
+      {isMobile && (showSearch || showFilters) && (
+        <div className="flex items-center gap-2">
+          {showSearch && (
+            <SearchField
+              value={search}
+              onChange={(v) => setParam('q', v || null)}
+              placeholder="Belege durchsuchen"
+              className="min-w-0 flex-1"
+            />
+          )}
+          {showFilters && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setFilterOpen(true)}
+              aria-label={activeFilterCount > 0 ? `Filter (${activeFilterCount} aktiv)` : 'Filter'}
+              className="relative h-11 w-11 shrink-0"
+            >
+              <SlidersHorizontal className="h-[18px] w-[18px]" />
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {showSearch && !isMobile && (
         <Input
           placeholder="Suche nach Beschreibung, Partner oder Notiz..."
           value={search}
@@ -254,6 +336,104 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
       )}
 
       {showFilters && (
+        isMobile ? (
+          /* Auf dem Handy steckt der Filter in einem Blatt von unten – und
+             zwar als Abschnitte mit antippbaren Marken statt der Aufklapp-
+             menüs vom Desktop. Ein Menü, das sich über ein Blatt legt, ist
+             mit dem Daumen kaum zu treffen; so sieht man außerdem sofort,
+             was gesetzt ist, ohne jeden Punkt einzeln aufzuklappen. */
+          <ResponsiveModal
+            open={filterOpen}
+            onClose={() => setFilterOpen(false)}
+            title="Filter"
+            closeLabel="Fertig"
+          >
+            <div className="space-y-6">
+              {showYearFilter && (
+                <FilterSection title="Jahr">
+                  <Chip active={fyearParam === 'all'} onClick={() => setParam('fyear', 'all')}>
+                    Alle
+                  </Chip>
+                  {years.map((y) => (
+                    <Chip
+                      key={y}
+                      active={filterYears.includes(y)}
+                      onClick={() => {
+                        const next = filterYears.includes(y)
+                          ? filterYears.filter((v) => v !== y)
+                          : [...filterYears, y];
+                        // Keins mehr gewählt heißt „alle“ – ohne Wert stünde
+                        // wieder das laufende Jahr da, das wäre überraschend.
+                        setParam('fyear', next.length ? next.join(',') : 'all');
+                      }}
+                    >
+                      {y}
+                    </Chip>
+                  ))}
+                </FilterSection>
+              )}
+
+              {showYearFilter && (
+                <FilterSection title="Monat">
+                  <Chip active={filterMonth === null} onClick={() => setParam('fmonth', null)}>
+                    Alle
+                  </Chip>
+                  {MONTH_NAMES.map((name, idx) => (
+                    <Chip
+                      key={name}
+                      active={filterMonth === idx + 1}
+                      onClick={() => setParam('fmonth', filterMonth === idx + 1 ? null : String(idx + 1))}
+                    >
+                      {name.slice(0, 3)}
+                    </Chip>
+                  ))}
+                </FilterSection>
+              )}
+
+              <FilterSection title="Kategorie">
+                {(allCategories ? CATEGORIES : usedCategories).map((c) => (
+                  <Chip
+                    key={c}
+                    active={filterCategories.includes(c)}
+                    onClick={() => toggleMultiParam('cat', c, filterCategories)}
+                  >
+                    {CATEGORY_LABELS[c]}
+                  </Chip>
+                ))}
+                {/* Auch was in den Belegen (noch) nicht vorkommt, lässt sich
+                    auswählen – am Rechner steht im Aufklappmenü ebenfalls
+                    die vollständige Liste. */}
+                {usedCategories.length < CATEGORIES.length && (
+                  <button
+                    type="button"
+                    onClick={() => setAllCategories((v) => !v)}
+                    className="min-h-9 rounded-full px-3.5 py-1.5 text-[15px] text-primary active:opacity-70"
+                  >
+                    {allCategories ? 'Weniger anzeigen' : `Alle ${CATEGORIES.length} Kategorien`}
+                  </button>
+                )}
+              </FilterSection>
+
+              <FilterSection title="Typ">
+                {INVOICE_TYPES.map((t) => (
+                  <Chip
+                    key={t}
+                    active={filterTypes.includes(t)}
+                    onClick={() => toggleMultiParam('type', t, filterTypes)}
+                  >
+                    {TYPE_LABELS[t]}
+                  </Chip>
+                ))}
+              </FilterSection>
+
+              {hasFilters && (
+                <Button variant="outline" className="h-11 w-full" onClick={resetFilters}>
+                  <X className="mr-1.5 h-4 w-4" /> Filter zurücksetzen
+                </Button>
+              )}
+            </div>
+          </ResponsiveModal>
+        ) : (
         <div className="flex flex-wrap items-center gap-2">
           {/* Jahr Dropdown */}
           {showYearFilter && (
@@ -363,19 +543,13 @@ export function InvoiceTable({ invoices, showSearch = true, showFilters = true, 
           </DropdownMenu>
 
           {hasFilters && (
-            <Button size="sm" variant="ghost" onClick={() => {
-              setSearchParams((prev) => {
-                const next = new URLSearchParams(prev);
-                next.delete('fyear');
-                next.delete('fmonth');
-                next.delete('cat'); next.delete('type'); next.delete('page');
-                return next;
-              }, { replace: true });
-            }}>
+            <Button size="sm" variant="ghost" onClick={resetFilters}>
               <X className="mr-1 h-3 w-3" /> Filter zurücksetzen
             </Button>
           )}
+
         </div>
+        )
       )}
 
       {/* Massenaktionen-Leiste */}

@@ -3,6 +3,7 @@ import type { PinboardData, PinItem } from '@/store/listsStore';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, StickyNote, GripHorizontal, ImageIcon } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
+import { cn } from '@/lib/utils';
 
 const NOTE_COLORS = [
   '#fef9c3', '#dcfce7', '#dbeafe', '#fce7f3', '#ede9fe', '#fed7aa', '#ffffff',
@@ -168,11 +169,15 @@ export function Pinboard({ data, onChange, listName }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b border-border px-6 py-4 shrink-0 flex items-center gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">{listName}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {data.items.length} Einträge · Alt+Drag zum Bewegen · Strg+V zum Einfügen von Bildern
+      {/* Auf dem Handy steht der Listenname schon in der Leiste darüber, und
+          Tastenkürzel gibt es dort nicht – beides bleibt dem Desktop
+          vorbehalten. Sonst quetschte sich der Text in eine handbreite Spalte. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3 md:gap-4 md:px-6 md:py-4">
+        <div className="min-w-0">
+          <h2 className="hidden truncate text-xl font-semibold md:block">{listName}</h2>
+          <p className="text-xs text-muted-foreground md:mt-0.5">
+            {data.items.length} Einträge
+            <span className="hidden md:inline"> · Alt+Drag zum Bewegen · Strg+V zum Einfügen von Bildern</span>
           </p>
         </div>
         <div className="ml-auto flex gap-2">
@@ -185,10 +190,15 @@ export function Pinboard({ data, onChange, listName }: Props) {
           </Button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
         </div>
+        {/* „Zurücksetzen" betrifft nur die verschobene Ansicht – solange
+            nichts verschoben ist, nimmt es auf dem Handy nur eine Zeile weg. */}
         <Button
           size="sm"
           variant="ghost"
-          className="text-xs text-muted-foreground"
+          className={cn(
+            'text-xs text-muted-foreground',
+            data.offsetX === 0 && data.offsetY === 0 && 'hidden md:inline-flex',
+          )}
           onClick={() => onChange({ ...data, offsetX: 0, offsetY: 0 })}
         >
           Zurücksetzen

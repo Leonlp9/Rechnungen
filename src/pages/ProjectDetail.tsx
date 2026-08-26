@@ -255,11 +255,11 @@ export default function ProjectDetailPage() {
   };
 
   if (isLoading) {
-    return <div className="p-0 md:p-6 text-sm text-muted-foreground">Lade…</div>;
+    return <div className="text-sm text-muted-foreground">Lade…</div>;
   }
   if (!project) {
     return (
-        <div className="p-0 md:p-6 space-y-4">
+        <div className="space-y-4">
           <p className="text-muted-foreground">Projekt nicht gefunden.</p>
           <Button variant="outline" onClick={() => navigate('/projects')}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Zurück
@@ -284,7 +284,7 @@ export default function ProjectDetailPage() {
   const hasLinksOrMedia = project.links.length > 0 || !!project.youtube_url;
 
   return (
-      <div className="p-0 md:p-6 max-w-4xl space-y-6">
+      <div className="max-w-4xl space-y-6">
         {/* ── Header ── */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/projects')}>

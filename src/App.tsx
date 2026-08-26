@@ -24,8 +24,8 @@ import MobileScanPage from "@/pages/MobileScan";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/UpdateDialog";
-import { registerUpdateSetter, startDownload, type UpdateState } from "@/lib/updater";
-import { useAppStore } from "@/store";
+import { registerUpdateSetter, startDownload, openInstaller, type UpdateState } from "@/lib/updater";
+import { useAppStore, APP_THEMES } from "@/store";
 import { useTemplateStore } from "@/store/templateStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
@@ -142,9 +142,12 @@ function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
     // Theme-Klassen: alle entfernen, dann aktives setzen
-    document.documentElement.classList.remove('liquid-glass', 'aurora-borealis', 'crimson-dusk', 'zinc', 'stone', 'windows11', 'chroma');
+    document.documentElement.classList.remove(...APP_THEMES.filter((t) => t !== 'default'));
     if (theme !== 'default') {
       document.documentElement.classList.add(theme);
+      // Liquid Glass ist eine Erweiterung des Apple-Themes und braucht dessen
+      // Formensprache – deshalb tragen beide Klassen gleichzeitig.
+      if (theme === 'liquid-glass') document.documentElement.classList.add('apple26');
     }
     getCurrentWindow().setTheme(darkMode ? 'dark' : 'light').catch(() => {});
   }, [darkMode, theme]);
@@ -166,7 +169,11 @@ function App() {
             releaseNotes={updateState.releaseNotes}
             phase={updateState.phase}
             progress={updateState.progress}
+            mobile={updateState.mobile}
+            cached={updateState.cached}
+            error={updateState.error}
             onConfirm={() => startDownload()}
+            onInstall={() => openInstaller()}
             onCancel={() => setUpdateState((s) => ({ ...s, open: false }))}
           />
         )}

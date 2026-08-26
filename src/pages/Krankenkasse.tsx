@@ -302,21 +302,26 @@ export default function KrankenkassePage() {
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-0 md:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-primary/10 p-2">
+      {/* Der Titel darf umbrechen statt aus dem Bild zu laufen – auf dem Handy
+          stand „Pflegeversicherung" zur Hälfte hinter dem rechten Rand. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 rounded-xl bg-primary/10 p-2">
             <HeartPulse className="h-6 w-6 text-primary" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Kranken- &amp; Pflegeversicherung</h1>
-            <p className="text-sm text-muted-foreground">
-              Soll wird aus deinen echten Einnahmen berechnet · Prognose für zukünftige Monate
+          <div className="min-w-0">
+            {/* Kurzer Titel wie im Menü – „Kranken- & Pflegeversicherung"
+                passte in der großen Titelgröße auf keinem Handy in eine Zeile.
+                Die lange Form steht darunter. */}
+            <h1 className="text-2xl leading-tight font-bold">Krankenkasse</h1>
+            <p className="mt-1 text-[13px] leading-snug text-muted-foreground sm:text-sm">
+              Kranken- &amp; Pflegeversicherung · Soll aus echten Einnahmen, Prognose für offene Monate
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => setYear((y) => y - 1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -336,7 +341,7 @@ export default function KrankenkassePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs text-muted-foreground font-normal uppercase tracking-wide">
+              <CardTitle className="text-xs font-normal text-muted-foreground">
                 Soll auf Basis echter Einnahmen
               </CardTitle>
             </CardHeader>
@@ -350,7 +355,7 @@ export default function KrankenkassePage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs text-muted-foreground font-normal uppercase tracking-wide">
+              <CardTitle className="text-xs font-normal text-muted-foreground">
                 Vorläufig abgebucht
               </CardTitle>
             </CardHeader>
@@ -372,7 +377,7 @@ export default function KrankenkassePage() {
             }
           >
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs text-muted-foreground font-normal uppercase tracking-wide flex items-center gap-1.5">
+              <CardTitle className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                 {summary.differenz > 0.005 ? (
                   <TrendingUp className="h-3.5 w-3.5 text-green-500" />
                 ) : summary.differenz < -0.005 ? (

@@ -34,8 +34,11 @@ export function MobileNav({ onOpenMore, moreOpen }: Props) {
 
   return (
     <nav
+      data-mobile-nav
       className="z-40 flex shrink-0 items-stretch border-t border-border bg-background/95 backdrop-blur"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      // Als Variable statt als fester Innenabstand: So kann ein Theme, das
+      // die Leiste schweben lässt oder anders staffelt, den Wert übernehmen.
+      style={{ paddingBottom: 'var(--nav-safe-bottom, env(safe-area-inset-bottom, 0px))' }}
     >
       {ITEMS.map((item) => {
         const Icon = item.icon;
@@ -55,17 +58,16 @@ export function MobileNav({ onOpenMore, moreOpen }: Props) {
               )
             }
           >
-            {({ isActive }) => {
-              const active = isActive && !moreOpen;
+            {() => {
               return (
                 <>
                   <span
                     className={cn(
                       SLOT,
-                      item.primary
-                        // Im Light-Mode schwarz, im Dark-Mode hell
-                        ? 'bg-foreground text-background shadow-sm'
-                        : active && 'bg-primary/10',
+                      // Nur die Hauptaktion bekommt eine Fläche. Der aktive Tab
+                      // wird allein über die Farbe kenntlich – zwei
+                      // Hervorhebungen nebeneinander wirkten unruhig.
+                      item.primary && 'bg-foreground text-background shadow-sm',
                     )}
                   >
                     <Icon className="h-5 w-5" />
@@ -82,7 +84,7 @@ export function MobileNav({ onOpenMore, moreOpen }: Props) {
         aria-label="Mehr"
         className={cn(ITEM, moreOpen || onOtherPage ? 'text-primary' : 'text-muted-foreground')}
       >
-        <span className={cn(SLOT, (moreOpen || onOtherPage) && 'bg-primary/10')}>
+        <span className={SLOT}>
           <Menu className="h-5 w-5" />
         </span>
         <span>Mehr</span>

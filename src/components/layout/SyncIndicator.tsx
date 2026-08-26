@@ -62,12 +62,18 @@ function useTone(): Tone {
 }
 
 interface Props {
-  /** Kompakt = nur Icon (Mobile-Topbar) */
+  /** Kompakt = nur Icon */
   compact?: boolean;
+  /**
+   * Nichts anzeigen, solange kein Sync eingerichtet ist. „Sync aus" war in
+   * der Kopfleiste ein Dauergast, der nie etwas zu melden hatte –
+   * eingerichtet wird der Abgleich in den Einstellungen.
+   */
+  hideWhenOff?: boolean;
   className?: string;
 }
 
-export function SyncIndicator({ compact = false, className }: Props) {
+export function SyncIndicator({ compact = false, hideWhenOff = false, className }: Props) {
   const status = useSyncStatus();
   const tone = useTone();
   const navigate = useNavigate();
@@ -95,6 +101,8 @@ export function SyncIndicator({ compact = false, className }: Props) {
     : tone === 'error' ? 'Sync-Fehler'
     : tone === 'fresh' ? 'Neue Daten'
     : lastSyncRel ?? 'Bereit';
+
+  if (hideWhenOff && tone === 'off') return null;
 
   const title =
     tone === 'off'

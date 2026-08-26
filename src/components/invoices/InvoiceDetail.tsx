@@ -36,10 +36,10 @@ import { getAbsolutePdfPath, readPdfAsBase64 } from '@/lib/pdf';
 import { analyzeInvoicePdf } from '@/lib/gemini';
 import { useAppStore } from '@/store';
 import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesForTypeFiltered, getCategoriesForBranche, getDefaultCategoryForType, isCategoryValidForType } from '@/types';
-import type { Invoice } from '@/types';
-import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator, FileCode2, Lock, Check } from 'lucide-react';
+import type { Invoice, Category } from '@/types';
+import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator, FileCode2, Lock, Check, Undo2, MoreHorizontal, ExternalLink } from 'lucide-react';
 import { readFile } from '@tauri-apps/plugin-fs';
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { revealItemInDir, openPath } from '@tauri-apps/plugin-opener';
 import { cn, fmtCurrency } from '@/lib/utils';
 import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
 import { StornoDialog } from './StornoDialog';
@@ -51,6 +51,16 @@ import { getSetting } from '@/lib/db';
 import { ProjectSelector } from '@/components/projects/ProjectSelector';
 import { reportInvalid } from '@/lib/formErrors';
 import { CurrencySelect } from '@/components/ui/CurrencySelect';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { Segmented } from '@/components/ui/segmented';
+import { FormGroup, FormRow, FormFullRow, FIELD, FIELD_DATE, FIELD_SELECT } from '@/components/ui/form-list';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { CurrencyConversionHint } from './CurrencyConversionHint';
 import { fmtOriginal, normalizeCurrency } from '@/lib/currency';
 
@@ -69,6 +79,27 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+/** Umschalter Details ↔ Dokument – an zwei Stellen verwendet, je nachdem,
+ *  welcher Bereich gerade sichtbar ist. */
+function MobileTabs({
+  value,
+  onChange,
+}: {
+  value: 'details' | 'pdf';
+  onChange: (v: 'details' | 'pdf') => void;
+}) {
+  return (
+    <Segmented
+      value={value}
+      onChange={onChange}
+      options={[
+        { value: 'details', label: 'Details' },
+        { value: 'pdf', label: 'Dokument' },
+      ]}
+    />
+  );
+}
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -417,6 +448,21 @@ export default function InvoiceDetail() {
   };
 
   /** Öffnet das archivierte XML im Datei-Explorer */
+  /**
+   * Auf dem Handy gibt es keinen Dateimanager, in dem sich etwas „im Ordner
+   * zeigen" ließe – der Knopf lief dort ins Leere. Stattdessen reicht das
+   * System die Datei an eine App weiter, die PDFs anzeigen kann.
+   */
+  const handleOpenExternal = async () => {
+    if (!invoice?.pdf_path) return;
+    try {
+      const abs = await getAbsolutePdfPath(invoice.pdf_path);
+      await openPath(abs);
+    } catch (e) {
+      toast.error('Konnte das PDF nicht an eine andere App übergeben', { description: String(e) });
+    }
+  };
+
   const handleRevealXml = async () => {
     if (!invoice?.xrechnung_path) return;
     try {
@@ -444,28 +490,16 @@ export default function InvoiceDetail() {
   }
 
   return (
-      <div className={cn('h-full', isMobile ? 'flex flex-col gap-3 p-3' : 'flex gap-6')}>
-        {/* Mobile: Umschalter Details ↔ Dokument */}
-        {isMobile && (
-          <div className="flex shrink-0 gap-1 rounded-lg border bg-muted/40 p-1">
-            {([
-              ['details', 'Details'],
-              ['pdf', 'Dokument'],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setMobileTab(key)}
-                className={cn(
-                  'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                  mobileTab === key ? 'bg-background shadow-sm' : 'text-muted-foreground',
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
+      // Am Handy bis zur Unterkante: Der Inhalt soll unter der schwebenden
+      // Leiste durchlaufen (Glaseffekt) statt an einem toten Streifen davor
+      // abzureißen. Den Freiraum zum Weiterscrollen bringen die Scrollbereiche
+      // selbst mit (--app-main-pb).
+      <div className={cn('h-full', isMobile ? 'flex flex-col gap-3 p-3 pb-0' : 'flex gap-6')}>
+        {/* Mobile: Umschalter Details ↔ Dokument.
+            Er sitzt IM jeweiligen Bereich, nicht als fester Balken darüber –
+            oben soll beim Scrollen nur der Zurück-Knopf stehen bleiben. Über
+            dem Dokument bleibt er fest, weil dort nichts scrollt. */}
+        {isMobile && mobileTab === 'pdf' && <MobileTabs value={mobileTab} onChange={setMobileTab} />}
 
         {/* PDF-Ansicht (Desktop: links, Mobile: eigener Tab mit pdf.js-Renderer) */}
         <div
@@ -476,7 +510,7 @@ export default function InvoiceDetail() {
         >
           {pdfUrl ? (
               isMobile ? (
-                <PdfCanvasViewer url={pdfUrl} />
+                <PdfCanvasViewer url={pdfUrl} bottomInset="var(--app-main-pb, 0.5rem)" />
               ) : (
                 <embed src={pdfUrl} type="application/pdf" className="h-full w-full" />
               )
@@ -491,10 +525,14 @@ export default function InvoiceDetail() {
             'space-y-4 overflow-y-auto',
             isMobile ? (mobileTab === 'details' ? 'flex-1 min-h-0' : 'hidden') : 'w-[400px] shrink-0',
           )}
+          style={isMobile ? { paddingBottom: 'var(--app-main-pb, 0.75rem)' } : undefined}
         >
+          {isMobile && <MobileTabs value={mobileTab} onChange={setMobileTab} />}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-bold">Rechnungsdetails</h1>
+              {/* Auf dem Handy steht „Beleg" schon in der Navigationsleiste –
+                  eine zweite Überschrift darunter ist verschenkter Platz. */}
+              {!isMobile && <h1 className="text-xl font-bold">Rechnungsdetails</h1>}
               {/* Status-Badge */}
               {invoice?.storno_of ? (
                 <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-300/40">
@@ -573,6 +611,97 @@ export default function InvoiceDetail() {
           )}
 
           <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-3">
+            {isMobile ? (
+            <>
+            {/* ── Handy: iOS-Formular ──
+                Beschriftung links, Eingabe rechts, 44-pt-Zeilen in flächigen
+                Gruppen. Untereinander gestapelte Label/Feld-Paare ergaben auf
+                dem Handy eine endlose, unübersichtliche Kolonne. */}
+            <FormGroup title="Beleg">
+              <FormRow label="Datum">
+                <input type="date" {...form.register('date')} className={FIELD_DATE} />
+              </FormRow>
+              <FormRow label="Partner">
+                <input {...form.register('partner')} className={FIELD} placeholder="Name" />
+              </FormRow>
+              <FormRow label="Beschreibung">
+                <input {...form.register('description')} className={FIELD} placeholder="Wofür?" />
+              </FormRow>
+            </FormGroup>
+
+            <FormGroup
+              title={watchedCurrency === 'EUR' ? 'Beträge' : `Beträge in ${watchedCurrency}`}
+              footer="Netto + USt muss dem Brutto entsprechen. Gebühren stehen daneben und zählen nicht hinein."
+            >
+              <FormRow label="Netto">
+                <input type="number" step="0.01" {...form.register('netto', { valueAsNumber: true })} className={FIELD} />
+              </FormRow>
+              <FormRow label="USt">
+                <input type="number" step="0.01" {...form.register('ust', { valueAsNumber: true })} className={FIELD} />
+              </FormRow>
+              <FormRow label="Brutto">
+                <input type="number" step="0.01" {...form.register('brutto', { valueAsNumber: true })} className={FIELD} />
+              </FormRow>
+              <FormRow label="Gebühren">
+                <input type="number" min={0} step="0.01" {...form.register('fee', { valueAsNumber: true })} className={FIELD} />
+              </FormRow>
+              <FormRow label="Währung">
+                <CurrencySelect
+                  value={form.watch('currency')}
+                  onChange={(v) => form.setValue('currency', v, { shouldDirty: true })}
+                />
+              </FormRow>
+            </FormGroup>
+
+            {watchedCurrency !== 'EUR' && (
+              <CurrencyConversionHint
+                brutto={form.watch('brutto') || 0}
+                currency={form.watch('currency')}
+                date={form.watch('date')}
+              />
+            )}
+
+            <FormGroup title="Einordnung">
+              <FormRow label="Typ">
+                <Select value={watchedType} onValueChange={(v) => {
+                  const newType = v as 'einnahme' | 'ausgabe' | 'info';
+                  form.setValue('type', newType);
+                  const cur = form.getValues('category');
+                  if (!(getCategoriesForTypeFiltered(newType) as string[]).includes(cur)) {
+                    form.setValue('category', getDefaultCategoryForType(newType));
+                  }
+                }}>
+                  <SelectTrigger className={FIELD_SELECT}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INVOICE_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormRow>
+              <FormRow label="Kategorie" warn={!!hasCategoryIssue}>
+                <Select value={watchedCategory} onValueChange={(v) => form.setValue('category', v as Category)}>
+                  <SelectTrigger className={FIELD_SELECT}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {getCategoriesForTypeFiltered(watchedType).map((c) => (
+                      <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormRow>
+              <FormRow label="Projekt">
+                <ProjectSelector value={projectId} onChange={setProjectId} />
+              </FormRow>
+            </FormGroup>
+
+            <FormGroup title="Notiz">
+              <FormFullRow>
+                <input {...form.register('note')} className="w-full bg-transparent text-[17px] outline-none placeholder:text-muted-foreground" placeholder="Optionale Notiz" />
+              </FormFullRow>
+            </FormGroup>
+            </>
+            ) : (
+              <>
             <div className="space-y-1.5">
               <Label>Datum</Label>
               <Input type="date" {...form.register('date')} />
@@ -726,6 +855,8 @@ export default function InvoiceDetail() {
               />
             </div>
 
+              </>
+            )}
             <div className="flex flex-col gap-2 pt-2">
               {invalidFields.length > 0 && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -741,7 +872,88 @@ export default function InvoiceDetail() {
                   Dieser Beleg ist festgeschrieben – Änderungen sind nur noch per Stornobuchung möglich.
                 </p>
               )}
-              {/* Zeile 1: Primäraktion + PDF + XRechnung */}
+              {isMobile ? (
+                <>
+              {/* ── Handy: eine klare Hauptaktion, alles Weitere als Liste ──
+                  Sechs Knöpfe nebeneinander waren auf dem Handy nicht mehr
+                  lesbar; welcher davon der wichtige ist, sah man auch nicht. */}
+              <Button
+                type="submit"
+                disabled={saving || invoice?.is_locked}
+                className={cn('h-[50px] w-full text-[17px] font-semibold', justSaved && 'bg-emerald-600 hover:bg-emerald-600')}
+              >
+                {saving
+                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  : justSaved
+                    ? <Check className="mr-2 h-4 w-4" />
+                    : <Save className="mr-2 h-4 w-4" />}
+                {saving ? 'Speichere …' : justSaved ? 'Gespeichert' : 'Speichern'}
+              </Button>
+
+              <ListGroup className="pt-3">
+                {hasPdf && (
+                  <ListRow
+                    tint="blue"
+                    icon={<ExternalLink />}
+                    label="Mit anderer App öffnen"
+                    hint="PDF an eine Anzeige-App übergeben"
+                    onClick={() => { void handleOpenExternal(); }}
+                    noChevron
+                  />
+                )}
+                {invoice?.type === 'einnahme' && (
+                  <ListRow
+                    tint="purple"
+                    icon={xrechnungExporting ? <Loader2 className="animate-spin" /> : <FileCode2 />}
+                    label="Als XRechnung exportieren"
+                    hint="UBL 2.1 – E-Rechnungspflicht ab 2025"
+                    onClick={() => { if (!xrechnungExporting) void handleXRechnungExport(); }}
+                    noChevron
+                  />
+                )}
+                {invoice?.type === 'einnahme' && !invoice?.xrechnung_path && (
+                  <ListRow
+                    tint="purple"
+                    icon={xrechnungArchiving ? <Loader2 className="animate-spin" /> : <FileCode2 />}
+                    label="E-Rechnung nachträglich archivieren"
+                    hint="Noch kein XML im Archiv"
+                    onClick={() => { if (!xrechnungArchiving) void handleXRechnungArchive(); }}
+                    noChevron
+                  />
+                )}
+                {!invoice?.is_locked && (
+                  <ListRow
+                    tint="indigo"
+                    icon={<Lock />}
+                    label="Festschreiben"
+                    hint="Danach nur noch per Storno korrigierbar"
+                    onClick={() => setConfirmLock(true)}
+                    noChevron
+                  />
+                )}
+                {!invoice?.storno_of && (
+                  <ListRow
+                    tint="orange"
+                    icon={<Undo2 />}
+                    label="Stornieren"
+                    hint="Gegenbuchung erstellen"
+                    onClick={() => setStornoDialogOpen(true)}
+                    noChevron
+                  />
+                )}
+                {!invoice?.is_locked && (
+                  <ListRow tint="red" icon={<Trash2 />} label="Löschen" destructive onClick={() => setConfirmDelete(true)} noChevron />
+                )}
+              </ListGroup>
+                </>
+              ) : (
+                <>
+              {/* ── Eine Hauptaktion, der Rest im Überlaufmenü ──
+                  Sechs gleich große Knöpfe nebeneinander sagten nicht mehr,
+                  welcher der wichtige ist – und Festschreiben, Stornieren und
+                  Löschen sind alles Dinge, die man höchstens einmal pro Beleg
+                  tut. Speichern bleibt sichtbar, alles Weitere liegt eine
+                  Berührung tiefer. */}
               <div className="flex gap-2">
                 <Button
                   type="submit"
@@ -755,65 +967,76 @@ export default function InvoiceDetail() {
                       : <Save className="mr-2 h-4 w-4" />}
                   {saving ? 'Speichere …' : justSaved ? 'Gespeichert' : 'Speichern'}
                 </Button>
-                <Button type="button" variant="outline" onClick={handleReveal} title="PDF im Explorer anzeigen">
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleXRechnungExport}
-                  disabled={xrechnungExporting || invoice?.type !== 'einnahme'}
-                  title={invoice?.type !== 'einnahme' ? 'XRechnung nur für Einnahme-Belege' : 'Als XRechnung (UBL 2.1 XML) exportieren – E-Rechnungspflicht ab 2025'}
-                  className="text-violet-600 border-violet-300/60 hover:bg-violet-50 dark:hover:bg-violet-950/30 disabled:opacity-40"
-                >
-                  {xrechnungExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}
-                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" size="icon" title="Weitere Aktionen" aria-label="Weitere Aktionen">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    {hasPdf && (
+                      <DropdownMenuItem onSelect={() => { void handleReveal(); }}>
+                        <FolderOpen className="h-4 w-4" />
+                        PDF im Ordner anzeigen
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem
+                      onSelect={() => { void handleXRechnungExport(); }}
+                      disabled={xrechnungExporting || invoice?.type !== 'einnahme'}
+                    >
+                      {xrechnungExporting
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <FileCode2 className="h-4 w-4" />}
+                      Als XRechnung exportieren
+                    </DropdownMenuItem>
+                    {invoice?.type === 'einnahme' && !invoice?.xrechnung_path && (
+                      <DropdownMenuItem
+                        onSelect={() => { void handleXRechnungArchive(); }}
+                        disabled={xrechnungArchiving}
+                      >
+                        {xrechnungArchiving
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <FileCode2 className="h-4 w-4" />}
+                        E-Rechnung nachträglich archivieren
+                      </DropdownMenuItem>
+                    )}
+
+                    {(!invoice?.is_locked || !invoice?.storno_of) && <DropdownMenuSeparator />}
+                    {!invoice?.is_locked && (
+                      <DropdownMenuItem onSelect={() => setConfirmLock(true)}>
+                        <Lock className="h-4 w-4" />
+                        Festschreiben
+                      </DropdownMenuItem>
+                    )}
+                    {!invoice?.storno_of && (
+                      <DropdownMenuItem onSelect={() => setStornoDialogOpen(true)}>
+                        <Undo2 className="h-4 w-4" />
+                        Stornieren
+                      </DropdownMenuItem>
+                    )}
+                    {!invoice?.is_locked && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                          <Trash2 className="h-4 w-4" />
+                          Löschen
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              {/* E-Rechnung Nacharchivierung (falls noch kein XML hinterlegt) */}
+
+              {/* Die E-Rechnungspflicht ist ein echtes Versäumnis-Risiko – der
+                  Hinweis darauf bleibt sichtbar, die Aktion dazu steht oben. */}
               {invoice?.type === 'einnahme' && !invoice?.xrechnung_path && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs text-violet-600 border-violet-300/60 hover:bg-violet-50 dark:hover:bg-violet-950/30"
-                  onClick={handleXRechnungArchive}
-                  disabled={xrechnungArchiving}
-                  title="XRechnung (UBL 2.1 XML) revisionssicher im Archiv speichern – Pflicht ab 01.01.2025"
-                >
-                  {xrechnungArchiving ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <FileCode2 className="mr-1.5 h-3 w-3" />}
-                  {xrechnungArchiving ? 'Archiviere…' : '⚠️ E-Rechnung nachträglich archivieren'}
-                </Button>
+                <p className="rounded-lg border border-violet-300/40 bg-violet-500/5 px-3 py-2 text-xs text-violet-700 dark:text-violet-400">
+                  Für diesen Einnahme-Beleg liegt noch keine XRechnung im Archiv (Pflicht ab 01.01.2025).
+                </p>
               )}
-              {/* Zeile 2: GoBD-Aktionen + Löschen */}
-              <div className="flex gap-2">
-                {!invoice?.is_locked && (
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        className="flex-1"
-                        onClick={() => setConfirmLock(true)}
-                        title="Beleg festschreiben – danach nur noch per Storno korrigierbar (GoBD)"
-                    >
-                      🔒 Festschreiben
-                    </Button>
-                )}
-                {!invoice?.storno_of && (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        className="flex-1 text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30"
-                        onClick={() => setStornoDialogOpen(true)}
-                        title="Gegenbuchung erstellen, die diesen Beleg buchhalterisch aufhebt (GoBD-konform)"
-                    >
-                      ↩ Stornieren
-                    </Button>
-                )}
-                {!invoice?.is_locked && (
-                    <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)} title="Beleg löschen">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                )}
-              </div>
+                </>
+              )}
             </div>
             {invoice?.is_locked && (
                 <p className="text-xs text-amber-600 mt-1">🔒 Dieser Beleg ist festgeschrieben. Änderungen sind nur über eine Stornobuchung möglich.</p>

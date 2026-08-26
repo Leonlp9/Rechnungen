@@ -18,14 +18,15 @@ import { ShortcutsModal } from '@/components/ShortcutsModal';
 import { initAutoSync } from '@/lib/sync';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { MobileNav } from './MobileNav';
-import { MobileTopbar } from './MobileTopbar';
+import { MobileBackLink, usePageBar } from './MobileBackLink';
+import { MobileSyncBar } from './MobileSyncBar';
 import { MobileMoreSheet } from './MobileMoreSheet';
 
 /** Seiten, die ihre Höhe selbst verwalten (eigenes Scrolling im Inneren). */
 const FULL_HEIGHT_ROUTES = ['/invoice-designer', '/write-invoice', '/lists', '/gmail', '/calendar', '/settings'];
 
 /** Dasselbe für das Handy – hier scrollt sonst Seite UND Inhalt gleichzeitig. */
-const MOBILE_FULL_HEIGHT_ROUTES = ['/settings', '/lists', '/help', '/write-invoice', '/invoice-designer', '/invoices/'];
+const MOBILE_FULL_HEIGHT_ROUTES = ['/settings', '/lists', '/write-invoice', '/invoice-designer', '/invoices/'];
 
 export function AppLayout() {
   const [newInvoiceOpen, setNewInvoiceOpen] = useState(false);
@@ -35,6 +36,8 @@ export function AppLayout() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { pathname } = useLocation();
   const isMobile = useIsMobile();
+  const pageBar = usePageBar();
+  const pageHeaderMounted = useAppStore((s) => s.pageHeaderMounted);
   const fullHeight = isMobile
     ? MOBILE_FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r))
     : FULL_HEIGHT_ROUTES.some((r) => pathname.startsWith(r));
@@ -78,14 +81,15 @@ export function AppLayout() {
   return (
     <div className="flex h-dvh overflow-hidden">
       {!isMobile && <Sidebar />}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {isMobile ? (
-          <MobileTopbar
-            onNewInvoice={() => setNewInvoiceOpen(true)}
-            onDrafts={() => setDraftsOpen(true)}
-            onExport={() => setExportOpen(true)}
-          />
-        ) : (
+      {/* Der obere Rand (Notch/Statusleiste) wird hier freigehalten, seit es
+          auf dem Handy keine Kopfleiste mehr gibt, die das übernehmen könnte. */}
+      <div
+        data-app-shell
+        className="relative flex min-w-0 flex-1 flex-col overflow-hidden"
+        style={isMobile ? { paddingTop: 'env(safe-area-inset-top, 0px)' } : undefined}
+      >
+        {isMobile && <MobileSyncBar />}
+        {!isMobile && (
           <Topbar
             onNewInvoice={() => setNewInvoiceOpen(true)}
             onExport={() => setExportOpen(true)}
@@ -93,9 +97,15 @@ export function AppLayout() {
           />
         )}
         <main
+          data-app-main
           className={
             fullHeight
-              ? 'min-h-0 flex-1 overflow-hidden'
+              ? // Auf dem Handy sitzt die Zurück-Leiste IM Scrollbereich, damit
+                // der Inhalt darunter durchläuft. Seiten mit eigener Höhe
+                // brauchen dafür eine Spalte: Leiste fest, Rest flexibel.
+                isMobile
+                ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+                : 'min-h-0 flex-1 overflow-hidden'
               : isMobile
                 ? 'min-h-0 flex-1 overflow-x-hidden overflow-y-auto'
                 : 'flex-1 overflow-y-auto p-6'
@@ -103,15 +113,28 @@ export function AppLayout() {
           style={
             isMobile && !fullHeight
               ? {
-                  // Safe-Areas links/rechts; oben/unten übernehmen Topbar und Nav
-                  padding: '0.75rem',
-                  paddingLeft: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
-                  paddingRight: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
+                  // Safe-Areas links/rechts; oben/unten übernehmen Topbar und Nav.
+                  // Über CSS-Variablen, damit Themes die Abstände anpassen können –
+                  // das Apple-Theme lässt die Navigationsleiste z. B. schweben und
+                  // braucht darunter mehr Luft.
+                  paddingTop: 'var(--app-main-pt, 0.75rem)',
+                  paddingBottom: 'var(--app-main-pb, 0.75rem)',
+                  paddingLeft: 'calc(env(safe-area-inset-left, 0px) + var(--app-main-px, 0.75rem))',
+                  paddingRight: 'calc(env(safe-area-inset-right, 0px) + var(--app-main-px, 0.75rem))',
                 }
               : undefined
           }
         >
-          <Outlet />
+          {/* Seiten mit großer Überschrift bringen die Leiste selbst mit –
+              dort sitzt sie direkt darunter (siehe PageHeader). */}
+          {isMobile && !pageHeaderMounted && <MobileBackLink {...pageBar} />}
+          {isMobile && fullHeight ? (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <Outlet />
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
         {isMobile && <MobileNav onOpenMore={() => setMoreOpen(true)} moreOpen={moreOpen} />}
       </div>

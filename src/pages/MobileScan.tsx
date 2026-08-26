@@ -8,13 +8,10 @@ import { useRef, useState } from 'react';
 import {
   Camera,
   FileUp,
-  RefreshCw,
-  CloudUpload,
   Trash2,
   Pencil,
   FileCheck2,
   FileText,
-  ArrowRight,
   Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -23,12 +20,14 @@ import { jsPDF } from 'jspdf';
 import { writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { DraftListGroup } from '@/components/invoices/DraftListGroup';
 import { toast } from 'sonner';
 import { insertDraftDb, deleteDraftDb } from '@/lib/db';
 import { deleteDraftFile } from '@/lib/pdf';
 import { useAppStore, type InvoiceDraft } from '@/store';
-import { runSync, loadSyncConfig, useSyncStatus } from '@/lib/sync';
+import { runSync, loadSyncConfig } from '@/lib/sync';
 import { PhotoEditor } from '@/components/scan/PhotoEditor';
 import { NewInvoiceDialog } from '@/components/invoices/NewInvoiceDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -97,7 +96,6 @@ export default function MobileScanPage() {
   const drafts = useAppStore((s) => s.drafts ?? []);
   const addDraft = useAppStore((s) => s.addDraft);
   const removeDraft = useAppStore((s) => s.removeDraft);
-  const syncRunning = useSyncStatus((s) => s.running);
 
   const triggerSync = async () => {
     const config = await loadSyncConfig();
@@ -192,14 +190,11 @@ export default function MobileScanPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-bold">Beleg scannen</h1>
-        <p className="text-sm text-muted-foreground">
-          Fotografiere eine Rechnung (mehrere Seiten möglich), schneide sie zu und
-          speichere sie als Entwurf – oder erfasse sie direkt mit KI.
-        </p>
-      </div>
+    <div className="mx-auto flex max-w-md flex-col gap-7">
+      <PageHeader
+        title="Beleg scannen"
+        subtitle="Foto oder PDF – landet als Entwurf hier und auf allen Geräten."
+      />
 
       <input
         ref={cameraRef}
@@ -218,112 +213,106 @@ export default function MobileScanPage() {
         onChange={(e) => void handlePdfFiles(e.target.files)}
       />
 
-      <Card className="rounded-xl">
-        <CardContent className="flex flex-col gap-3 p-4">
-          {pages.length === 0 ? (
-            <Button size="lg" className="h-16 text-base" disabled={busy} onClick={() => cameraRef.current?.click()}>
-              <Camera className="mr-2 h-6 w-6" />
-              Foto aufnehmen
-            </Button>
-          ) : (
-            <>
-              {/* Gesammelte Seiten */}
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {pages.map((p, i) => (
-                  <div key={i} className="relative shrink-0">
-                    <img src={p} alt={`Seite ${i + 1}`} className="h-28 w-20 rounded-lg border object-cover" />
-                    <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] font-medium text-white">
-                      {i + 1}
-                    </span>
-                    <div className="absolute -right-1 -top-1 flex gap-0.5">
-                      <button
-                        type="button"
-                        className="rounded-full bg-background border p-1 shadow"
-                        aria-label={`Seite ${i + 1} bearbeiten`}
-                        onClick={() => setEditor({ dataUrl: p, replaceIndex: i })}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-full bg-background border p-1 shadow text-destructive"
-                        aria-label={`Seite ${i + 1} entfernen`}
-                        onClick={() => setPages((prev) => prev.filter((_, idx) => idx !== i))}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="flex h-28 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-muted-foreground"
-                  onClick={() => cameraRef.current?.click()}
-                >
-                  <Plus className="h-5 w-5" />
-                  <span className="text-[11px]">Seite</span>
-                </button>
-              </div>
-              <Button size="lg" className="h-12" disabled={busy} onClick={handleSavePagesAsDraft}>
-                <FileCheck2 className="mr-2 h-5 w-5" />
-                {busy ? 'Speichere …' : `Als PDF speichern (${pages.length} Seite${pages.length > 1 ? 'n' : ''})`}
-              </Button>
-            </>
-          )}
-          <Button variant="outline" size="lg" className="h-12" disabled={busy} onClick={() => pdfRef.current?.click()}>
+      {/* ── Aufnehmen ──
+          Ohne Karte drumherum: Zwei Knöpfe brauchen keinen eigenen Kasten,
+          und übereinander gestapelte Flächen wirkten unruhig. */}
+      {pages.length === 0 ? (
+        <div className="space-y-2.5">
+          <Button
+            className="h-[50px] w-full text-[17px] font-semibold"
+            disabled={busy}
+            onClick={() => cameraRef.current?.click()}
+          >
+            <Camera className="mr-2 h-5 w-5" />
+            Foto aufnehmen
+          </Button>
+          <Button
+            variant="secondary"
+            className="h-[50px] w-full text-[17px]"
+            disabled={busy}
+            onClick={() => pdfRef.current?.click()}
+          >
             <FileUp className="mr-2 h-5 w-5" />
             PDF auswählen
           </Button>
-        </CardContent>
-      </Card>
-
-      {/* Entwürfe: direkt am Handy erfassen (inkl. KI-Analyse) */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Entwürfe ({drafts.length})</h2>
-          {syncRunning ? (
-            <RefreshCw className="ml-auto h-4 w-4 animate-spin text-muted-foreground" />
-          ) : (
-            <CloudUpload className="ml-auto h-4 w-4 text-muted-foreground" />
-          )}
         </div>
-        {drafts.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-            Keine Entwürfe. Gescannte Belege landen hier – auf allen Geräten.
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            {drafts.map((draft) => (
-              <div
-                key={draft.id}
-                className="flex items-center gap-3 rounded-xl border bg-card p-3"
-                onClick={() => setActiveDraft(draft)}
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
+      ) : (
+        <div className="space-y-4">
+          {/* Gesammelte Seiten */}
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {pages.map((p, i) => (
+              <div key={i} className="relative shrink-0">
+                <img src={p} alt={`Seite ${i + 1}`} className="h-28 w-20 rounded-xl object-cover" />
+                <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] font-medium text-white">
+                  {i + 1}
+                </span>
+                <div className="absolute -right-1 -top-1 flex gap-0.5">
+                  <button
+                    type="button"
+                    className="rounded-full border bg-background p-1 shadow"
+                    aria-label={`Seite ${i + 1} bearbeiten`}
+                    onClick={() => setEditor({ dataUrl: p, replaceIndex: i })}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full border bg-background p-1 text-destructive shadow"
+                    aria-label={`Seite ${i + 1} entfernen`}
+                    onClick={() => setPages((prev) => prev.filter((_, idx) => idx !== i))}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{draft.fileName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(draft.addedAt), 'dd.MM.yyyy, HH:mm', { locale: de })}
-                  </p>
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 shrink-0 text-muted-foreground"
-                  aria-label="Entwurf löschen"
-                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteDraft(draft); }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </div>
             ))}
+            <button
+              type="button"
+              className="flex h-28 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed text-muted-foreground"
+              onClick={() => cameraRef.current?.click()}
+            >
+              <Plus className="h-5 w-5" />
+              <span className="text-[11px]">Seite</span>
+            </button>
           </div>
-        )}
-      </div>
+          <Button
+            className="h-[50px] w-full text-[17px] font-semibold"
+            disabled={busy}
+            onClick={handleSavePagesAsDraft}
+          >
+            <FileCheck2 className="mr-2 h-5 w-5" />
+            {busy ? 'Speichere …' : `Als PDF speichern (${pages.length} Seite${pages.length > 1 ? 'n' : ''})`}
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-11 w-full text-[17px]"
+            disabled={busy}
+            onClick={() => pdfRef.current?.click()}
+          >
+            Stattdessen PDF auswählen
+          </Button>
+        </div>
+      )}
+
+      {/* ── Entwürfe ── */}
+      {drafts.length === 0 ? (
+        <ListGroup title="Entwürfe" footer="Entwürfe gleichen sich mit deinen anderen Geräten ab.">
+          <ListRow
+            icon={<FileText />}
+            label="Noch keine Entwürfe"
+            hint="Gescannte Belege landen hier"
+            noChevron
+          />
+        </ListGroup>
+      ) : (
+        <DraftListGroup
+          title={`Entwürfe (${drafts.length})`}
+          footer="Tippe einen Entwurf an, um ihn als Beleg zu erfassen."
+          drafts={drafts}
+          onOpen={setActiveDraft}
+          onDelete={setConfirmDeleteDraft}
+        />
+      )}
 
       {editor && (
         <PhotoEditor

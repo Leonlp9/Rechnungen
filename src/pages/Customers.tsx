@@ -6,11 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { FormGroup, FormRow, FormFullRow, FIELD } from '@/components/ui/form-list';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { SearchField } from '@/components/ui/search-field';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { toast } from 'sonner';
 import { Plus, Users, Pencil, Trash2, Mail, Phone, MapPin, Building2, TrendingUp } from 'lucide-react';
 import { useAppStore } from '@/store';
@@ -24,6 +29,7 @@ export default function CustomersPage() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const invoices = useAppStore((s) => s.invoices);
+  const isMobile = useIsMobile();
 
   // Umsatz pro Kunde aggregieren (Einnahmen, die den Kundennamen als Partner haben)
   const revenueByName = useMemo(() => {
@@ -47,8 +53,96 @@ export default function CustomersPage() {
     (c.customer_number ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleSave = async (data: Partial<Customer>) => {
+    if (editing) {
+      await customers.update(editing.id, data);
+      toast.success('Kunde aktualisiert');
+    } else {
+      const number = await customers.generateNextNumber();
+      await customers.save({ name: data.name!, customer_number: number, country: data.country || 'DE', payment_days: data.payment_days ?? 14, ...data });
+      toast.success('Kunde angelegt');
+    }
+    await reload();
+    setShowForm(false);
+  };
+
+  const handleDelete = async (c: Customer) => {
+    await customers.delete(c.id);
+    await reload();
+    setShowForm(false);
+    toast.success('Kunde gelöscht');
+  };
+
+  const formModal = (
+    <ResponsiveModal
+      open={showForm}
+      onClose={() => setShowForm(false)}
+      title={editing ? 'Kunde bearbeiten' : 'Neuer Kunde'}
+    >
+      <CustomerForm
+        initial={editing}
+        onSave={handleSave}
+        onDelete={isMobile && editing ? () => handleDelete(editing) : undefined}
+      />
+    </ResponsiveModal>
+  );
+
+  // ── Handy ──
+  // Karten mit je fünf Zeilen Kleingedrucktem passten dreimal auf den
+  // Bildschirm. Als Liste sieht man zwölf Kunden auf einen Blick – die
+  // Einzelheiten stehen im Formular, das ohnehin nur einen Tipper entfernt ist.
+  if (isMobile) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Kunden"
+          subtitle={allCustomers.length > 0 ? `${allCustomers.length} im Kundenstamm` : undefined}
+          actions={
+            <Button size="icon" onClick={() => { setEditing(null); setShowForm(true); }} aria-label="Neuer Kunde">
+              <Plus className="h-5 w-5" />
+            </Button>
+          }
+        />
+
+        <SearchField value={search} onChange={setSearch} placeholder="Kunden suchen" />
+
+        {loading ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Lade …</p>
+        ) : filtered.length === 0 ? (
+          <ListGroup>
+            <ListRow
+              icon={<Users />}
+              label={search ? 'Keine Treffer' : 'Noch keine Kunden'}
+              hint={search ? undefined : 'Mit + oben rechts anlegen'}
+              noChevron
+            />
+          </ListGroup>
+        ) : (
+          <ListGroup footer="Tippe einen Kunden an, um ihn zu bearbeiten.">
+            {filtered.map((c) => {
+              const revenue = revenueByName.get(c.name.trim().toLowerCase()) ?? 0;
+              const place = [c.zip, c.city].filter(Boolean).join(' ');
+              return (
+                <ListRow
+                  key={c.id}
+                  label={c.name}
+                  hint={[c.email, place, c.customer_number].filter(Boolean).join(' · ') || undefined}
+                  value={revenue > 0 ? <span className="text-green-600">{fmtCurrency(revenue, false)}</span> : undefined}
+                  onClick={() => { setEditing(c); setShowForm(true); }}
+                />
+              );
+            })}
+          </ListGroup>
+        )}
+
+        {formModal}
+      </div>
+    );
+  }
+
+  // ── Desktop ──
   return (
-    <div className="p-0 md:p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="h-6 w-6" /> Kunden</h1>
         <Button onClick={() => { setEditing(null); setShowForm(true); }}><Plus className="mr-2 h-4 w-4" /> Neuer Kunde</Button>
@@ -83,7 +177,7 @@ export default function CustomersPage() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                          <AlertDialogAction onClick={async () => { await customers.delete(c.id); await reload(); toast.success('Kunde gelöscht'); }}>Löschen</AlertDialogAction>
+                          <AlertDialogAction onClick={() => handleDelete(c)}>Löschen</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -114,31 +208,21 @@ export default function CustomersPage() {
         </div>
       )}
 
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editing ? 'Kunde bearbeiten' : 'Neuer Kunde'}</DialogTitle></DialogHeader>
-          <CustomerForm
-            initial={editing}
-            onSave={async (data) => {
-              if (editing) {
-                await customers.update(editing.id, data);
-                toast.success('Kunde aktualisiert');
-              } else {
-                const number = await customers.generateNextNumber();
-                await customers.save({ name: data.name!, customer_number: number, country: data.country || 'DE', payment_days: data.payment_days ?? 14, ...data });
-                toast.success('Kunde angelegt');
-              }
-              await reload();
-              setShowForm(false);
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+      {formModal}
     </div>
   );
 }
 
-function CustomerForm({ initial, onSave }: { initial: Customer | null; onSave: (data: Partial<Customer>) => Promise<void> }) {
+function CustomerForm({
+  initial,
+  onSave,
+  onDelete,
+}: {
+  initial: Customer | null;
+  onSave: (data: Partial<Customer>) => Promise<void>;
+  onDelete?: () => void;
+}) {
+  const isMobile = useIsMobile();
   const [name, setName] = useState(initial?.name ?? '');
   const [email, setEmail] = useState(initial?.email ?? '');
   const [phone, setPhone] = useState(initial?.phone ?? '');
@@ -157,6 +241,68 @@ function CustomerForm({ initial, onSave }: { initial: Customer | null; onSave: (
       await onSave({ name, email: email || undefined, phone: phone || undefined, street: street || undefined, zip: zip || undefined, city: city || undefined, tax_id: taxId || undefined, payment_days: parseInt(paymentDays) || 14, notes: notes || undefined });
     } finally { setSaving(false); }
   };
+
+  // ── Handy: Beschriftung links, Eingabe rechts ──
+  if (isMobile) {
+    return (
+      <div className="space-y-6">
+        <FormGroup title="Kunde">
+          <FormRow label="Name">
+            <input value={name} onChange={e => setName(e.target.value)} className={FIELD} placeholder="Firma oder Person" />
+          </FormRow>
+          <FormRow label="E-Mail">
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={FIELD} placeholder="optional" />
+          </FormRow>
+          <FormRow label="Telefon">
+            <input value={phone} onChange={e => setPhone(e.target.value)} className={FIELD} placeholder="optional" />
+          </FormRow>
+        </FormGroup>
+
+        <FormGroup title="Anschrift">
+          <FormRow label="Straße">
+            <input value={street} onChange={e => setStreet(e.target.value)} className={FIELD} placeholder="optional" />
+          </FormRow>
+          <FormRow label="PLZ">
+            <input value={zip} onChange={e => setZip(e.target.value)} className={FIELD} placeholder="optional" />
+          </FormRow>
+          <FormRow label="Stadt">
+            <input value={city} onChange={e => setCity(e.target.value)} className={FIELD} placeholder="optional" />
+          </FormRow>
+        </FormGroup>
+
+        <FormGroup title="Rechnung" footer="Das Zahlungsziel wird beim Schreiben einer Rechnung vorgeschlagen.">
+          <FormRow label="USt-IdNr.">
+            <input value={taxId} onChange={e => setTaxId(e.target.value)} className={FIELD} placeholder="optional" />
+          </FormRow>
+          <FormRow label="Zahlungsziel">
+            <input type="number" value={paymentDays} onChange={e => setPaymentDays(e.target.value)} className={FIELD} />
+          </FormRow>
+        </FormGroup>
+
+        <FormGroup title="Notizen">
+          <FormFullRow>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Optionale Notiz"
+              className="w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+            />
+          </FormFullRow>
+        </FormGroup>
+
+        <Button onClick={handleSubmit} disabled={saving} className="h-[50px] w-full text-[17px] font-semibold">
+          {saving ? 'Speichere …' : (initial ? 'Aktualisieren' : 'Kunde anlegen')}
+        </Button>
+
+        {onDelete && (
+          <ListGroup>
+            <ListRow tint="red" icon={<Trash2 />} label="Kunde löschen" destructive noChevron onClick={onDelete} />
+          </ListGroup>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -179,5 +325,3 @@ function CustomerForm({ initial, onSave }: { initial: Customer | null; onSave: (
     </div>
   );
 }
-
-

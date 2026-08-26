@@ -2,10 +2,20 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Invoice } from '@/types';
 
-export type AppTheme = 'default' | 'liquid-glass' | 'aurora-borealis' | 'crimson-dusk' | 'zinc' | 'stone' | 'windows11' | 'chroma';
+export type AppTheme = 'default' | 'apple26' | 'liquid-glass' | 'oneui' | 'windows11';
 
-/** Themes that are designed primarily for dark mode and should auto-enable it */
-const DARK_FIRST_THEMES: AppTheme[] = ['aurora-borealis', 'crimson-dusk'];
+/**
+ * Alle wählbaren Themes. Die früheren Farbvarianten (zinc, stone, chroma,
+ * aurora-borealis, crimson-dusk) sind entfallen – sie tauschten nur Farben,
+ * ohne der App eine eigene Formensprache zu geben. Geblieben sind die vier
+ * Bauweisen: schlicht, Apple, Samsung One UI, Windows.
+ */
+export const APP_THEMES: AppTheme[] = ['default', 'apple26', 'liquid-glass', 'oneui', 'windows11'];
+
+/** Fällt auf „default" zurück, wenn ein entferntes Theme gespeichert war. */
+export function normalizeTheme(theme: unknown): AppTheme {
+  return APP_THEMES.includes(theme as AppTheme) ? (theme as AppTheme) : 'default';
+}
 export type Steuerregelung = 'kleinunternehmer' | 'regelbesteuerung';
 export type Taetigkeitsart = 'freiberufler' | 'gewerbetreibend' | 'content_creator';
 export type Rechtsform = 'freiberufler' | 'gewerbetreibend';
@@ -81,6 +91,14 @@ interface AppState {
   showAiChat: boolean;
   setShowAiChat: (v: boolean) => void;
   /** Erklärungssymbole (ⓘ) für Fachbegriffe ein-/ausblenden */
+  /**
+   * true, solange eine Seite eine eigene große Überschrift zeigt. Die
+   * Kopfleiste wird dann von dieser Überschrift gerendert (direkt darunter,
+   * damit sie beim Scrollen von unten nach oben wandert und dort hängen
+   * bleibt) – das Layout lässt sie dann weg, sonst gäbe es sie doppelt.
+   */
+  pageHeaderMounted: boolean;
+  setPageHeaderMounted: (mounted: boolean) => void;
   showGlossarTooltips: boolean;
   setShowGlossarTooltips: (v: boolean) => void;
 }
@@ -106,11 +124,7 @@ export const useAppStore = create<AppState>()(
       darkMode: false,
       setDarkMode: (darkMode) => set({ darkMode }),
       theme: 'default' as AppTheme,
-      setTheme: (theme) => set((s) => ({
-        theme,
-        // Auto-enable dark mode for themes that are designed for dark backgrounds
-        darkMode: DARK_FIRST_THEMES.includes(theme) ? true : s.darkMode,
-      })),
+      setTheme: (theme) => set({ theme: normalizeTheme(theme) }),
       animations: true,
       setAnimations: (animations) => set({ animations }),
       privacyMode: false,
@@ -141,13 +155,20 @@ export const useAppStore = create<AppState>()(
       setKmPauschale: (kmPauschale) => set({ kmPauschale }),
       showAiChat: true,
       setShowAiChat: (showAiChat) => set({ showAiChat }),
+      pageHeaderMounted: false,
+      setPageHeaderMounted: (pageHeaderMounted) => set({ pageHeaderMounted }),
       showGlossarTooltips: true,
       setShowGlossarTooltips: (showGlossarTooltips) => set({ showGlossarTooltips }),
     }),
     {
       name: 'Klevr-settings',
       partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips }),
-      merge: (persisted, current) => ({ ...current, ...(persisted as object), drafts: [] }),
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as object), drafts: [] };
+        // Ein entferntes Theme im gespeicherten Zustand würde sonst eine
+        // Klasse setzen, zu der es keine Regeln mehr gibt.
+        return { ...merged, theme: normalizeTheme(merged.theme) };
+      },
     }
   )
 );

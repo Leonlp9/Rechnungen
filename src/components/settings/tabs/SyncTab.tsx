@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -227,14 +227,15 @@ export function SyncTab() {
           {config.kind !== 'none' && (
             <>
               <div className="space-y-2 rounded-lg border p-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
+                <div className="flex items-center gap-3 text-sm">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1">Ende-zu-Ende-Verschlüsselung (empfohlen bei Cloud-Anbietern)</span>
+                  <Switch
                     checked={config.encrypted}
-                    onCheckedChange={(v) => update({ encrypted: v === true })}
+                    onCheckedChange={(v) => update({ encrypted: v })}
+                    aria-label="Ende-zu-Ende-Verschlüsselung"
                   />
-                  <Lock className="h-3.5 w-3.5" />
-                  Ende-zu-Ende-Verschlüsselung (empfohlen bei Cloud-Anbietern)
-                </label>
+                </div>
                 {config.encrypted && (
                   <div className="space-y-1">
                     <Input
@@ -251,13 +252,14 @@ export function SyncTab() {
               </div>
 
               <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={config.autoSync}
-                    onCheckedChange={(v) => update({ autoSync: v === true })}
-                  />
+                <div className="flex items-center gap-3 text-sm">
                   Automatisch synchronisieren
-                </label>
+                  <Switch
+                    checked={config.autoSync}
+                    onCheckedChange={(v) => update({ autoSync: v })}
+                    aria-label="Automatisch synchronisieren"
+                  />
+                </div>
                 {config.autoSync && (
                   <div className="flex items-center gap-2 text-sm">
                     alle

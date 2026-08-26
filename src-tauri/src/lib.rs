@@ -11,6 +11,7 @@ mod bank_commands;
 mod audit_commands;
 mod sync_storage;
 mod sync_files;
+mod update_commands;
 
 // Desktop-only: IMAP/SMTP, Keyring, Systemstatistiken
 #[cfg(desktop)]
@@ -100,6 +101,9 @@ pub fn run() {
         sync_files::sync_scan_app_files,
         sync_files::sync_hash_app_file,
         sync_files::sync_write_app_file,
+        update_commands::download_update,
+        update_commands::downloaded_file_size,
+        update_commands::cleanup_update_files,
     ]);
 
     builder

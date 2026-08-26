@@ -12,6 +12,9 @@ import { User, Bot, Palette, DatabaseBackup, Info, Bug, Cloud } from 'lucide-rea
 import { getVersion } from '@tauri-apps/api/app';
 import { BackupProgressOverlay } from '@/components/BackupProgressOverlay';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ListGroup, ListRow, type ListTint } from '@/components/ui/list-group';
 import type { UpdatePhase } from '@/components/UpdateDialog';
 
 import { ProfilTab } from '@/components/settings/tabs/ProfilTab';
@@ -34,16 +37,18 @@ interface SettingsTab {
   label: string;
   icon: React.ElementType;
   devOnly?: boolean;
+  tint: ListTint;
+  hint?: string;
 }
 
 const TABS: SettingsTab[] = [
-  { id: 'profil', label: 'Profil & Steuer', icon: User },
-  { id: 'ki', label: 'KI & API', icon: Bot },
-  { id: 'erscheinungsbild', label: 'Erscheinungsbild', icon: Palette },
-  { id: 'daten', label: 'Daten & Backup', icon: DatabaseBackup },
-  { id: 'sync', label: 'Cloud-Sync', icon: Cloud },
-  { id: 'ueber', label: 'Über', icon: Info },
-  { id: 'dev', label: 'Dev Debug', icon: Bug, devOnly: true },
+  { id: 'profil', label: 'Profil & Steuer', icon: User, tint: 'gray', hint: 'Firmendaten, Steuerregelung' },
+  { id: 'ki', label: 'KI & API', icon: Bot, tint: 'purple', hint: 'Gemini-Schlüssel, Assistent' },
+  { id: 'erscheinungsbild', label: 'Erscheinungsbild', icon: Palette, tint: 'blue', hint: 'Design, Themes, Animationen' },
+  { id: 'daten', label: 'Daten & Backup', icon: DatabaseBackup, tint: 'green', hint: 'Sichern, wiederherstellen' },
+  { id: 'sync', label: 'Cloud-Sync', icon: Cloud, tint: 'teal', hint: 'Geräte synchronisieren' },
+  { id: 'ueber', label: 'Über', icon: Info, tint: 'indigo', hint: 'Version und Updates' },
+  { id: 'dev', label: 'Dev Debug', icon: Bug, devOnly: true, tint: 'yellow' },
 ];
 
 const TAB_IDS = TABS.map((t) => t.id);
@@ -52,6 +57,8 @@ export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   // Deep-Link: /settings?tab=sync – u. a. vom Sync-Indikator genutzt
   const paramTab = searchParams.get('tab') as TabId | null;
+  const isMobile = useIsMobile();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeTab, setActiveTabState] = useState<TabId>(
     paramTab && TAB_IDS.includes(paramTab) ? paramTab : 'profil',
   );
@@ -187,6 +194,122 @@ export default function SettingsPage() {
     }
   }, [tutorialActive, tutorialStep]);
 
+  // Der Inhalt des gewählten Bereichs – identisch für Desktop-Spalte und
+  // Handy-Detailansicht.
+  const tabContent = (
+    <>
+          {activeTab === 'profil' && (
+        <ProfilTab profile={profile} setProfile={setProfile} profileSaving={profileSaving} saveProfile={saveProfile} />
+      )}
+
+      {activeTab === 'ki' && (
+        <KiTab
+          apiKey={apiKey} setApiKey={setApiKey}
+          showKey={showKey} setShowKey={setShowKey}
+          saveApiKey={saveApiKey}
+          aiInstructions={aiInstructions} setAiInstructions={setAiInstructions}
+          aiInstructionsSaving={aiInstructionsSaving} saveAiInstructions={saveAiInstructions}
+          showAiChat={showAiChat} setShowAiChat={setShowAiChat}
+        />
+      )}
+
+      {activeTab === 'erscheinungsbild' && (
+        <ErscheinungsbildTab toggleDark={toggleDark} />
+      )}
+
+      {activeTab === 'daten' && (
+        <DatenTab
+          exportingBackup={exportingBackup} setExportingBackup={setExportingBackup}
+          importingBackup={importingBackup} setImportingBackup={setImportingBackup}
+          auditLog={auditLog} setAuditLog={setAuditLog}
+          auditOpen={auditOpen} setAuditOpen={setAuditOpen}
+          auditLoading={auditLoading} setAuditLoading={setAuditLoading}
+        />
+      )}
+
+      {activeTab === 'sync' && <SyncTab />}
+
+      {activeTab === 'ueber' && (
+        <UeberTab
+          version={version}
+          checkingUpdate={checkingUpdate} setCheckingUpdate={setCheckingUpdate}
+          clearingCache={clearingCache} setClearingCache={setClearingCache}
+        />
+      )}
+
+      {activeTab === 'dev' && import.meta.env.DEV && (
+        <DevTab
+          version={version}
+          activeTab={activeTab}
+          storeSnapshot={storeSnapshot} setStoreSnapshot={setStoreSnapshot}
+          lsKeys={lsKeys} setLsKeys={setLsKeys}
+          lsViewKey={lsViewKey} setLsViewKey={setLsViewKey}
+          lsViewVal={lsViewVal} setLsViewVal={setLsViewVal}
+          dbStats={dbStats} setDbStats={setDbStats}
+          dbStatsLoading={dbStatsLoading} setDbStatsLoading={setDbStatsLoading}
+          envInfo={envInfo} setEnvInfo={setEnvInfo}
+          perfMarks={perfMarks} setPerfMarks={setPerfMarks}
+          setPendingThrow={setPendingThrow}
+          previewOpen={previewOpen} setPreviewOpen={setPreviewOpen}
+          previewPhase={previewPhase} setPreviewPhase={setPreviewPhase}
+          previewProgress={previewProgress} setPreviewProgress={setPreviewProgress}
+        />
+      )}
+
+    </>
+  );
+
+  // Auf dem Handy ist die Einstellungsseite eine Gruppenliste zum Reintippen –
+  // die waagerechte Chip-Leiste war auf kleinen Displays unübersichtlich.
+  if (isMobile) {
+    if (!mobileOpen) {
+      // Oben bewusst ohne Innenabstand: Die Kopfleiste klebt im Scrollbereich,
+      // und ein Innenabstand hält sie darunter fest – in dem Streifen darüber
+      // liefe der Inhalt ungehindert vorbei. Die Luft über dem Titel bringt
+      // die Überschrift selbst mit (siehe App.css).
+      return (
+        <div className="h-full overflow-y-auto px-4 pb-8" style={{ paddingBottom: 'var(--app-main-pb, 2rem)' }}>
+          {/* Dieselbe Überschrift wie auf jeder anderen Seite – damit sitzt
+              der Titel dort, wo das Theme ihn erwartet (One UI: mittig). */}
+          <PageHeader title="Einstellungen" className="mb-4" />
+          <div className="space-y-8">
+            <ListGroup>
+              {visibleTabs.map((tab) => (
+                <ListRow
+                  key={tab.id}
+                  tint={tab.tint}
+                  icon={<tab.icon />}
+                  label={tab.label}
+                  hint={tab.hint}
+                  onClick={() => { setActiveTab(tab.id); setMobileOpen(true); }}
+                />
+              ))}
+            </ListGroup>
+          </div>
+        </div>
+      );
+    }
+
+    const openTab = TABS.find((t) => t.id === activeTab);
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        {/* Dieselbe Kopfzeile wie überall sonst – die Unterseite gibt nur
+            ihren eigenen Weg zurück mit, weil hier kein Verlaufseintrag
+            existiert, zu dem man springen könnte. */}
+        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+          <div className="space-y-6" style={{ paddingBottom: 'var(--app-main-pb, 2rem)' }}>
+            <PageHeader
+              title={openTab?.label ?? 'Einstellungen'}
+              back={{ label: 'Einstellungen', onClick: () => setMobileOpen(false) }}
+            />
+            {tabContent}
+          </div>
+        </div>
+        <BackupProgressOverlay open={exportingBackup} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden md:flex-row">
       {/* Tab-Navigation: Desktop links als Spalte, Mobile oben als scrollbare Leiste */}
@@ -226,63 +349,7 @@ export default function SettingsPage() {
       <div ref={contentRef} className="flex-1 min-w-0 overflow-y-auto">
         <div className="space-y-6 pb-6 max-w-2xl px-3 pt-4 md:px-0 md:pt-6 md:pr-6 md:pb-2">
 
-          {activeTab === 'profil' && (
-            <ProfilTab profile={profile} setProfile={setProfile} profileSaving={profileSaving} saveProfile={saveProfile} />
-          )}
-
-          {activeTab === 'ki' && (
-            <KiTab
-              apiKey={apiKey} setApiKey={setApiKey}
-              showKey={showKey} setShowKey={setShowKey}
-              saveApiKey={saveApiKey}
-              aiInstructions={aiInstructions} setAiInstructions={setAiInstructions}
-              aiInstructionsSaving={aiInstructionsSaving} saveAiInstructions={saveAiInstructions}
-              showAiChat={showAiChat} setShowAiChat={setShowAiChat}
-            />
-          )}
-
-          {activeTab === 'erscheinungsbild' && (
-            <ErscheinungsbildTab toggleDark={toggleDark} />
-          )}
-
-          {activeTab === 'daten' && (
-            <DatenTab
-              exportingBackup={exportingBackup} setExportingBackup={setExportingBackup}
-              importingBackup={importingBackup} setImportingBackup={setImportingBackup}
-              auditLog={auditLog} setAuditLog={setAuditLog}
-              auditOpen={auditOpen} setAuditOpen={setAuditOpen}
-              auditLoading={auditLoading} setAuditLoading={setAuditLoading}
-            />
-          )}
-
-          {activeTab === 'sync' && <SyncTab />}
-
-          {activeTab === 'ueber' && (
-            <UeberTab
-              version={version}
-              checkingUpdate={checkingUpdate} setCheckingUpdate={setCheckingUpdate}
-              clearingCache={clearingCache} setClearingCache={setClearingCache}
-            />
-          )}
-
-          {activeTab === 'dev' && import.meta.env.DEV && (
-            <DevTab
-              version={version}
-              activeTab={activeTab}
-              storeSnapshot={storeSnapshot} setStoreSnapshot={setStoreSnapshot}
-              lsKeys={lsKeys} setLsKeys={setLsKeys}
-              lsViewKey={lsViewKey} setLsViewKey={setLsViewKey}
-              lsViewVal={lsViewVal} setLsViewVal={setLsViewVal}
-              dbStats={dbStats} setDbStats={setDbStats}
-              dbStatsLoading={dbStatsLoading} setDbStatsLoading={setDbStatsLoading}
-              envInfo={envInfo} setEnvInfo={setEnvInfo}
-              perfMarks={perfMarks} setPerfMarks={setPerfMarks}
-              setPendingThrow={setPendingThrow}
-              previewOpen={previewOpen} setPreviewOpen={setPreviewOpen}
-              previewPhase={previewPhase} setPreviewPhase={setPreviewPhase}
-              previewProgress={previewProgress} setPreviewProgress={setPreviewProgress}
-            />
-          )}
+          {tabContent}
 
           {/* Scroll-Footer */}
           <div className="mt-8 mb-4 rounded-xl border border-border bg-muted/20 px-5 py-4 flex items-center justify-between gap-4">

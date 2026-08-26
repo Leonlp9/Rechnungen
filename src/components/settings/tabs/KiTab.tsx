@@ -1,5 +1,6 @@
 import { Bot, Eye, EyeOff, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,14 +41,11 @@ export function KiTab({
                 Zeigt oder versteckt den schwebenden KI-Chat-Button unten rechts im Bildschirm.
               </p>
             </div>
-            <Button
-              variant={showAiChat ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setShowAiChat(!showAiChat)}
-              className="min-w-24"
-            >
-              {showAiChat ? 'Aktiv' : 'Versteckt'}
-            </Button>
+            <Switch
+              checked={showAiChat}
+              onCheckedChange={setShowAiChat}
+              aria-label="KI-Chat-Knopf anzeigen"
+            />
           </div>
         </CardContent>
       </Card>

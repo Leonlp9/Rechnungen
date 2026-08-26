@@ -39,6 +39,12 @@ import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { MobileDashboard } from '@/components/dashboard/MobileDashboard';
+import { PageHeader } from '@/components/layout/PageHeader';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { CalendarDays } from 'lucide-react';
 
 const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
@@ -273,46 +279,52 @@ export default function Dashboard() {
 
   // ── Handy: eigenes, antippbares Layout mit eigenem Editor ──
   if (isMobile) {
+    const monthLabel = `${MONTH_NAMES[data.selectedMonth - 1]} ${data.selectedYear}`;
     return (
       <DashboardContext.Provider value={{ ...data, editMode }}>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h1 className="min-w-0 flex-1 truncate text-xl font-bold">Dashboard</h1>
-            <Button
-              variant={editMode ? 'default' : 'outline'}
-              size="sm"
-              className="h-8 shrink-0 gap-1.5"
-              onClick={() => setEditMode((v) => !v)}
-            >
-              <Settings2 className="h-4 w-4" />
-              {editMode ? 'Fertig' : 'Anpassen'}
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Select
-              value={String(data.selectedMonth)}
-              onValueChange={(v) => data.setSelectedMonth(Number(v))}
-            >
-              <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MONTH_NAMES.map((name, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)}>{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={String(data.selectedYear)}
-              onValueChange={(v) => data.setSelectedYear(Number(v))}
-            >
-              <SelectTrigger className="h-9 w-28 shrink-0"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {data.years.map((y) => (
-                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-4">
+          <PageHeader
+            title="Dashboard"
+            actions={
+              <>
+                {/* Zeitraum als EIN Knopf statt zwei Auswahlfeldern –
+                    das spart über dem Inhalt eine ganze Zeile. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-1.5">
+                      <CalendarDays className="h-4 w-4" />
+                      <span className="max-w-[8rem] truncate">{monthLabel}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+                    <DropdownMenuLabel>Jahr</DropdownMenuLabel>
+                    {data.years.map((y) => (
+                      <DropdownMenuCheckboxItem
+                        key={y}
+                        checked={y === data.selectedYear}
+                        onCheckedChange={() => data.setSelectedYear(y)}
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        {y}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Monat</DropdownMenuLabel>
+                    {MONTH_NAMES.map((name, i) => (
+                      <DropdownMenuCheckboxItem
+                        key={name}
+                        checked={i + 1 === data.selectedMonth}
+                        onCheckedChange={() => data.setSelectedMonth(i + 1)}
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        {name}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            }
+          />
 
           <MobileDashboard
             layout={mobileLayout}

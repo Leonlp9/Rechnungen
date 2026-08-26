@@ -5,7 +5,7 @@
 // Funktion erreichbar, die es am Desktop gibt.
 
 import { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Cloud,
   CloudOff,
@@ -20,19 +20,22 @@ import {
   Search,
   Bot,
   Plus,
-  ChevronRight,
+  Coins,
+  FileSearch,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { getVersion } from '@tauri-apps/api/app';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useSheetDrag, SheetGrabber } from '@/components/ui/sheet-drag';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
 import { useChatStore } from '@/store/chatStore';
 import { useSyncStatus, syncNow, PROVIDER_LABELS } from '@/lib/sync';
 import { MOBILE_NAV_ITEMS, NAV_GROUPS } from './navItems';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { useDataIssues } from '@/hooks/useDataIssues';
+import { normalizeCurrency } from '@/lib/currency';
 
 interface Props {
   open: boolean;
@@ -55,6 +58,8 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
   const showAiChat = useAppStore((s) => s.showAiChat);
   const setChatOpen = useChatStore((s) => s.setOpen);
   const sync = useSyncStatus();
+  const issues = useDataIssues();
+  const [allIssues, setAllIssues] = useState(false);
   const { contentRef, onGrabberMouseDown } = useSheetDrag(onClose);
 
   useEffect(() => {
@@ -82,58 +87,109 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
         side="bottom"
         showCloseButton={false}
         aria-describedby={undefined}
-        className="max-h-[88dvh] gap-0 overflow-y-auto overscroll-contain rounded-t-2xl p-0"
+        className="max-h-[88dvh] gap-0 rounded-t-2xl p-0"
       >
         <SheetTitle className="sr-only">Menü</SheetTitle>
-        <SheetGrabber onMouseDown={onGrabberMouseDown} className="sticky top-0 z-10 bg-popover" />
+        {/* Der Griff liegt auf der Sheet-Fläche selbst – ein eigener
+            Hintergrund darauf brach die Fläche sichtbar auf. Gescrollt wird
+            der Bereich darunter. */}
+        <SheetGrabber onMouseDown={onGrabberMouseDown} />
 
         <div
-          className="space-y-5 px-4 pb-4"
+          className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain px-4 pt-2"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)' }}
         >
-          {/* ── Sync-Status ── */}
-          <button
-            onClick={() => {
-              if (sync.kind === 'none') {
-                onClose();
-                navigate('/settings?tab=sync');
-              } else {
-                void syncNow();
+          {/* ── Sync-Status als Listenzeile ── */}
+          <ListGroup>
+            <ListRow
+              tint={syncTone === 'error' ? 'red' : syncTone === 'off' ? 'gray' : 'teal'}
+              icon={
+                <SyncIcon className={cn(syncTone === 'running' && 'animate-spin')} />
               }
-            }}
-            className={cn(
-              'flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors active:bg-muted',
-              syncTone === 'error' ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-muted/30',
-            )}
-          >
-            <SyncIcon
-              className={cn(
-                'h-5 w-5 shrink-0',
-                syncTone === 'running' && 'animate-spin text-primary',
-                syncTone === 'error' && 'text-destructive',
-                syncTone === 'off' && 'text-muted-foreground/60',
-                syncTone === 'ok' && 'text-emerald-500',
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {sync.kind === 'none' ? 'Cloud-Sync einrichten' : `Cloud-Sync · ${PROVIDER_LABELS[sync.kind]}`}
-              </p>
-              <p className="truncate text-[11px] text-muted-foreground">
-                {sync.kind === 'none'
+              label={sync.kind === 'none' ? 'Cloud-Sync einrichten' : `Cloud-Sync · ${PROVIDER_LABELS[sync.kind]}`}
+              hint={
+                sync.kind === 'none'
                   ? 'Belege auf allen Geräten verfügbar machen'
                   : sync.running
                     ? sync.message || 'Synchronisiere …'
                     : sync.lastError
                       ? sync.lastError
-                      : `Zuletzt ${lastSyncText}${sync.autoSync ? ` · automatisch alle ${sync.intervalMin} Min.` : ''}`}
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </button>
+                      : `Zuletzt ${lastSyncText}`
+              }
+              onClick={() => {
+                if (sync.kind === 'none') {
+                  onClose();
+                  navigate('/settings?tab=sync');
+                } else {
+                  void syncNow();
+                }
+              }}
+            />
+          </ListGroup>
+
+          {/* ── Offene Punkte ──
+              Am Desktop steht diese Liste in der Kopfzeile. Auf dem Handy gab
+              es sie gar nicht – man hätte also nie erfahren, dass Belege
+              falsch kategorisiert sind oder noch in Fremdwährung gezählt
+              werden. Dieselbe Prüfung, nur als Liste. */}
+          {issues.hasAnything && (
+            <ListGroup
+              title="Hinweise"
+              footer={
+                issues.errors.length > 0 || issues.pendingFx.length > 0
+                  ? 'Diese Punkte verfälschen die Auswertung, solange sie offen sind.'
+                  : undefined
+              }
+            >
+              {issues.pendingFx.length > 0 && (
+                <ListRow
+                  tint="red"
+                  icon={issues.converting ? <RefreshCw className="animate-spin" /> : <Coins />}
+                  label={issues.converting ? 'Rechne um …' : 'Jetzt in Euro umrechnen'}
+                  hint={`${issues.pendingFx.length} Beleg${issues.pendingFx.length !== 1 ? 'e' : ''} in ${[...new Set(issues.pendingFx.map((i) => normalizeCurrency(i.currency)))].join(', ')} zählen noch mit dem Fremdwährungsbetrag`}
+                  onClick={() => { void issues.convertNow(); }}
+                  noChevron
+                />
+              )}
+
+              {issues.unindexedCount > 0 && (
+                <ListRow
+                  tint="orange"
+                  icon={issues.indexing ? <RefreshCw className="animate-spin" /> : <FileSearch />}
+                  label={issues.indexing ? 'Indiziere …' : 'PDFs durchsuchbar machen'}
+                  hint={
+                    issues.indexProgress
+                      ? `${issues.indexProgress.current} von ${issues.indexProgress.total} indiziert`
+                      : `${issues.unindexedCount} von ${issues.withPdfCount} PDFs sind noch nicht im Volltext erfasst`
+                  }
+                  onClick={() => { void issues.startIndexing(); }}
+                  noChevron
+                />
+              )}
+
+              {(allIssues ? issues.issues : issues.issues.slice(0, 4)).map((issue) => (
+                <ListRow
+                  key={issue.id}
+                  tint={issue.severity === 'error' ? 'red' : 'orange'}
+                  icon={<AlertTriangle />}
+                  label={issue.title}
+                  hint={issue.invoice.partner || issue.invoice.description || 'Beleg öffnen'}
+                  onClick={() => { onClose(); navigate(`/invoices/${issue.invoiceId}`); }}
+                />
+              ))}
+
+              {!allIssues && issues.issues.length > 4 && (
+                <ListRow
+                  label={`Weitere ${issues.issues.length - 4} anzeigen`}
+                  onClick={() => setAllIssues(true)}
+                  noChevron
+                />
+              )}
+            </ListGroup>
+          )}
 
           {/* ── Schnellschalter ── */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-y-4">
             {showAiChat && (
               <QuickAction
                 icon={<Bot className="h-5 w-5" />}
@@ -171,54 +227,34 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
           </div>
 
           {draftsCount > 0 && (
-            <button
-              onClick={() => { onClose(); onDrafts(); }}
-              className="flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-left active:bg-primary/10"
-            >
-              <FileStack className="h-5 w-5 shrink-0 text-primary" />
-              <span className="flex-1 text-sm font-medium">Entwürfe verarbeiten</span>
-              <Badge className="shrink-0">{draftsCount}</Badge>
-            </button>
+            <ListGroup>
+              <ListRow
+                tint="orange"
+                icon={<FileStack />}
+                label="Entwürfe verarbeiten"
+                value={String(draftsCount)}
+                onClick={() => { onClose(); onDrafts(); }}
+              />
+            </ListGroup>
           )}
 
-          {/* ── Alle Seiten ── */}
+          {/* ── Alle Seiten als iOS-Gruppenliste ── */}
           {NAV_GROUPS.map((group) => {
             const groupItems = items.filter((i) => i.group === group);
             if (groupItems.length === 0) return null;
             return (
-              <div key={group} className="space-y-1.5">
-                <p className="px-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                  {group}
-                </p>
-                <div className="overflow-hidden rounded-xl border">
-                  {groupItems.map(({ to, label, icon: Icon, hint }, idx) => (
-                    <NavLink
-                      key={to}
-                      to={to}
-                      end={to === '/'}
-                      onClick={onClose}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex items-center gap-3 px-3 py-3 transition-colors active:bg-muted',
-                          idx > 0 && 'border-t',
-                          isActive && 'bg-primary/5',
-                        )
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon className={cn('h-5 w-5 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')} />
-                          <span className="min-w-0 flex-1">
-                            <span className={cn('block text-sm', isActive && 'font-semibold text-primary')}>{label}</span>
-                            {hint && <span className="block text-[11px] text-muted-foreground">{hint}</span>}
-                          </span>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
-                        </>
-                      )}
-                    </NavLink>
-                  ))}
-                </div>
-              </div>
+              <ListGroup key={group} title={group}>
+                {groupItems.map(({ to, label, icon: Icon, hint, tint }) => (
+                  <ListRow
+                    key={to}
+                    to={to}
+                    tint={tint}
+                    icon={<Icon />}
+                    label={label}
+                    hint={hint}
+                  />
+                ))}
+              </ListGroup>
             );
           })}
 
@@ -229,6 +265,11 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
   );
 }
 
+/**
+ * Schnellschalter als runder Icon-Knopf mit Beschriftung darunter.
+ * Rahmenlos – die umrandeten Kästen davor standen quer zu den flächigen
+ * Listen darunter und wirkten wie Fremdkörper.
+ */
 function QuickAction({
   icon,
   label,
@@ -241,15 +282,16 @@ function QuickAction({
   active?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors active:bg-muted',
-        active ? 'border-primary/40 bg-primary/5 text-primary' : 'border-border text-muted-foreground',
-      )}
-    >
-      {icon}
-      <span className="text-[10px] leading-tight font-medium">{label}</span>
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5">
+      <span
+        className={cn(
+          'flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-full transition-colors active:opacity-70',
+          active ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
+        )}
+      >
+        {icon}
+      </span>
+      <span className="text-[11px] leading-tight text-muted-foreground">{label}</span>
     </button>
   );
 }

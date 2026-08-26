@@ -1,184 +1,49 @@
-import { useMemo, useState, useCallback } from 'react';
+// Desktop-Anzeige für offene Punkte im Datenbestand.
+//
+// Die Erkennung selbst liegt in `useDataIssues` – das Handy zeigt dieselben
+// Punkte im „Mehr"-Menü an, und zwei getrennte Prüfungen wären früher oder
+// später auseinandergelaufen.
+
+import { useState } from 'react';
 import { useAppStore } from '@/store';
-import { isCategoryValidForType, CATEGORY_LABELS, TYPE_LABELS } from '@/types';
-import type { Invoice } from '@/types';
 import { AlertTriangle, X, ExternalLink, CheckCircle2, Sparkles, FileSearch, Loader2, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { invoke } from '@tauri-apps/api/core';
-import { getAllInvoices, setPdfText } from '@/lib/db';
-import { ensureCurrencyConversions, normalizeCurrency } from '@/lib/currency';
-import { toast } from 'sonner';
-import { getAbsolutePdfPath } from '@/lib/pdf';
+import { normalizeCurrency } from '@/lib/currency';
+import { useDataIssues, type DataIssue } from '@/hooks/useDataIssues';
 
-// ─── Fehler-Typen ─────────────────────────────────────────────────────────────
-
-export interface DataIssue {
-  id: string;
-  invoiceId: string;
-  severity: 'error' | 'warning';
-  title: string;
-  description: string;
-  invoice: Invoice;
-  fixFields: Array<'category' | 'type'>;
-}
-
-export function detectIssues(invoices: Invoice[]): DataIssue[] {
-  const issues: DataIssue[] = [];
-  for (const inv of invoices) {
-    if (!isCategoryValidForType(inv.category, inv.type)) {
-      issues.push({
-        id: `cat-mismatch-${inv.id}`,
-        invoiceId: inv.id,
-        severity: 'error',
-        title: 'Falsche Kategorie für Typ',
-        description: `Typ „${TYPE_LABELS[inv.type]}" ist inkompatibel mit Kategorie „${CATEGORY_LABELS[inv.category] ?? inv.category}".`,
-        invoice: inv,
-        fixFields: ['category'],
-      });
-      continue;
-    }
-    if (inv.type === 'einnahme' && inv.category === 'einnahmen') {
-      issues.push({
-        id: `legacy-cat-${inv.id}`,
-        invoiceId: inv.id,
-        severity: 'warning',
-        title: 'Kategorie veraltet',
-        description: `Bitte die allgemeine Kategorie „Einnahmen" durch eine spezifischere ersetzen (z. B. „Umsatzerlöse (steuerpflichtig)").`,
-        invoice: inv,
-        fixFields: ['category'],
-      });
-    }
-    // GWG/AfA Schwellen-Warnung
-    if (inv.category === 'gwg' && inv.netto > 800) {
-      issues.push({
-        id: `gwg-too-high-${inv.id}`,
-        invoiceId: inv.id,
-        severity: 'warning',
-        title: 'GWG-Grenze überschritten',
-        description: `Netto ${inv.netto.toFixed(2)} € > 800 € – sollte als „Anlagevermögen / AfA" (lineare Abschreibung) kategorisiert werden, nicht als GWG.`,
-        invoice: inv,
-        fixFields: ['category'],
-      });
-    }
-    if (inv.category === 'anlagevermoegen_afa' && inv.netto > 0 && inv.netto <= 800) {
-      issues.push({
-        id: `afa-too-low-${inv.id}`,
-        invoiceId: inv.id,
-        severity: 'warning',
-        title: 'AfA unter GWG-Grenze',
-        description: `Netto ${inv.netto.toFixed(2)} € ≤ 800 € – kann als GWG sofort abgeschrieben werden statt über mehrere Jahre.`,
-        invoice: inv,
-        fixFields: ['category'],
-      });
-    }
-  }
-  return issues;
-}
-
-// ─── Komponente ───────────────────────────────────────────────────────────────
+export { detectIssues, type DataIssue } from '@/hooks/useDataIssues';
 
 export function DataIssuesIndicator() {
-  const invoices = useAppStore((s) => s.invoices);
-  const setInvoices = useAppStore((s) => s.setInvoices);
   const setActiveAiFix = useAppStore((s) => s.setActiveAiFix);
   const activeAiFix = useAppStore((s) => s.activeAiFix);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  // PDF-Indizierungsstatus
-  const [indexing, setIndexing] = useState(false);
-  const [indexProgress, setIndexProgress] = useState<{ current: number; total: number } | null>(null);
-  const [indexFailed, setIndexFailed] = useState<{ id: string; description: string; partner: string }[]>([]);
-
-  // Fremdwährungsbelege, deren Umrechnung noch aussteht (offline erfasst
-  // oder Altbestand ohne Kurs). Sie werden aktuell mit ihrem Fremdwährungs-
-  // betrag gezählt – deshalb ein Fehler, kein bloßer Hinweis.
-  const [converting, setConverting] = useState(false);
-  const pendingFx = useMemo(
-    () => invoices.filter((i) => i.fx_source === 'pending'),
-    [invoices],
-  );
-
-  const issues = useMemo(() => detectIssues(invoices), [invoices]);
-  const errors = issues.filter((i) => i.severity === 'error');
-  const warnings = issues.filter((i) => i.severity === 'warning');
-
-  // Rechnungen mit PDF aber ohne extrahierten Text
-  const unindexedInvoices = useMemo(
-    () => invoices.filter((inv) => inv.pdf_path && !inv.pdf_text),
-    [invoices]
-  );
-  const unindexedCount = unindexedInvoices.length;
-
-  const total = issues.length;
-  const showIndicator = total > 0 || unindexedCount > 0 || indexFailed.length > 0 || pendingFx.length > 0;
-
-  const handleConvertNow = useCallback(async () => {
-    if (converting) return;
-    setConverting(true);
-    try {
-      const result = await ensureCurrencyConversions();
-      if (result.converted > 0) {
-        toast.success(`${result.converted} Beleg${result.converted !== 1 ? 'e' : ''} umgerechnet`);
-        setInvoices(await getAllInvoices());
-      }
-      if (result.failed > 0) {
-        toast.error(
-          `${result.failed} Beleg${result.failed !== 1 ? 'e' : ''} konnten nicht umgerechnet werden`,
-          { description: result.errors[0] ?? 'Keine Verbindung zur Kursquelle.' },
-        );
-      }
-    } finally {
-      setConverting(false);
-    }
-  }, [converting, setInvoices]);
-
-  const handleStartIndexing = useCallback(async () => {
-    if (indexing) return;
-    setIndexing(true);
-    setIndexFailed([]);
-    setIndexProgress({ current: 0, total: unindexedInvoices.length });
-
-    const failed: typeof indexFailed = [];
-
-    for (let i = 0; i < unindexedInvoices.length; i++) {
-      const inv = unindexedInvoices[i];
-      setIndexProgress({ current: i, total: unindexedInvoices.length });
-      try {
-        const absPath = await getAbsolutePdfPath(inv.pdf_path);
-        const text = await invoke<string>('extract_pdf_text', { path: absPath });
-        // Wenn der Text leer ist (z.B. gescannte Bilder ohne OCR), trotzdem als versucht markieren
-        await setPdfText(inv.id, text || '[kein Text extrahierbar]');
-      } catch {
-        // PDF nicht lesbar (verschlüsselt, beschädigt, etc.) – als dauerhaft fehlgeschlagen markieren
-        await setPdfText(inv.id, '[PDF nicht lesbar]').catch(() => {});
-        failed.push({ id: inv.id, description: inv.description, partner: inv.partner });
-      }
-    }
-
-    setIndexFailed(failed);
-    setIndexProgress({ current: unindexedInvoices.length, total: unindexedInvoices.length });
-
-    // Store aktualisieren
-    try {
-      const all = await getAllInvoices();
-      setInvoices(all);
-    } catch { /* ignore */ }
-
-    setTimeout(() => {
-      setIndexing(false);
-    }, 500);
-  }, [indexing, unindexedInvoices, setInvoices]);
+  const {
+    issues,
+    errors,
+    warnings,
+    pendingFx,
+    unindexedCount,
+    withPdfCount,
+    indexFailed,
+    indexing,
+    indexProgress,
+    startIndexing: handleStartIndexing,
+    converting,
+    convertNow: handleConvertNow,
+    hasError,
+    badgeCount,
+    hasAnything: showIndicator,
+  } = useDataIssues();
 
   if (!showIndicator) return null;
 
-  const hasError = errors.length > 0 || pendingFx.length > 0;
   const primaryColor = hasError ? 'text-destructive' : 'text-amber-500';
   const badgeBg = hasError ? 'bg-destructive' : 'bg-amber-500';
-  const badgeCount = total + (unindexedCount > 0 ? 1 : 0) + (indexFailed.length > 0 && unindexedCount === 0 ? 1 : 0) + (pendingFx.length > 0 ? 1 : 0);
 
   const handleAiFix = (issue: DataIssue, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -277,7 +142,7 @@ export function DataIssuesIndicator() {
 
                       {unindexedCount > 0 && (
                         <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                          {unindexedCount} von {invoices.filter((i) => i.pdf_path).length} Rechnungen wurden noch nicht für die Volltext&shy;suche indiziert.
+                          {unindexedCount} von {withPdfCount} Rechnungen wurden noch nicht für die Volltext&shy;suche indiziert.
                         </p>
                       )}
 

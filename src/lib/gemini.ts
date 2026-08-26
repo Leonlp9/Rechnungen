@@ -121,7 +121,7 @@ export async function sendChatMessage(
     pdfBase64?: string | null,
 ): Promise<ChatResponse> {
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
+  if (!consented) throw new Error('KI-Nutzung abgebrochen – ohne Zustimmung werden keine Daten an Google übertragen.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt. Bitte unter Einstellungen eingeben.');
@@ -255,7 +255,7 @@ export async function analyzeInvoiceLayoutWithAI(
     throw new Error('Bitte Prompt oder Datei für die KI-Analyse angeben.');
   }
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
+  if (!consented) throw new Error('KI-Nutzung abgebrochen – ohne Zustimmung werden keine Daten an Google übertragen.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {
@@ -604,7 +604,7 @@ ${userPrompt.trim()}
 
 export async function analyzeInvoicePdf(base64: string, recentInvoices?: import('@/types').Invoice[]): Promise<GeminiResult> {
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht best�tigt.');
+  if (!consented) throw new Error('KI-Nutzung abgebrochen – ohne Zustimmung werden keine Daten an Google übertragen.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {
@@ -911,7 +911,7 @@ export interface ComplianceCheckInput {
  */
 export async function checkInvoiceCompliance(input: ComplianceCheckInput): Promise<ComplianceResult> {
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht bestätigt.');
+  if (!consented) throw new Error('KI-Nutzung abgebrochen – ohne Zustimmung werden keine Daten an Google übertragen.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt. Bitte unter Einstellungen eingeben.');
@@ -1023,7 +1023,7 @@ Antworte mit strukturiertem JSON.`;
  */
 export async function improveInvoiceNote(note: string, context?: string): Promise<string> {
   const consented = await ensureGeminiConsent();
-  if (!consented) throw new Error('KI-Nutzung wurde nicht bestätigt.');
+  if (!consented) throw new Error('KI-Nutzung abgebrochen – ohne Zustimmung werden keine Daten an Google übertragen.');
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) throw new Error('Kein Gemini API-Key hinterlegt.');

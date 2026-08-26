@@ -457,14 +457,15 @@ export function KanbanBoard({ data, onChange, listName }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b border-border px-6 py-4 shrink-0 flex items-center gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">{listName}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3 md:gap-4 md:px-6 md:py-4">
+        <div className="min-w-0">
+          {/* Der Name steht am Handy schon in der Leiste darüber */}
+          <h2 className="hidden truncate text-xl font-semibold md:block">{listName}</h2>
+          <p className="text-xs text-muted-foreground md:mt-0.5">
             {data.columns.length} Spalten · {data.columns.reduce((a, c) => a + c.cards.length, 0)} Karten
           </p>
         </div>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={addColumn}>
+        <Button size="sm" variant="outline" className="ml-auto shrink-0" onClick={addColumn}>
           <Plus className="h-4 w-4 mr-1" /> Spalte hinzufügen
         </Button>
       </div>

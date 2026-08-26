@@ -12,6 +12,10 @@ import { toast } from 'sonner';
 import { getFullAuditLog, verifyAuditIntegrity } from '@/lib/db';
 import type { AuditLogEntry } from '@/lib/db';
 import { saveCsvFile } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { SearchField } from '@/components/ui/search-field';
 
 const PAGE_SIZE = 100;
 
@@ -35,6 +39,7 @@ const ACTION_COLORS: Record<string, string> = {
 
 export default function RevisionsprotokollPage() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [integrityChecking, setIntegrityChecking] = useState(false);
@@ -127,8 +132,99 @@ export default function RevisionsprotokollPage() {
   // Reset page when filter changes
   useEffect(() => { setPage(0); }, [searchQuery, actionFilter, dateFrom, dateTo]);
 
+  // ── Handy ──
+  // Die Tabelle hatte acht Spalten mit festen Breiten – dadurch ließ sich die
+  // GANZE Seite seitwärts schieben, was in einer App schlicht kaputt aussieht.
+  // Jede Änderung steht hier stattdessen als eigene Zeile: was passiert ist,
+  // wann, und der Wertwechsel darunter.
+  if (isMobile) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Revisionsprotokoll"
+          subtitle="GoBD-Audit-Trail aller Buchungsänderungen"
+          actions={
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={loadEntries}
+              disabled={loading}
+              aria-label="Aktualisieren"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          }
+        />
+
+        <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Beleg, Feld oder Wert" />
+
+        <ListGroup>
+          <ListRow
+            tint={integrityStatus === 'ok' ? 'green' : integrityStatus === 'broken' ? 'red' : 'gray'}
+            icon={integrityStatus === 'broken' ? <ShieldAlert /> : <ShieldCheck />}
+            label={
+              integrityChecking
+                ? 'Prüfe …'
+                : integrityStatus === 'ok'
+                  ? 'Alle Einträge sind integer'
+                  : integrityStatus === 'broken'
+                    ? `${integrityBroken} von ${integrityTotal} beschädigt`
+                    : 'Integrität prüfen'
+            }
+            hint={integrityStatus === 'unknown' ? 'SHA-256-Verkettung nachrechnen' : `${integrityTotal} Einträge geprüft`}
+            noChevron
+            onClick={() => { if (!integrityChecking) void handleIntegrityCheck(); }}
+          />
+          <ListRow tint="blue" icon={<Download />} label="Als CSV exportieren" noChevron onClick={handleExportCsv} />
+        </ListGroup>
+
+        {loading ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Lade …</p>
+        ) : filtered.length === 0 ? (
+          <ListGroup>
+            <ListRow
+              icon={<ScrollText />}
+              label={entries.length === 0 ? 'Noch keine Einträge' : 'Keine Treffer'}
+              hint={entries.length === 0 ? 'Änderungen an Belegen werden hier protokolliert' : undefined}
+              noChevron
+            />
+          </ListGroup>
+        ) : (
+          <ListGroup title={`${filtered.length} Einträge`}>
+            {paginated.map((entry) => (
+              <ListRow
+                key={entry.id}
+                label={`${ACTION_LABELS[entry.action] ?? entry.action}${entry.field_name ? ` · ${entry.field_name}` : ''}`}
+                // Einzeilig: Die Zeile der Gruppenliste kürzt mit „…", ein
+                // zweizeiliger Hinweis würde dabei zusammenfallen.
+                hint={`${new Date(entry.timestamp).toLocaleString('de-DE')}${
+                  entry.old_value || entry.new_value
+                    ? ` · ${entry.old_value || '–'} → ${entry.new_value || '–'}`
+                    : ''
+                }`}
+                onClick={() => navigate(`/invoices/${entry.invoice_id}`)}
+              />
+            ))}
+          </ListGroup>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3">
+            <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="mr-1 h-4 w-4" />Zurück
+            </Button>
+            <span className="text-[13px] text-muted-foreground">Seite {page + 1} von {totalPages}</span>
+            <Button size="sm" variant="outline" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+              Weiter<ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full gap-4 p-6 overflow-y-auto min-h-0">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
