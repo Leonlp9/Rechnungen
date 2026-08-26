@@ -33,7 +33,7 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store';
 import { useChatStore } from '@/store/chatStore';
 import { useSyncStatus, syncNow, PROVIDER_LABELS } from '@/lib/sync';
-import { MOBILE_NAV_ITEMS, NAV_GROUPS } from './navItems';
+import { MOBILE_NAV_ITEMS, NAV_GROUPS, navItemsFor } from './navItems';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
 import { useDataIssues } from '@/hooks/useDataIssues';
 import { normalizeCurrency } from '@/lib/currency';
@@ -50,6 +50,7 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
   const navigate = useNavigate();
   const [version, setVersion] = useState('');
   const hiddenNavItems = useAppStore((s) => s.hiddenNavItems);
+  const rechtsform = useAppStore((s) => s.rechtsform);
   const privacyMode = useAppStore((s) => s.privacyMode);
   const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
   const darkMode = useAppStore((s) => s.darkMode);
@@ -76,7 +77,7 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
     document.documentElement.classList.toggle('dark', useAppStore.getState().darkMode);
   };
 
-  const items = MOBILE_NAV_ITEMS.filter((i) => !hiddenNavItems.includes(i.to));
+  const items = navItemsFor(rechtsform, MOBILE_NAV_ITEMS).filter((i) => !hiddenNavItems.includes(i.to));
 
   const syncTone = sync.running ? 'running' : sync.kind === 'none' ? 'off' : sync.lastError ? 'error' : 'ok';
   const SyncIcon = syncTone === 'off' ? CloudOff : syncTone === 'error' ? AlertTriangle : syncTone === 'running' ? RefreshCw : Cloud;

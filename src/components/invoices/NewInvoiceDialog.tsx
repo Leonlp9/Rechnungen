@@ -108,6 +108,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
   const addDraft = useAppStore((s) => s.addDraft);
   const drafts = useAppStore((s) => s.drafts ?? []);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const angestellt = useAppStore((s) => s.rechtsform === 'angestellt');
   const steuerregelung = useAppStore((s) => s.steuerregelung);
 
   // If this dialog was opened from a draft, track its id so we can remove it on save/draft-resave
@@ -620,7 +621,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                       >
                         <SelectTrigger className={FIELD_SELECT}><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {getCategoriesForBranche(form.watch('type'), branchenprofil, form.watch('category')).map((c) => (
+                          {getCategoriesForBranche(form.watch('type'), branchenprofil, form.watch('category'), angestellt).map((c) => (
                             <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                           ))}
                         </SelectContent>
@@ -863,7 +864,7 @@ export function NewInvoiceDialog({ open: isOpen, onClose, initialPdfPath, initia
                         <Select value={form.watch('category')} onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {getCategoriesForBranche(form.watch('type'), branchenprofil, form.watch('category')).map((c) => (
+                            {getCategoriesForBranche(form.watch('type'), branchenprofil, form.watch('category'), angestellt).map((c) => (
                                 <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                             ))}
                           </SelectContent>

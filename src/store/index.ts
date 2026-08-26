@@ -17,8 +17,8 @@ export function normalizeTheme(theme: unknown): AppTheme {
   return APP_THEMES.includes(theme as AppTheme) ? (theme as AppTheme) : 'default';
 }
 export type Steuerregelung = 'kleinunternehmer' | 'regelbesteuerung';
-export type Taetigkeitsart = 'freiberufler' | 'gewerbetreibend' | 'content_creator';
-export type Rechtsform = 'freiberufler' | 'gewerbetreibend';
+export type Taetigkeitsart = 'freiberufler' | 'gewerbetreibend' | 'angestellt' | 'content_creator';
+export type Rechtsform = 'freiberufler' | 'gewerbetreibend' | 'angestellt';
 export type Branchenprofil = 'standard' | 'content_creator' | 'ecommerce' | 'handwerk' | 'beratung';
 
 export interface InvoiceDraft {

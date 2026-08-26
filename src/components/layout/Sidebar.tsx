@@ -5,7 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
 } from 'lucide-react';
-import { DESKTOP_NAV_ITEMS } from './navItems';
+import { DESKTOP_NAV_ITEMS, navItemsFor } from './navItems';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -47,6 +47,7 @@ export function Sidebar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const toggle = useAppStore((s) => s.toggleSidebar);
   const hiddenNavItems = useAppStore((s) => s.hiddenNavItems);
+  const rechtsform = useAppStore((s) => s.rechtsform);
   const [version, setVersion] = useState('');
   const navigate = useNavigate();
   const { canGoBack, canGoForward } = useNavHistory();
@@ -92,7 +93,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 p-2">
-        {DESKTOP_NAV_ITEMS.filter(({ to }) => !hiddenNavItems.includes(to)).map(({ to, label, icon: Icon, tutorialId }) => (
+        {navItemsFor(rechtsform, DESKTOP_NAV_ITEMS).filter(({ to }) => !hiddenNavItems.includes(to)).map(({ to, label, icon: Icon, tutorialId }) => (
           <NavLink
             key={to}
             to={to}

@@ -110,6 +110,7 @@ export default function InvoiceDetail() {
   const activeAiFix = useAppStore((s) => s.activeAiFix);
   const setActiveAiFix = useAppStore((s) => s.setActiveAiFix);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const angestellt = useAppStore((s) => s.rechtsform === 'angestellt');
   const steuerregelung = useAppStore((s) => s.steuerregelung);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [pdfUrl, setPdfUrl] = useState('');
@@ -834,7 +835,7 @@ export default function InvoiceDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {getCategoriesForBranche(watchedType, branchenprofil, watchedCategory).map((c) => (
+                  {getCategoriesForBranche(watchedType, branchenprofil, watchedCategory, angestellt).map((c) => (
                       <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                   ))}
                 </SelectContent>

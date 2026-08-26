@@ -48,6 +48,32 @@ export const CATEGORIES = [
   // ── Privat ──────────────────────────────────────────────
   'privat',
   'privatentnahme',
+  // ── Angestellte: Einnahmen ──────────────────────────────
+  'gehalt',
+  'sonderzahlung',
+  'lohnersatz',
+  // ── Angestellte: Werbungskosten (Anlage N) ──────────────
+  'wk_pendeln',
+  'wk_homeoffice',
+  'wk_arbeitsmittel',
+  'wk_fortbildung',
+  'wk_bewerbung',
+  'wk_berufsverband',
+  'wk_dienstreise',
+  'wk_doppelter_haushalt',
+  'wk_umzug',
+  'wk_sonstige',
+  // ── Angestellte: Sonderausgaben ─────────────────────────
+  'sa_vorsorge',
+  'sa_versicherungen',
+  'sa_kinderbetreuung',
+  // ── Angestellte: Außergewöhnliche Belastungen ───────────
+  'agb_krankheit',
+  'agb_pflege',
+  'agb_sonstige',
+  // ── Angestellte: Haushalt (§ 35a EStG) ──────────────────
+  'hh_dienstleistung',
+  'hh_handwerker',
   // ── Info ────────────────────────────────────────────────
   'vertraege',
 ] as const;
@@ -88,6 +114,27 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   spenden: 'Spenden (Sonderausgabe)',
   privat: 'Privat (Kauf, nicht absetzbar)',
   privatentnahme: 'Privatentnahme (Überweisung an sich selbst)',
+  gehalt: 'Gehalt / Lohn',
+  sonderzahlung: 'Sonderzahlung (13. Gehalt, Bonus)',
+  lohnersatz: 'Lohnersatz (Kranken-, Elterngeld)',
+  wk_pendeln: 'Fahrt zur Arbeit (Pendlerpauschale)',
+  wk_homeoffice: 'Homeoffice-Pauschale',
+  wk_arbeitsmittel: 'Arbeitsmittel (Laptop, Werkzeug, Fachbuch)',
+  wk_fortbildung: 'Fortbildung & Weiterbildung',
+  wk_bewerbung: 'Bewerbungskosten',
+  wk_berufsverband: 'Berufsverband / Gewerkschaft',
+  wk_dienstreise: 'Dienstreise (nicht erstattet)',
+  wk_doppelter_haushalt: 'Doppelte Haushaltsführung',
+  wk_umzug: 'Berufsbedingter Umzug',
+  wk_sonstige: 'Sonstige Werbungskosten',
+  sa_vorsorge: 'Vorsorge (Kranken-, Pflege-, Rentenversicherung)',
+  sa_versicherungen: 'Weitere Versicherungen (Haftpflicht, BU, Unfall)',
+  sa_kinderbetreuung: 'Kinderbetreuung',
+  agb_krankheit: 'Krankheitskosten',
+  agb_pflege: 'Pflegekosten',
+  agb_sonstige: 'Sonstige außergewöhnliche Belastungen',
+  hh_dienstleistung: 'Haushaltsnahe Dienstleistung (§ 35a)',
+  hh_handwerker: 'Handwerkerleistung (§ 35a)',
   vertraege: 'Verträge',
   sonstiges: 'Sonstiges',
 };
@@ -140,7 +187,88 @@ export const INFO_CATEGORIES: Category[] = [
 /** Veraltete Kategorien, die nur noch für Altdaten existieren. */
 export const LEGACY_CATEGORIES: Category[] = ['einnahmen'];
 
-export function getCategoriesForType(type: InvoiceType): Category[] {
+// ─── Angestellte ──────────────────────────────────────────────────────────────
+//
+// Wer angestellt ist, führt keinen Betrieb: Es gibt keine Umsatzerlöse, keine
+// Umsatzsteuer und keine Betriebsausgaben. Stattdessen zählt für die
+// Steuererklärung, was von der Anlage N und den Sonderausgaben abgedeckt ist –
+// und was das Finanzamt nach § 35a EStG direkt von der Steuer abzieht.
+//
+// Die Werte, die dazugehören (Stand 2026):
+//   Arbeitnehmer-Pauschbetrag   1.230 € – erst darüber lohnen sich Belege
+//   Entfernungspauschale        0,38 €/km ab dem ersten Kilometer
+//   Homeoffice-Pauschale        6 €/Tag, höchstens 210 Tage (1.260 €)
+//   § 35a Dienstleistungen      20 % von max. 20.000 € (höchstens 4.000 €)
+//   § 35a Handwerker            20 % von max. 6.000 € (höchstens 1.200 €)
+
+export const EMPLOYEE_INCOME_CATEGORIES: Category[] = [
+  'gehalt',
+  'sonderzahlung',
+  'lohnersatz',
+  'erstattungen',
+  'sonstige_einnahmen',
+];
+
+/** Werbungskosten – kommen in die Anlage N. */
+export const WERBUNGSKOSTEN_CATEGORIES: Category[] = [
+  'wk_pendeln',
+  'wk_homeoffice',
+  'wk_arbeitsmittel',
+  'wk_fortbildung',
+  'wk_bewerbung',
+  'wk_berufsverband',
+  'wk_dienstreise',
+  'wk_doppelter_haushalt',
+  'wk_umzug',
+  'wk_sonstige',
+];
+
+/** Sonderausgaben – Vorsorge, Versicherungen, Spenden, Kirchensteuer. */
+export const EMPLOYEE_SONDERAUSGABEN_CATEGORIES: Category[] = [
+  'sa_vorsorge',
+  'sa_versicherungen',
+  'sa_kinderbetreuung',
+  'spenden',
+];
+
+/** Außergewöhnliche Belastungen – wirken erst über der zumutbaren Belastung. */
+export const AUSSERGEWOEHNLICHE_CATEGORIES: Category[] = [
+  'agb_krankheit',
+  'agb_pflege',
+  'agb_sonstige',
+];
+
+/** Haushaltsnahe Leistungen – 20 % gehen direkt von der Steuer ab (§ 35a). */
+export const HAUSHALT_CATEGORIES: Category[] = [
+  'hh_dienstleistung',
+  'hh_handwerker',
+];
+
+export const EMPLOYEE_EXPENSE_CATEGORIES: Category[] = [
+  ...WERBUNGSKOSTEN_CATEGORIES,
+  ...EMPLOYEE_SONDERAUSGABEN_CATEGORIES,
+  ...AUSSERGEWOEHNLICHE_CATEGORIES,
+  ...HAUSHALT_CATEGORIES,
+  'privat',
+  'sonstiges',
+];
+
+/** Alles, was nur Angestellte sehen sollen. */
+export const EMPLOYEE_ONLY_CATEGORIES: Category[] = [
+  ...EMPLOYEE_INCOME_CATEGORIES.filter((c) => c !== 'erstattungen' && c !== 'sonstige_einnahmen'),
+  ...WERBUNGSKOSTEN_CATEGORIES,
+  ...EMPLOYEE_SONDERAUSGABEN_CATEGORIES.filter((c) => c !== 'spenden'),
+  ...AUSSERGEWOEHNLICHE_CATEGORIES,
+  ...HAUSHALT_CATEGORIES,
+];
+
+export function getCategoriesForType(type: InvoiceType, angestellt = false): Category[] {
+  if (angestellt) {
+    if (type === 'einnahme') return EMPLOYEE_INCOME_CATEGORIES;
+    if (type === 'ausgabe') return EMPLOYEE_EXPENSE_CATEGORIES;
+    if (type === 'info') return INFO_CATEGORIES;
+    return [...EMPLOYEE_INCOME_CATEGORIES, ...EMPLOYEE_EXPENSE_CATEGORIES, ...INFO_CATEGORIES];
+  }
   if (type === 'einnahme') return INCOME_CATEGORIES;
   if (type === 'ausgabe') return EXPENSE_CATEGORIES;
   if (type === 'info') return INFO_CATEGORIES;
@@ -151,8 +279,12 @@ export function getCategoriesForType(type: InvoiceType): Category[] {
  * Gibt die Kategorien für den Typ zurück.
  * Veraltete Kategorien werden NUR eingeschlossen, wenn `currentCategory` eine davon ist.
  */
-export function getCategoriesForTypeFiltered(type: InvoiceType, currentCategory?: Category): Category[] {
-  const base = getCategoriesForType(type);
+export function getCategoriesForTypeFiltered(
+  type: InvoiceType,
+  currentCategory?: Category,
+  angestellt = false,
+): Category[] {
+  const base = getCategoriesForType(type, angestellt);
   const isLegacySelected = currentCategory && (LEGACY_CATEGORIES as string[]).includes(currentCategory);
   if (isLegacySelected) return base; // legacy schon drin (INCOME_CATEGORIES enthält 'einnahmen')
   return base.filter((c) => !(LEGACY_CATEGORIES as string[]).includes(c));
@@ -195,8 +327,16 @@ export function getCategoriesForBranche(
   type: InvoiceType,
   branchenprofil: Branchenprofil,
   currentCategory?: Category,
+  /** Angestellte bekommen eine ganz andere Liste – ohne Betriebsausgaben. */
+  angestellt = false,
 ): Category[] {
-  const base = getCategoriesForTypeFiltered(type, currentCategory);
+  const base = getCategoriesForTypeFiltered(type, currentCategory, angestellt);
+
+  // Angestellte kennen keine Branchen-Sonderfälle; ihre Liste steht schon fest.
+  if (angestellt) {
+    if (currentCategory && !base.includes(currentCategory)) return [currentCategory, ...base];
+    return base;
+  }
 
   // Welche Kategorien sollen für dieses Profil VERSTECKT werden?
   let hiddenCats: Category[] = [];
@@ -230,6 +370,34 @@ export const PRIVAT_CATEGORIES: Category[] = [
 ];
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
+
+/**
+ * Eine Gehaltsstufe: ab `valid_from` (YYYY-MM) gilt dieses Gehalt. Eine
+ * Erhöhung ist ein neuer Eintrag – der alte bleibt, damit vergangene Monate
+ * richtig bleiben.
+ *
+ * `payday` ist der Tag im Monat, an dem das Geld kommt; 0 steht für „zum
+ * Monatsende".
+ */
+export interface Salary {
+  id: string;
+  valid_from: string;
+  employer: string;
+  gross: number;
+  net: number;
+  payday: number;
+  note: string;
+}
+
+/** Einmalzahlung: 13. Gehalt, Bonus, Urlaubsgeld, Nachzahlung. */
+export interface SalaryExtra {
+  id: string;
+  date: string;
+  label: string;
+  gross: number;
+  net: number;
+  note: string;
+}
 
 export interface Invoice {
   id: string;

@@ -9,9 +9,10 @@ import type { InvoiceType, Category } from '@/types';
  */
 export function useCategoryList(type: InvoiceType, currentCategory?: Category) {
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const angestellt = useAppStore((s) => s.rechtsform === 'angestellt');
   return useMemo(
-    () => getCategoriesForBranche(type, branchenprofil, currentCategory),
-    [type, branchenprofil, currentCategory],
+    () => getCategoriesForBranche(type, branchenprofil, currentCategory, angestellt),
+    [type, branchenprofil, currentCategory, angestellt],
   );
 }
 

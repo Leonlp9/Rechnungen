@@ -59,6 +59,7 @@ interface Props {
 export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Props) {
   const setInvoices = useAppStore((s) => s.setInvoices);
   const branchenprofil = useAppStore((s) => s.branchenprofil);
+  const angestellt = useAppStore((s) => s.rechtsform === 'angestellt');
   const [step, setStep] = useState<'confirm' | 'upload' | 'form'>('confirm');
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState('');
@@ -388,7 +389,7 @@ export function StornoDialog({ open: isOpen, invoice, onClose, onSuccess }: Prop
                   <Select value={watchedCategory} onValueChange={(v) => form.setValue('category', v as typeof CATEGORIES[number])}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {getCategoriesForBranche(watchedType, branchenprofil, watchedCategory).map((c) => (
+                      {getCategoriesForBranche(watchedType, branchenprofil, watchedCategory, angestellt).map((c) => (
                         <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                       ))}
                     </SelectContent>

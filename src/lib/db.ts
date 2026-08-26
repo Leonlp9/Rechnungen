@@ -262,6 +262,45 @@ const MIGRATIONS: Array<(db: Database) => Promise<void>> = [
 
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_invoices_fx_source ON invoices(fx_source)`);
   },
+  // v11 → v12: Gehalt für Angestellte
+  //
+  // Wer angestellt ist, bekommt für sein Gehalt keine Rechnung – es kommt
+  // jeden Monat von selbst. Deshalb steht es nicht als Beleg in der Liste,
+  // sondern als Angabe: ab wann, wie viel und an welchem Tag. Ändert sich das
+  // Gehalt, kommt ein neuer Eintrag dazu; der alte bleibt stehen, damit
+  // vergangene Monate richtig bleiben.
+  //
+  // Einmalzahlungen (13. Gehalt, Bonus, Urlaubsgeld) stehen daneben, weil sie
+  // sich nicht wiederholen.
+  async (db) => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS salaries (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        valid_from TEXT NOT NULL,
+        employer TEXT NOT NULL DEFAULT '',
+        gross REAL NOT NULL DEFAULT 0,
+        net REAL NOT NULL DEFAULT 0,
+        payday INTEGER NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_salaries_from ON salaries(valid_from)');
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS salary_extras (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        date TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        gross REAL NOT NULL DEFAULT 0,
+        net REAL NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_salary_extras_date ON salary_extras(date)');
+  },
 ];
 
 async function migrate(db: Database) {
@@ -1142,6 +1181,76 @@ function mapProjectRow(row: ProjectRow): import('@/types').Project {
     updated_at: row.updated_at,
   };
 }
+
+// ─── Gehalt (Angestellte) ────────────────────────────────────────────────────
+//
+// Zwei Listen: die Gehaltsstufen (ab wann wie viel) und die Einmalzahlungen.
+// Aus beiden ergibt sich, was in einem Monat oder Jahr aufs Konto kam, ohne
+// dass dafür ein Beleg existieren müsste.
+
+export const salaries = {
+  async getAll(): Promise<import('@/types').Salary[]> {
+    const db = await getDb();
+    return db.select<import('@/types').Salary[]>(
+      'SELECT * FROM salaries ORDER BY valid_from DESC',
+    );
+  },
+
+  async create(entry: Omit<import('@/types').Salary, 'id'>): Promise<void> {
+    const db = await getDb();
+    await db.execute(
+      `INSERT INTO salaries (id, valid_from, employer, gross, net, payday, note)
+       VALUES (lower(hex(randomblob(16))), $1, $2, $3, $4, $5, $6)`,
+      [entry.valid_from, entry.employer, entry.gross, entry.net, entry.payday, entry.note],
+    );
+  },
+
+  async update(id: string, entry: Partial<import('@/types').Salary>): Promise<void> {
+    const db = await getDb();
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    for (const key of ['valid_from', 'employer', 'gross', 'net', 'payday', 'note'] as const) {
+      if (entry[key] !== undefined) {
+        fields.push(`${key} = $${fields.length + 1}`);
+        values.push(entry[key]);
+      }
+    }
+    if (fields.length === 0) return;
+    values.push(id);
+    await db.execute(
+      `UPDATE salaries SET ${fields.join(', ')}, updated_at = datetime('now') WHERE id = $${values.length}`,
+      values,
+    );
+  },
+
+  async remove(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute('DELETE FROM salaries WHERE id = $1', [id]);
+  },
+};
+
+export const salaryExtras = {
+  async getAll(): Promise<import('@/types').SalaryExtra[]> {
+    const db = await getDb();
+    return db.select<import('@/types').SalaryExtra[]>(
+      'SELECT * FROM salary_extras ORDER BY date DESC',
+    );
+  },
+
+  async create(entry: Omit<import('@/types').SalaryExtra, 'id'>): Promise<void> {
+    const db = await getDb();
+    await db.execute(
+      `INSERT INTO salary_extras (id, date, label, gross, net, note)
+       VALUES (lower(hex(randomblob(16))), $1, $2, $3, $4, $5)`,
+      [entry.date, entry.label, entry.gross, entry.net, entry.note],
+    );
+  },
+
+  async remove(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute('DELETE FROM salary_extras WHERE id = $1', [id]);
+  },
+};
 
 export const projects = {
   async getAll(): Promise<import('@/types').Project[]> {

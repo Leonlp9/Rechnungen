@@ -37,6 +37,7 @@ export const PROFILE_FIELDS = [
 const PROFILE_GROUPS = ['Anschrift', 'Steuer', 'Bank', 'Kontakt'] as const;
 
 const RECHTSFORM_OPTIONS = [
+  { value: 'angestellt' as const, label: 'Angestellt', desc: 'Festes Arbeitsverhältnis. Kein Betrieb, keine Umsatzsteuer – dafür Werbungskosten, Sonderausgaben und § 35a in der Steuererklärung (Anlage N).' },
   { value: 'freiberufler' as const, label: 'Freiberufler', desc: '§ 18 EStG – Katalogberuf (Entwickler, Designer, Berater). Keine Gewerbesteuer, Anlage S.' },
   { value: 'gewerbetreibend' as const, label: 'Gewerbetreibend', desc: '§ 15 EStG – Gewerbeanmeldung, IHK-Pflicht. Gewerbesteuer ab 24.500 € Gewinn, Anlage G.' },
 ];
@@ -78,6 +79,7 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
   const branchenprofil = useAppStore((s) => s.branchenprofil);
   const setBranchenprofil = useAppStore((s) => s.setBranchenprofil);
   const isMobile = useIsMobile();
+  const angestellt = rechtsform === 'angestellt';
 
   // ── Handy: Gruppenlisten statt Karten mit gestapelten Feldern ──
   // Beschriftung über Feld ergab auf 375 px eine endlose Kolonne, in der der
@@ -129,7 +131,28 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
           </p>
         </div>
 
-        {/* … fünf werden zur Auswahlliste mit Häkchen. */}
+        {/* Wer angestellt ist, hat weder Branchen-Profil noch Umsatzsteuer –
+            beides gehört zum Betrieb. Stattdessen der Hinweis, wo das Gehalt
+            hingehört. */}
+        {angestellt ? (
+          <ListGroup
+            title="Angestellt"
+            footer="Dein Gehalt trägst du unter „Gehalt“ ein – dafür gibt es keine Belege. Alles, was du für die Steuererklärung sammelst (Fahrten, Arbeitsmittel, Handwerker, Versicherungen), legst du wie gewohnt als Beleg ab."
+          >
+            <ListRow
+              label="Umsatzsteuer"
+              hint="Als Angestellter weist du keine Umsatzsteuer aus"
+              value="entfällt"
+              noChevron
+            />
+            <ListRow
+              label="Krankenversicherung"
+              hint="Zieht dein Arbeitgeber vom Lohn ab"
+              value="über den Lohn"
+              noChevron
+            />
+          </ListGroup>
+        ) : (
         <ListGroup
           title="Branchen-Profil"
           footer="Schaltet branchenspezifische Kategorien frei – etwa Donations, Sponsoring oder Reverse Charge."
@@ -146,20 +169,23 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
             />
           ))}
         </ListGroup>
+        )}
 
-        <div className="space-y-2">
-          <h2 data-list-title className="px-4 text-[13px] font-medium text-muted-foreground">
-            Steuer-Modus
-          </h2>
-          <Segmented
-            value={steuerregelung}
-            onChange={setSteuerregelung}
-            options={STEUER_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-          />
-          <p className="px-4 text-[13px] leading-snug text-muted-foreground">
-            {STEUER_OPTIONS.find((o) => o.value === steuerregelung)?.desc}
-          </p>
-        </div>
+        {!angestellt && (
+          <div className="space-y-2">
+            <h2 data-list-title className="px-4 text-[13px] font-medium text-muted-foreground">
+              Steuer-Modus
+            </h2>
+            <Segmented
+              value={steuerregelung}
+              onChange={setSteuerregelung}
+              options={STEUER_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
+            <p className="px-4 text-[13px] leading-snug text-muted-foreground">
+              {STEUER_OPTIONS.find((o) => o.value === steuerregelung)?.desc}
+            </p>
+          </div>
+        )}
 
         <FormGroup
           title="Steuerwerte"
