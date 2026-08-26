@@ -1,6 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ReceiptText, Camera, Menu, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppStore } from '@/store';
+import { NAV_ITEMS } from './navItems';
 
 const ITEMS = [
   { to: '/', label: 'Start', icon: LayoutDashboard, exact: true },
@@ -19,6 +21,13 @@ const ITEMS = [
  * darunter das Label. Nur die Füllung unterscheidet sich – so bleibt die
  * hervorgehobene Mitte optisch auf einer Linie mit den übrigen Icons.
  */
+/** Gehört die Seite zum anderen Status? (siehe navItems) */
+function isFremd(to: string, rechtsform: string): boolean {
+  const eintrag = NAV_ITEMS.find((i) => i.to === to);
+  if (!eintrag?.fuer) return false;
+  return eintrag.fuer !== (rechtsform === 'angestellt' ? 'angestellt' : 'selbststaendig');
+}
+
 const SLOT = 'flex h-10 w-10 items-center justify-center rounded-full transition-colors';
 const ITEM = 'flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors';
 
@@ -29,6 +38,16 @@ interface Props {
 
 export function MobileNav({ onOpenMore, moreOpen }: Props) {
   const { pathname } = useLocation();
+  const hiddenNavItems = useAppStore((s) => s.hiddenNavItems);
+  const rechtsform = useAppStore((s) => s.rechtsform);
+
+  // Was in den Einstellungen ausgeblendet wurde, gehört auch hier unten nicht
+  // hin – sonst führt die Leiste auf Seiten, die es für den Nutzer nicht mehr
+  // gibt. Dasselbe gilt für Seiten, die zum jeweiligen Status nicht passen.
+  // „Scannen" bleibt immer: Es ist die Hauptaktion der App auf dem Handy.
+  const items = ITEMS.filter(
+    (i) => i.primary || (!hiddenNavItems.includes(i.to) && !isFremd(i.to, rechtsform)),
+  );
   // Seiten außerhalb der vier Tabs → „Mehr" als aktiv markieren
   const onOtherPage = !ITEMS.some((i) => (i.exact ? pathname === i.to : pathname.startsWith(i.to)));
 
@@ -40,7 +59,7 @@ export function MobileNav({ onOpenMore, moreOpen }: Props) {
       // die Leiste schweben lässt oder anders staffelt, den Wert übernehmen.
       style={{ paddingBottom: 'var(--nav-safe-bottom, env(safe-area-inset-bottom, 0px))' }}
     >
-      {ITEMS.map((item) => {
+      {items.map((item) => {
         const Icon = item.icon;
         return (
           <NavLink
