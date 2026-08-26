@@ -15,6 +15,7 @@ import {
   EyeOff,
   Moon,
   Sun,
+  SunMoon,
   Download,
   FileStack,
   Search,
@@ -52,7 +53,8 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
   const privacyMode = useAppStore((s) => s.privacyMode);
   const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
   const darkMode = useAppStore((s) => s.darkMode);
-  const setDarkMode = useAppStore((s) => s.setDarkMode);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const cycleThemeMode = useAppStore((s) => s.cycleThemeMode);
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const draftsCount = useAppStore((s) => s.drafts?.length ?? 0);
   const showAiChat = useAppStore((s) => s.showAiChat);
@@ -66,10 +68,12 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
     getVersion().then(setVersion).catch(() => setVersion('0.1.0'));
   }, []);
 
-  const toggleDark = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    document.documentElement.classList.toggle('dark', next);
+  // Ein Knopf mit drei Zuständen: hell → dunkel → automatisch. „Automatisch"
+  // übernimmt, was das System gerade möchte – das wird dort oft nach
+  // Tageszeit umgeschaltet.
+  const cycleTheme = () => {
+    cycleThemeMode();
+    document.documentElement.classList.toggle('dark', useAppStore.getState().darkMode);
   };
 
   const items = MOBILE_NAV_ITEMS.filter((i) => !hiddenNavItems.includes(i.to));
@@ -209,10 +213,14 @@ export function MobileMoreSheet({ open, onClose, onNewInvoice, onDrafts, onExpor
               onClick={togglePrivacyMode}
             />
             <QuickAction
-              icon={darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              label={darkMode ? 'Hell' : 'Dunkel'}
-              active={darkMode}
-              onClick={toggleDark}
+              icon={
+                themeMode === 'auto' ? <SunMoon className="h-5 w-5" />
+                  : themeMode === 'dark' ? <Moon className="h-5 w-5" />
+                    : <Sun className="h-5 w-5" />
+              }
+              label={themeMode === 'auto' ? 'System' : themeMode === 'dark' ? 'Dunkel' : 'Hell'}
+              active={themeMode !== 'auto' && darkMode}
+              onClick={cycleTheme}
             />
             <QuickAction
               icon={<Download className="h-5 w-5" />}

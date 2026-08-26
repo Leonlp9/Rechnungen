@@ -70,6 +70,7 @@ function App() {
   });
   const [pendingBackupPath, setPendingBackupPath] = useState<string | null>(null);
   const darkMode = useAppStore((s) => s.darkMode);
+  const themeMode = useAppStore((s) => s.themeMode);
   const theme = useAppStore((s) => s.theme);
   const animations = useAppStore((s) => s.animations);
   const autoUpdateBuiltins = useTemplateStore((s) => s.autoUpdateBuiltins);
@@ -151,6 +152,17 @@ function App() {
     }
     getCurrentWindow().setTheme(darkMode ? 'dark' : 'light').catch(() => {});
   }, [darkMode, theme]);
+
+  // Dem System folgen, solange „Automatisch" gewählt ist. Der Wechsel kommt
+  // dort oft nach Tageszeit – ohne diesen Hörer bliebe die App auf dem Stand
+  // des letzten Starts.
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => useAppStore.getState().syncSystemTheme(media.matches);
+    apply();
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, [themeMode]);
 
   // Animationen-Klasse synchronisieren
   useEffect(() => {

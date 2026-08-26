@@ -117,7 +117,8 @@ function RowInner({
             sieht man in der Liste nicht, wo man gerade ist. */}
         {!trailing && current && <Check className="h-[18px] w-[18px] shrink-0 text-primary" />}
         {!trailing && !current && !noChevron && interactive && (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+          // Eigener Haken: One UI zeigt in Listenzeilen keinen Pfeil.
+          <ChevronRight data-row-chevron className="h-4 w-4 shrink-0 text-muted-foreground/50" />
         )}
       </span>
     </>
@@ -141,8 +142,11 @@ export function ListRow(props: ListRowProps) {
 
   if (onClick) {
     return (
-      <button data-list-row type="button" onClick={onClick} className={cn(base, active && 'bg-accent/60', 'active:bg-accent')}>
-        <RowInner {...props} interactive />
+      // `active` markiert eine getroffene Wahl – dieselbe Darstellung wie die
+      // aktuelle Seite: blaue Beschriftung und Häkchen statt Chevron. So
+      // liest sich eine Auswahlliste wie in den iOS-Einstellungen.
+      <button data-list-row type="button" onClick={onClick} className={cn(base, 'active:bg-accent')}>
+        <RowInner {...props} interactive current={active} />
       </button>
     );
   }

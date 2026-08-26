@@ -57,6 +57,17 @@ interface AppState {
   setSelectedMonth: (month: number) => void;
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
+  /**
+   * Gewählte Farbgebung. `auto` folgt dem Betriebssystem – dort wird sie oft
+   * nach Tageszeit umgeschaltet, und die App soll dann mitziehen.
+   */
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  /** Hell → Dunkel → Automatisch → Hell (ein Knopf, drei Zustände) */
+  cycleThemeMode: () => void;
+  /** Meldet, was das System gerade möchte – wirkt nur im Modus `auto`. */
+  syncSystemTheme: (prefersDark: boolean) => void;
+  /** Was tatsächlich angezeigt wird – aus Modus und System abgeleitet. */
   darkMode: boolean;
   setDarkMode: (darkMode: boolean) => void;
   theme: AppTheme;
@@ -103,6 +114,24 @@ interface AppState {
   setShowGlossarTooltips: (v: boolean) => void;
 }
 
+/** Hell, Dunkel oder dem System folgen. */
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
+/** Was das Betriebssystem gerade möchte (auf dem Server: hell). */
+function prefersDarkNow(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Aus Modus (und ggf. gespeichertem Wert) die tatsächliche Farbgebung. */
+function resolveDark(mode: ThemeMode, fallback = false): boolean {
+  if (mode === 'auto') return prefersDarkNow();
+  if (mode === 'dark') return true;
+  if (mode === 'light') return false;
+  return fallback;
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -121,8 +150,19 @@ export const useAppStore = create<AppState>()(
       setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
       sidebarCollapsed: false,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      darkMode: false,
-      setDarkMode: (darkMode) => set({ darkMode }),
+      themeMode: 'auto' as ThemeMode,
+      setThemeMode: (mode) => set({ themeMode: mode, darkMode: resolveDark(mode) }),
+      cycleThemeMode: () => set((state) => {
+        const order: ThemeMode[] = ['light', 'dark', 'auto'];
+        const next = order[(order.indexOf(state.themeMode) + 1) % order.length];
+        return { themeMode: next, darkMode: resolveDark(next) };
+      }),
+      syncSystemTheme: (prefersDark) => set((state) => (
+        state.themeMode === 'auto' ? { darkMode: prefersDark } : {}
+      )),
+      darkMode: prefersDarkNow(),
+      // Ein ausdrücklich gesetzter Wert heißt: nicht mehr dem System folgen.
+      setDarkMode: (darkMode) => set({ darkMode, themeMode: darkMode ? 'dark' : 'light' }),
       theme: 'default' as AppTheme,
       setTheme: (theme) => set({ theme: normalizeTheme(theme) }),
       animations: true,
@@ -162,12 +202,20 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'Klevr-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, themeMode: state.themeMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips }),
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as object), drafts: [] };
         // Ein entferntes Theme im gespeicherten Zustand würde sonst eine
         // Klasse setzen, zu der es keine Regeln mehr gibt.
-        return { ...merged, theme: normalizeTheme(merged.theme) };
+        const theme = normalizeTheme(merged.theme);
+        // Ältere Stände kennen nur `darkMode`. Wer damals hell oder dunkel
+        // gewählt hat, hat das bewusst getan – also bleibt es dabei, statt
+        // ungefragt auf „Automatisch" zu springen.
+        const themeMode: ThemeMode =
+          merged.themeMode === 'light' || merged.themeMode === 'dark' || merged.themeMode === 'auto'
+            ? merged.themeMode
+            : merged.darkMode ? 'dark' : 'light';
+        return { ...merged, theme, themeMode, darkMode: resolveDark(themeMode, merged.darkMode) };
       },
     }
   )

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTutorialStore } from '@/store/tutorialStore';
 import {
@@ -978,7 +978,7 @@ function Tip({ children }: { children: React.ReactNode }) {
 
 export default function HelpPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialArticle = searchParams.get('article') ?? ARTICLES[0].id;
   const resetTutorial = useTutorialStore((s) => s.resetTutorial);
   const startTutorial = useTutorialStore((s) => s.startTutorial);
@@ -987,10 +987,37 @@ export default function HelpPage() {
   const [selected, setSelected] = useState<string>(initialArticle);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  // Handy: Liste und Artikel liegen übereinander statt nebeneinander
-  const [mobileView, setMobileView] = useState<'list' | 'article'>(
-    searchParams.get('article') ? 'article' : 'list',
-  );
+
+  // Handy: Liste und Artikel liegen übereinander. Welcher Artikel offen ist,
+  // steht in der Adresse – dann bringt die Zurück-Geste des Systems einen
+  // zur Liste zurück und nicht gleich aus der Hilfe heraus.
+  const articleParam = searchParams.get('article');
+  const mobileView: 'list' | 'article' = articleParam ? 'article' : 'list';
+  /** Merkt, ob der Verlaufseintrag von uns stammt. */
+  const pushedArticle = useRef(false);
+
+  const openArticle = (id: string) => {
+    setSelected(id);
+    pushedArticle.current = true;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('article', id);
+      return next;
+    });
+  };
+
+  const closeArticle = () => {
+    if (pushedArticle.current) {
+      pushedArticle.current = false;
+      navigate(-1);
+      return;
+    }
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('article');
+      return next;
+    }, { replace: true });
+  };
 
   const filtered = ARTICLES.filter((a) => {
     const matchesSearch =
@@ -1001,7 +1028,7 @@ export default function HelpPage() {
     return matchesSearch && matchesCat;
   });
 
-  const article = ARTICLES.find((a) => a.id === selected) ?? ARTICLES[0];
+  const article = ARTICLES.find((a) => a.id === (articleParam ?? selected)) ?? ARTICLES[0];
   const ArticleIcon = article.icon;
 
   /** Gefundene Artikel nach Kategorie, in der Reihenfolge der Kategorien. */
@@ -1022,7 +1049,7 @@ export default function HelpPage() {
           <PageHeader
             title={article.title}
             subtitle={article.category}
-            back={{ label: 'Hilfe', onClick: () => setMobileView('list') }}
+            back={{ label: 'Hilfe', onClick: closeArticle }}
             // Artikeltitel sind lang und dürfen umbrechen – abgeschnitten
             // („Rechnung manuell …“) verlieren sie ihren Sinn.
             className='[&_h1]:overflow-visible [&_h1]:whitespace-normal'
@@ -1075,7 +1102,7 @@ export default function HelpPage() {
                     icon={<Icon />}
                     tint={CATEGORY_TINTS[a.category] ?? 'gray'}
                     label={a.title}
-                    onClick={() => { setSelected(a.id); setMobileView('article'); }}
+                    onClick={() => openArticle(a.id)}
                   />
                 );
               })}

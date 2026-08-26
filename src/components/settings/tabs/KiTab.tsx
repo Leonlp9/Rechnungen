@@ -4,6 +4,8 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FormGroup, FormRow, FormFullRow, FIELD } from '@/components/ui/form-list';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface KiTabProps {
   apiKey: string;
@@ -24,6 +26,81 @@ export function KiTab({
   aiInstructions, setAiInstructions, aiInstructionsSaving, saveAiInstructions,
   showAiChat, setShowAiChat,
 }: KiTabProps) {
+  const isMobile = useIsMobile();
+
+  // ── Handy: drei Gruppen statt drei Karten ──
+  // Der Schalter gehört in eine Zeile, der Schlüssel in eine zweite, und die
+  // Anweisungen brauchen die volle Breite. Die Erklärungen stehen als
+  // Fußnote unter der Gruppe – im Kartenkopf nahmen sie oben Platz weg,
+  // bevor man überhaupt etwas bedienen konnte.
+  if (isMobile) {
+    return (
+      <div className="space-y-8">
+        <FormGroup
+          title="KI-Chat"
+          footer="Zeigt oder versteckt den schwebenden Knopf unten rechts im Bildschirm."
+        >
+          <FormRow label="Chat-Knopf">
+            <Switch checked={showAiChat} onCheckedChange={setShowAiChat} aria-label="KI-Chat-Knopf anzeigen" />
+          </FormRow>
+        </FormGroup>
+
+        <div className="space-y-3">
+          <FormGroup
+            title="Gemini API-Key"
+            footer="Wird sicher im Schlüsselbund des Systems gespeichert."
+          >
+            <FormRow label="Schlüssel">
+              <input
+                className={FIELD}
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="AIza…"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                aria-label={showKey ? 'Schlüssel verbergen' : 'Schlüssel anzeigen'}
+                className="ml-2 shrink-0 text-muted-foreground active:opacity-60"
+              >
+                {showKey ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
+              </button>
+            </FormRow>
+          </FormGroup>
+          <Button variant="secondary" className="h-11 w-full text-[17px]" onClick={saveApiKey}>
+            <Save className="mr-2 h-4 w-4" />Schlüssel speichern
+          </Button>
+        </div>
+
+        <div className="space-y-3">
+          <FormGroup
+            title="KI-Anweisungen"
+            footer="Freitext – die KI liest diese Anweisungen bei jeder Rechnungsanalyse mit."
+          >
+            <FormFullRow>
+              <textarea
+                value={aiInstructions}
+                onChange={(e) => setAiInstructions(e.target.value)}
+                placeholder={'Beispiele:\n- Rechnungen von "Amazon" sind immer Ausgaben, Kategorie "buerobedarf"\n- Wenn der Partner "Finanzamt" heißt, ist es immer type="info"'}
+                rows={7}
+                className="w-full resize-y bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground/60"
+              />
+            </FormFullRow>
+          </FormGroup>
+          <Button
+            variant="secondary"
+            className="h-11 w-full text-[17px]"
+            onClick={saveAiInstructions}
+            disabled={aiInstructionsSaving}
+          >
+            <Save className="mr-2 h-4 w-4" />Anweisungen speichern
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <Card className="rounded-xl shadow-sm">

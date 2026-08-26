@@ -12,7 +12,8 @@
 // Hinweise, Sync und Entwürfe blenden sich selbst aus, wenn es nichts zu
 // zeigen gibt – im Normalfall bleiben also Suche, „⋯" und „Neue Rechnung".
 
-import { Search, Plus, Moon, Sun, Download, Eye, EyeOff, FileStack, MoreHorizontal } from 'lucide-react';
+import { Search, Plus, Moon,
+  SunMoon, Sun, Download, Eye, EyeOff, FileStack, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store';
 import {
@@ -32,17 +33,17 @@ interface TopbarProps {
 }
 
 export function Topbar({ onNewInvoice, onExport, onDrafts }: TopbarProps) {
-  const darkMode = useAppStore((s) => s.darkMode);
-  const setDarkMode = useAppStore((s) => s.setDarkMode);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const cycleThemeMode = useAppStore((s) => s.cycleThemeMode);
   const privacyMode = useAppStore((s) => s.privacyMode);
   const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const draftsCount = useAppStore((s) => s.drafts?.length ?? 0);
 
-  const toggleDark = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    document.documentElement.classList.toggle('dark', next);
+  // Derselbe Dreiklang wie auf dem Handy: hell → dunkel → automatisch.
+  const cycleTheme = () => {
+    cycleThemeMode();
+    document.documentElement.classList.toggle('dark', useAppStore.getState().darkMode);
   };
 
   return (
@@ -102,9 +103,11 @@ export function Topbar({ onNewInvoice, onExport, onDrafts }: TopbarProps) {
               {privacyMode ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
               {privacyMode ? 'Beträge einblenden' : 'Beträge ausblenden'}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={toggleDark}>
-              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              {darkMode ? 'Helles Design' : 'Dunkles Design'}
+            <DropdownMenuItem onSelect={cycleTheme}>
+              {themeMode === 'auto' ? <SunMoon className="h-4 w-4" />
+                : themeMode === 'dark' ? <Moon className="h-4 w-4" />
+                  : <Sun className="h-4 w-4" />}
+              {themeMode === 'auto' ? 'Design: System' : themeMode === 'dark' ? 'Design: Dunkel' : 'Design: Hell'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

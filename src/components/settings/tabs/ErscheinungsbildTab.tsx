@@ -4,6 +4,9 @@ import {
   Settings as SettingsIcon, HelpCircle, CalendarDays, Users, Car, Landmark,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { FormGroup, FormRow } from '@/components/ui/form-list';
+import { Segmented } from '@/components/ui/segmented';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useAppStore } from '@/store';
@@ -26,9 +29,9 @@ const NAV_ITEMS_CONFIG = [
   { to: '/help', label: 'Hilfe', icon: HelpCircle },
 ];
 
-interface ErscheinungsbildTabProps {
-  toggleDark: () => void;
-}
+/* Die Farbgebung steuert der Tab selbst über den Store – früher kam sie als
+   Funktion von außen herein, als es nur An und Aus gab. */
+type ErscheinungsbildTabProps = Record<string, never>;
 
 function ThemeButton({ id: _id, label, desc, active, onClick, children }: {
   id: string; label: string; desc: string; active: boolean; onClick: () => void; children: React.ReactNode;
@@ -44,7 +47,7 @@ function ThemeButton({ id: _id, label, desc, active, onClick, children }: {
   );
 }
 
-export function ErscheinungsbildTab({ toggleDark }: ErscheinungsbildTabProps) {
+export function ErscheinungsbildTab({}: ErscheinungsbildTabProps) {
   const darkMode = useAppStore((s) => s.darkMode);
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
@@ -54,15 +57,153 @@ export function ErscheinungsbildTab({ toggleDark }: ErscheinungsbildTabProps) {
   const toggleNavItem = useAppStore((s) => s.toggleNavItem);
   const showGlossarTooltips = useAppStore((s) => s.showGlossarTooltips);
   const setShowGlossarTooltips = useAppStore((s) => s.setShowGlossarTooltips);
+  const isMobile = useIsMobile();
+  const themeMode = useAppStore((s) => s.themeMode);
+  const setThemeMode = useAppStore((s) => s.setThemeMode);
+
+  /* Drei Möglichkeiten, also ein Schalter mit drei Feldern statt eines
+     An/Aus-Schalters: „Automatisch" folgt dem System, das seinerseits oft
+     nach Tageszeit wechselt. */
+  const modeSwitch = (
+    <Segmented
+      value={themeMode}
+      onChange={(mode) => {
+        setThemeMode(mode);
+        document.documentElement.classList.toggle('dark', useAppStore.getState().darkMode);
+      }}
+      options={[
+        { value: 'light' as const, label: 'Hell' },
+        { value: 'dark' as const, label: 'Dunkel' },
+        { value: 'auto' as const, label: 'System' },
+      ]}
+    />
+  );
+
+  /* Der Themenwaehler ist auf beiden Geraeten derselbe – am Rechner in
+     der Karte, auf dem Handy unter einer Abschnittsueberschrift. */
+  const themeGrid = (
+        <div className="grid grid-cols-2 gap-3">
+          <ThemeButton id="default" label="Standard" desc="Klar und zurückhaltend" active={theme === 'default'} onClick={() => setTheme('default' as AppTheme)}>
+            <div className="mb-2 h-16 rounded-lg overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex flex-col gap-1 p-2">
+              <div className="h-2 w-3/4 rounded bg-zinc-900 dark:bg-zinc-100 opacity-80" />
+              <div className="h-2 w-1/2 rounded bg-zinc-300 dark:bg-zinc-600" />
+              <div className="mt-1 h-6 w-full rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700" />
+            </div>
+          </ThemeButton>
+
+          <ThemeButton id="apple26" label="Apple UI Kit 26" desc="iOS 26 – große Titel, schwebende Leiste" active={theme === 'apple26'} onClick={() => setTheme('apple26' as AppTheme)}>
+            <div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2" style={{ background: darkMode ? '#000000' : '#F2F2F7', border: darkMode ? '1px solid rgba(84,84,88,0.6)' : '1px solid rgba(60,60,67,0.2)' }}>
+              <div className="h-2 w-2/3 rounded-full" style={{ background: darkMode ? '#FFFFFF' : '#000000', opacity: 0.85 }} />
+              <div className="h-4 w-full rounded-lg" style={{ background: darkMode ? '#1C1C1E' : '#FFFFFF', boxShadow: darkMode ? 'none' : '0 1px 2px rgba(0,0,0,0.06)' }} />
+              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: darkMode ? 'rgba(30,30,32,0.8)' : 'rgba(255,255,255,0.8)', border: darkMode ? '0.5px solid rgba(255,255,255,0.12)' : '0.5px solid rgba(255,255,255,0.7)', boxShadow: '0 4px 12px rgba(0,0,0,0.18)' }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: darkMode ? '#0A84FF' : '#007AFF' }} />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: darkMode ? 'rgba(235,235,245,0.4)' : 'rgba(60,60,67,0.35)' }} />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: darkMode ? 'rgba(235,235,245,0.4)' : 'rgba(60,60,67,0.35)' }} />
+              </div>
+            </div>
+          </ThemeButton>
+
+          <ThemeButton id="oneui" label="One UI 9" desc="Samsung – Titel unten, weiche Kacheln" active={theme === 'oneui'} onClick={() => setTheme('oneui' as AppTheme)}>
+            <div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col justify-end gap-1 p-2" style={{ background: darkMode ? '#010102' : '#F1F1F3', border: darkMode ? '1px solid #3A3A3D' : '1px solid #E4E4E7' }}>
+              {/* One UI: großer Titel sitzt tief, Inhalt darunter in weichen Kacheln */}
+              <div className="h-2.5 w-1/2 rounded-full" style={{ background: darkMode ? '#FFFFFF' : '#000000', opacity: 0.9 }} />
+              <div className="h-5 w-full rounded-[10px]" style={{ background: darkMode ? '#17171A' : '#FCFCFF' }} />
+              <div className="absolute right-2 top-2 h-3 w-6 rounded-full" style={{ background: darkMode ? '#598FFF' : '#387AFF' }} />
+            </div>
+          </ThemeButton>
+
+          <ThemeButton id="liquid-glass" label="Liquid Glass" desc="Apple UI Kit mit Glasflächen" active={theme === 'liquid-glass'} onClick={() => setTheme('liquid-glass' as AppTheme)}>
+            <div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2" style={{ background: darkMode ? 'linear-gradient(135deg, oklch(0.18 0.04 265) 0%, oklch(0.14 0.03 200) 100%)' : 'linear-gradient(135deg, oklch(0.88 0.06 265) 0%, oklch(0.92 0.04 200) 100%)' }}>
+              <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(circle at 30% 30%, oklch(0.75 0.18 265 / 40%), transparent 60%)' }} />
+              <div className="relative h-2 w-3/4 rounded-full" style={{ background: darkMode ? 'oklch(0.95 0 0 / 80%)' : 'oklch(0.15 0 0 / 70%)' }} />
+              <div className="relative mt-1 h-6 w-full rounded-xl" style={{ background: darkMode ? 'oklch(1 0 0 / 8%)' : 'oklch(1 0 0 / 55%)', backdropFilter: 'blur(8px)', border: darkMode ? '1px solid oklch(1 0 0 / 12%)' : '1px solid oklch(1 0 0 / 40%)' }} />
+            </div>
+          </ThemeButton>
+
+          <ThemeButton id="windows11" label="Windows 11" desc="Fluent Design, Mica und Akzentblau" active={theme === 'windows11'} onClick={() => setTheme('windows11' as AppTheme)}>
+            <div className="mb-2 h-16 rounded-lg overflow-hidden flex gap-1 p-2" style={{ background: darkMode ? '#202020' : '#F3F3F3', border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E5E5E5' }}>
+              {/* Fluent: linke Navigationsspalte mit senkrechtem Auswahlbalken */}
+              <div className="flex w-1/4 flex-col gap-1 pt-0.5">
+                <div className="flex items-center gap-0.5">
+                  <span className="h-2 w-[2px] rounded-full" style={{ background: darkMode ? '#60CDFF' : '#0067C0' }} />
+                  <span className="h-1.5 flex-1 rounded" style={{ background: darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.55)' }} />
+                </div>
+                <span className="ml-1 h-1.5 w-full rounded" style={{ background: darkMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }} />
+              </div>
+              <div className="flex flex-1 flex-col gap-1">
+                <div className="h-2 w-3/4 rounded" style={{ background: darkMode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)' }} />
+                <div className="mt-auto h-5 w-full rounded-[7px]" style={{ background: darkMode ? '#2B2B2B' : '#FFFFFF', border: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(0,0,0,0.06)' }} />
+              </div>
+            </div>
+          </ThemeButton>
+        </div>
+  );
+
+  // ── Handy: Schalter in Zeilen, Themen als Kacheln, Navigation als Liste ──
+  // Beschriftung mit Erklaerung darunter und der Schalter weit rechts – das
+  // ist die Form, in der Telefone Einstellungen zeigen. Vorher standen die
+  // drei Schalter in einer Karte mit viel Luft dazwischen.
+  if (isMobile) {
+    return (
+      <div className="space-y-8">
+        <section className="space-y-2">
+          <h2 data-list-title className="px-4 text-[13px] font-medium text-muted-foreground">Farbgebung</h2>
+          {modeSwitch}
+          <p className="px-4 text-[13px] leading-snug text-muted-foreground">
+            „System" übernimmt die Einstellung des Telefons – auch, wenn sie dort nach Tageszeit wechselt.
+          </p>
+        </section>
+
+        <FormGroup title="Erscheinungsbild">
+          <FormRow label="Animationen">
+            <Switch checked={animations} onCheckedChange={setAnimations} aria-label="UI Animationen" />
+          </FormRow>
+          <FormRow label="Erklärungssymbole">
+            <Switch
+              checked={showGlossarTooltips}
+              onCheckedChange={setShowGlossarTooltips}
+              aria-label="Erklärungssymbole"
+            />
+          </FormRow>
+        </FormGroup>
+
+        <section className="space-y-2">
+          <h2 data-list-title className="px-4 text-[13px] font-medium text-muted-foreground">Theme</h2>
+          {themeGrid}
+        </section>
+
+        <FormGroup
+          title="Navigation"
+          footer="Bestimmt, welche Einträge in der Navigation erscheinen. Die Einstellungen bleiben immer sichtbar."
+        >
+          {NAV_ITEMS_CONFIG.map(({ to, label }) => (
+            <FormRow key={to} label={label}>
+              <Switch
+                checked={!hiddenNavItems.includes(to)}
+                disabled={to === '/settings'}
+                onCheckedChange={() => toggleNavItem(to)}
+                aria-label={`${label} in der Navigation anzeigen`}
+              />
+            </FormRow>
+          ))}
+        </FormGroup>
+      </div>
+    );
+  }
 
   return (
     <>
       <Card className="rounded-xl shadow-sm" data-tutorial="settings-appearance">
         <CardHeader><CardTitle className="text-base">Erscheinungsbild</CardTitle></CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div><Label>Dark Mode</Label><p className="text-xs text-muted-foreground">Dunkles Farbschema aktivieren</p></div>
-            <Switch checked={darkMode} onCheckedChange={toggleDark} aria-label="Dark Mode" />
+          <div className="space-y-2">
+            <div>
+              <Label>Farbgebung</Label>
+              <p className="text-xs text-muted-foreground">
+                „System" übernimmt die Einstellung des Betriebssystems – auch, wenn sie dort nach Tageszeit wechselt.
+              </p>
+            </div>
+            {modeSwitch}
           </div>
           <div className="flex items-center justify-between">
             <div><Label>UI Animationen</Label><p className="text-xs text-muted-foreground">Hover-Effekte, Karten-Lift, Seiten-Übergänge u.v.m.</p></div>
@@ -81,61 +222,7 @@ export function ErscheinungsbildTab({ toggleDark }: ErscheinungsbildTabProps) {
           </div>
           <div className="space-y-3">
             <div><Label>Theme</Label><p className="text-xs text-muted-foreground">Wähle das visuelle Design der App</p></div>
-            <div className="grid grid-cols-2 gap-3">
-              <ThemeButton id="default" label="Standard" desc="Klar und zurückhaltend" active={theme === 'default'} onClick={() => setTheme('default' as AppTheme)}>
-                <div className="mb-2 h-16 rounded-lg overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex flex-col gap-1 p-2">
-                  <div className="h-2 w-3/4 rounded bg-zinc-900 dark:bg-zinc-100 opacity-80" />
-                  <div className="h-2 w-1/2 rounded bg-zinc-300 dark:bg-zinc-600" />
-                  <div className="mt-1 h-6 w-full rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700" />
-                </div>
-              </ThemeButton>
-
-              <ThemeButton id="apple26" label="Apple UI Kit 26" desc="iOS 26 – große Titel, schwebende Leiste" active={theme === 'apple26'} onClick={() => setTheme('apple26' as AppTheme)}>
-                <div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2" style={{ background: darkMode ? '#000000' : '#F2F2F7', border: darkMode ? '1px solid rgba(84,84,88,0.6)' : '1px solid rgba(60,60,67,0.2)' }}>
-                  <div className="h-2 w-2/3 rounded-full" style={{ background: darkMode ? '#FFFFFF' : '#000000', opacity: 0.85 }} />
-                  <div className="h-4 w-full rounded-lg" style={{ background: darkMode ? '#1C1C1E' : '#FFFFFF', boxShadow: darkMode ? 'none' : '0 1px 2px rgba(0,0,0,0.06)' }} />
-                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: darkMode ? 'rgba(30,30,32,0.8)' : 'rgba(255,255,255,0.8)', border: darkMode ? '0.5px solid rgba(255,255,255,0.12)' : '0.5px solid rgba(255,255,255,0.7)', boxShadow: '0 4px 12px rgba(0,0,0,0.18)' }}>
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: darkMode ? '#0A84FF' : '#007AFF' }} />
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: darkMode ? 'rgba(235,235,245,0.4)' : 'rgba(60,60,67,0.35)' }} />
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: darkMode ? 'rgba(235,235,245,0.4)' : 'rgba(60,60,67,0.35)' }} />
-                  </div>
-                </div>
-              </ThemeButton>
-
-              <ThemeButton id="oneui" label="One UI 9" desc="Samsung – Titel unten, weiche Kacheln" active={theme === 'oneui'} onClick={() => setTheme('oneui' as AppTheme)}>
-                <div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col justify-end gap-1 p-2" style={{ background: darkMode ? '#010102' : '#F1F1F3', border: darkMode ? '1px solid #3A3A3D' : '1px solid #E4E4E7' }}>
-                  {/* One UI: großer Titel sitzt tief, Inhalt darunter in weichen Kacheln */}
-                  <div className="h-2.5 w-1/2 rounded-full" style={{ background: darkMode ? '#FFFFFF' : '#000000', opacity: 0.9 }} />
-                  <div className="h-5 w-full rounded-[10px]" style={{ background: darkMode ? '#17171A' : '#FCFCFF' }} />
-                  <div className="absolute right-2 top-2 h-3 w-6 rounded-full" style={{ background: darkMode ? '#598FFF' : '#387AFF' }} />
-                </div>
-              </ThemeButton>
-
-              <ThemeButton id="liquid-glass" label="Liquid Glass" desc="Apple UI Kit mit Glasflächen" active={theme === 'liquid-glass'} onClick={() => setTheme('liquid-glass' as AppTheme)}>
-                <div className="mb-2 h-16 rounded-lg overflow-hidden relative flex flex-col gap-1 p-2" style={{ background: darkMode ? 'linear-gradient(135deg, oklch(0.18 0.04 265) 0%, oklch(0.14 0.03 200) 100%)' : 'linear-gradient(135deg, oklch(0.88 0.06 265) 0%, oklch(0.92 0.04 200) 100%)' }}>
-                  <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(circle at 30% 30%, oklch(0.75 0.18 265 / 40%), transparent 60%)' }} />
-                  <div className="relative h-2 w-3/4 rounded-full" style={{ background: darkMode ? 'oklch(0.95 0 0 / 80%)' : 'oklch(0.15 0 0 / 70%)' }} />
-                  <div className="relative mt-1 h-6 w-full rounded-xl" style={{ background: darkMode ? 'oklch(1 0 0 / 8%)' : 'oklch(1 0 0 / 55%)', backdropFilter: 'blur(8px)', border: darkMode ? '1px solid oklch(1 0 0 / 12%)' : '1px solid oklch(1 0 0 / 40%)' }} />
-                </div>
-              </ThemeButton>
-
-              <ThemeButton id="windows11" label="Windows 11" desc="Fluent Design, Mica und Akzentblau" active={theme === 'windows11'} onClick={() => setTheme('windows11' as AppTheme)}>
-                <div className="mb-2 h-16 rounded-lg overflow-hidden flex gap-1 p-2" style={{ background: darkMode ? '#202020' : '#F3F3F3', border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E5E5E5' }}>
-                  {/* Fluent: linke Navigationsspalte mit senkrechtem Auswahlbalken */}
-                  <div className="flex w-1/4 flex-col gap-1 pt-0.5">
-                    <div className="flex items-center gap-0.5">
-                      <span className="h-2 w-[2px] rounded-full" style={{ background: darkMode ? '#60CDFF' : '#0067C0' }} />
-                      <span className="h-1.5 flex-1 rounded" style={{ background: darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.55)' }} />
-                    </div>
-                    <span className="ml-1 h-1.5 w-full rounded" style={{ background: darkMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }} />
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1">
-                    <div className="h-2 w-3/4 rounded" style={{ background: darkMode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)' }} />
-                    <div className="mt-auto h-5 w-full rounded-[7px]" style={{ background: darkMode ? '#2B2B2B' : '#FFFFFF', border: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(0,0,0,0.06)' }} />
-                  </div>
-                </div>
-              </ThemeButton>
-            </div>
+            {themeGrid}
           </div>
         </CardContent>
       </Card>

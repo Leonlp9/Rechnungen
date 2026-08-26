@@ -15,14 +15,21 @@ getDb().catch(console.error);
 // Clean up invoice temp files older than 1 day on startup (all files there are temporary)
 invoke('cleanup_old_invoice_files', { days: 1 }).catch(() => {});
 
-// Apply persisted dark mode BEFORE first render to avoid flash
+// Farbgebung vor dem ersten Bild setzen, sonst blitzt kurz die falsche auf.
+// Im Modus „Automatisch" zählt, was das System gerade möchte – der zuletzt
+// gespeicherte Wert kann über Nacht veraltet sein.
 try {
   const stored = localStorage.getItem('Klevr-settings');
   if (stored) {
-    const parsed = JSON.parse(stored) as { state?: { darkMode?: boolean } };
-    if (parsed?.state?.darkMode) {
-      document.documentElement.classList.add('dark');
-    }
+    const parsed = JSON.parse(stored) as { state?: { darkMode?: boolean; themeMode?: string } };
+    const mode = parsed?.state?.themeMode;
+    const dark = mode === 'auto'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : mode === 'dark' || (mode === undefined && parsed?.state?.darkMode);
+    if (dark) document.documentElement.classList.add('dark');
+  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    // Erster Start: dem System folgen.
+    document.documentElement.classList.add('dark');
   }
 } catch { /* ignore */ }
 

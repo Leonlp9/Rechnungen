@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { FormGroup, FormRow, FIELD, FIELD_SELECT } from '@/components/ui/form-list';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -31,6 +33,7 @@ import {
 } from '@/lib/sync';
 
 export function SyncTab() {
+  const isMobile = useIsMobile();
   const [config, setConfig] = useState<SyncConfig | null>(null);
   const [webdavPassword, setWebdavPassword] = useState('');
   const [passphrase, setPassphrase] = useState('');
@@ -106,6 +109,187 @@ export function SyncTab() {
       toast.error(`Google-Anmeldung fehlgeschlagen: ${e instanceof Error ? e.message : e}`);
     }
   };
+
+  // ── Handy: eine Gruppe je Thema statt einer langen Karte ──
+  // Speicherort, Zugangsdaten, Verschlüsselung und Zeitplan sind vier
+  // verschiedene Dinge; auf dem Telefon stehen sie deshalb in vier Gruppen
+  // mit Beschriftung links und Wert rechts. Die Aktionen darunter sind breit
+  // genug für den Daumen.
+  if (isMobile) {
+    return (
+      <div className="space-y-8">
+        <FormGroup
+          title="Cloud-Synchronisation"
+          footer="Der Speicher gehört dir – es gibt keinen Klevr-Server. Es wird nie etwas überschrieben: Änderungen sind nur-anfügend, gelöschte Dateien wandern in den Papierkorb-Ordner."
+        >
+          <FormRow label="Speicherort">
+            <Select value={config.kind} onValueChange={(v) => update({ kind: v as SyncProviderKind })}>
+              <SelectTrigger className={FIELD_SELECT}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Kein Sync</SelectItem>
+                <SelectItem value="local">Ordner</SelectItem>
+                <SelectItem value="webdav">WebDAV</SelectItem>
+                <SelectItem value="gdrive">Google Drive</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormRow>
+          {status.lastSync && (
+            <FormRow label="Zuletzt">
+              <span className="text-[15px] text-muted-foreground">
+                {new Date(status.lastSync).toLocaleString('de-DE')}
+              </span>
+            </FormRow>
+          )}
+        </FormGroup>
+
+        {config.kind === 'local' && (
+          <FormGroup
+            title="Ordner"
+            footer="Am besten ein Ordner, den ein Cloud-Dienst mitsynchronisiert – dann läuft der Abgleich über diesen Anbieter."
+          >
+            <FormRow label="Pfad">
+              <input
+                className={FIELD}
+                value={config.localBase ?? ''}
+                onChange={(e) => update({ localBase: e.target.value })}
+                placeholder="Ordner wählen"
+              />
+              <button
+                type="button"
+                onClick={handlePickFolder}
+                aria-label="Ordner wählen"
+                className="ml-2 shrink-0 text-muted-foreground active:opacity-60"
+              >
+                <FolderOpen className="h-[18px] w-[18px]" />
+              </button>
+            </FormRow>
+          </FormGroup>
+        )}
+
+        {config.kind === 'webdav' && (
+          <FormGroup title="WebDAV" footer="Das Passwort wird sicher gespeichert.">
+            <FormRow label="Adresse">
+              <input
+                className={FIELD}
+                value={config.webdavUrl ?? ''}
+                onChange={(e) => update({ webdavUrl: e.target.value })}
+                placeholder="https://cloud.example.com/…"
+              />
+            </FormRow>
+            <FormRow label="Benutzer">
+              <input
+                className={FIELD}
+                value={config.webdavUser ?? ''}
+                onChange={(e) => update({ webdavUser: e.target.value })}
+                placeholder="Benutzername"
+              />
+            </FormRow>
+            <FormRow label="Passwort">
+              <input
+                className={FIELD}
+                type="password"
+                value={webdavPassword}
+                onChange={(e) => setWebdavPassword(e.target.value)}
+                placeholder="App-Passwort"
+              />
+            </FormRow>
+          </FormGroup>
+        )}
+
+        {config.kind === 'gdrive' && (
+          <div className="space-y-3">
+            <Button variant="secondary" className="h-11 w-full text-[17px]" onClick={handleConnectDrive}>
+              {driveConnected ? <CheckCircle2 className="mr-2 h-4 w-4" /> : <Cloud className="mr-2 h-4 w-4" />}
+              {driveConnected ? 'Google Drive neu verbinden' : 'Mit Google Drive verbinden'}
+            </Button>
+            <p className="px-4 text-[13px] leading-snug text-muted-foreground">
+              Die App sieht ausschließlich ihre eigenen Sync-Dateien (Ordner „KlevrSync") – keine anderen Drive-Inhalte.
+            </p>
+          </div>
+        )}
+
+        {config.kind !== 'none' && (
+          <>
+            <FormGroup
+              title="Sicherheit"
+              footer={config.encrypted ? 'Ohne diese Passphrase sind die Sync-Daten unlesbar – gut aufbewahren!' : 'Bei Cloud-Anbietern empfohlen.'}
+            >
+              <FormRow label="Verschlüsselung">
+                <Switch
+                  checked={config.encrypted}
+                  onCheckedChange={(v) => update({ encrypted: v })}
+                  aria-label="Ende-zu-Ende-Verschlüsselung"
+                />
+              </FormRow>
+              {config.encrypted && (
+                <FormRow label="Passphrase">
+                  <input
+                    className={FIELD}
+                    type="password"
+                    value={passphrase}
+                    onChange={(e) => setPassphrase(e.target.value)}
+                    placeholder="auf allen Geräten gleich"
+                  />
+                </FormRow>
+              )}
+            </FormGroup>
+
+            <FormGroup title="Zeitplan">
+              <FormRow label="Automatisch">
+                <Switch
+                  checked={config.autoSync}
+                  onCheckedChange={(v) => update({ autoSync: v })}
+                  aria-label="Automatisch synchronisieren"
+                />
+              </FormRow>
+              {config.autoSync && (
+                <FormRow label="Alle">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={2}
+                    className={FIELD}
+                    value={config.intervalMin}
+                    onChange={(e) => update({ intervalMin: Math.max(2, Number(e.target.value) || 10) })}
+                  />
+                  <span className="ml-1 shrink-0 text-[17px] text-muted-foreground">Min.</span>
+                </FormRow>
+              )}
+            </FormGroup>
+          </>
+        )}
+
+        <div className="space-y-3">
+          <Button className="h-[50px] w-full text-[17px] font-semibold" onClick={handleSave} disabled={saving}>
+            {saving ? 'Speichere …' : 'Speichern'}
+          </Button>
+          {config.kind !== 'none' && (
+            <>
+              <Button variant="secondary" className="h-11 w-full text-[17px]" onClick={handleTest} disabled={testing}>
+                {testing ? 'Teste …' : 'Verbindung testen'}
+              </Button>
+              <Button
+                variant="secondary"
+                className="h-11 w-full text-[17px]"
+                disabled={status.running}
+                onClick={() => void syncNow()}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${status.running ? 'animate-spin' : ''}`} />
+                {status.running ? status.message || 'Synchronisiere …' : 'Jetzt synchronisieren'}
+              </Button>
+            </>
+          )}
+        </div>
+
+        {status.lastError && (
+          <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-[13px] text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            {status.lastError}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>

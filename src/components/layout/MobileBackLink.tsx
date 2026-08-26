@@ -88,7 +88,7 @@ export interface CollapseState {
  * Auch von Seiten genutzt, die ihre Kopfzeile selbst mitbringen
  * (Einstellungen) – so verhalten sich beide gleich.
  */
-export function useCollapsingHeader(dep?: unknown): CollapseState {
+export function useCollapsingHeader(dep?: unknown, startExpanded = false): CollapseState {
   const [state, setState] = useState<CollapseState>({ stage: 'expanded', progress: 1, hasTitle: false });
   const snapEnabled = useAppStore((s) => s.theme === 'oneui');
   const smooth = useAppStore((s) => s.animations);
@@ -101,15 +101,13 @@ export function useCollapsingHeader(dep?: unknown): CollapseState {
     if (!main) return null;
     const scroller = findScroller(main);
     const header = main.querySelector<HTMLElement>('[data-page-header]');
-    // Die Strecke, über die eingeklappt wird: die Höhe der großen
-    // Überschrift. Ohne Überschrift gibt es nichts einzuklappen.
-    // Mit großer Überschrift ist die Einklappstrecke deren Höhe. Ohne eine
-    // solche (ein Beleg etwa) reicht die Höhe der Leiste: Über diese kurze
-    // Strecke wandert der kleine Titel nach oben aus dem Bild, während der
-    // Pfeil oben stehen bleibt.
+    // Die Strecke, über die eingeklappt wird, ist die Höhe der großen
+    // Überschrift. Seiten ohne eine solche (ein Beleg etwa) klappen gar
+    // nicht ein: Dort stehen Pfeil und kleiner Titel von Anfang an, und ein
+    // aufgeklappter Zustand wäre nur ein leeres Feld über dem Inhalt.
     const wanted = header
       ? Math.max(header.offsetHeight + parseFloat(getComputedStyle(header).marginBottom || '0'), 1)
-      : 44;
+      : 0;
     // Eine kurze Seite (ein knapper Hilfeartikel) kann gar nicht so weit
     // scrollen. Dann läuft der Übergang über die Strecke, die sie hergibt –
     // sonst bliebe er auf halbem Weg stehen und der kleine Titel stünde
@@ -134,6 +132,8 @@ export function useCollapsingHeader(dep?: unknown): CollapseState {
       if (!m) return;
       const top = m.scroller.scrollTop;
       const progress = m.distance > 0 ? Math.min(1, Math.max(0, top / m.distance)) : 0;
+      // Ohne Einklappstrecke gibt es nur zwei Zustände: ganz oben, oder
+      // Inhalt läuft darunter durch (dann schwebt nur noch der runde Knopf).
       const stage: Stage =
         top > m.distance + FLOATING_AFTER ? 'floating' : progress >= 0.999 ? 'compact' : 'expanded';
       // Der Fortschritt muss auch die große Überschrift erreichen, und die
@@ -182,7 +182,7 @@ export function useCollapsingHeader(dep?: unknown): CollapseState {
     // Strecke – der kleine Titel steht halb durchsichtig da. Deshalb wird
     // die Position nachgezogen, solange sie noch von uns stammt.
     const openCollapsed = () => {
-      if (!snapEnabled) return;
+      if (!snapEnabled || startExpanded) return;
       const m = measure();
       if (!m || m.distance <= 0) return;
       const top = m.scroller.scrollTop;
@@ -227,7 +227,7 @@ export function useCollapsingHeader(dep?: unknown): CollapseState {
       observer.disconnect();
       if (frame.current) cancelAnimationFrame(frame.current);
     };
-  }, [dep, measure, snapEnabled, smooth]);
+  }, [dep, measure, snapEnabled, smooth, startExpanded]);
 
   return state;
 }
@@ -236,17 +236,20 @@ export function MobileBackLink({
   target,
   current,
   hasTitle: hasTitleProp,
+  startExpanded,
   onSlotReady,
   onBack,
 }: PageBar & {
   hasTitle?: boolean;
+  /** Seite öffnet mit großem Titel, statt gleich eingeklappt zu starten */
+  startExpanded?: boolean;
   /** Meldet den Platzhalter für die Aktionen zurück (siehe PageHeader) */
   onSlotReady?: (el: HTMLElement | null) => void;
   /** Eigener Weg zurück – z. B. Unterseiten, die die Seite selbst verwaltet */
   onBack?: () => void;
 }) {
   const navigate = useNavigate();
-  const { stage, progress, hasTitle: detected } = useCollapsingHeader(current);
+  const { stage, progress, hasTitle: detected } = useCollapsingHeader(current, startExpanded);
   const hasTitle = hasTitleProp ?? detected;
 
   return (

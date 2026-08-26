@@ -213,6 +213,26 @@ jobs:
           perl -0pi -e 's|<activity(?![^>]*screenOrientation)|<activity android:screenOrientation="portrait"|g' "$MANIFEST"
           cat "$MANIFEST"
 
+      - name: Systemleisten an den Hell-/Dunkelmodus koppeln
+        shell: bash
+        run: |
+          # Die App zeichnet bis unter die Statusleiste, deren Symbole malt
+          # aber weiter das System. Ohne diese Angabe bleiben sie immer hell –
+          # auf hellem Grund sieht man dann oben schlicht nichts.
+          #
+          # `windowLightStatusBar` heißt "heller Hintergrund, also dunkle
+          # Symbole". Der Wert steht in der Tag-Fassung des Themes; die
+          # Nacht-Fassung (values-night) dreht ihn um. Damit folgen die
+          # Symbole dem Hell-/Dunkelmodus des Telefons – und die App tut das
+          # im Modus „Automatisch" ebenfalls.
+          RES="src-tauri/gen/android/app/src/main/res"
+          THEMES="$RES/values/themes.xml"
+          perl -0pi -e 's|(<style name="AppTheme"[^>]*>)|$1\n        <item name="android:windowLightStatusBar">true</item>\n        <item name="android:windowLightNavigationBar">true</item>|' "$THEMES"
+          mkdir -p "$RES/values-night"
+          sed 's|>true<|>false<|g' "$THEMES" > "$RES/values-night/themes.xml"
+          cat "$THEMES"
+          cat "$RES/values-night/themes.xml"
+
       - name: Build APK
         run: npx tauri android build --apk --target aarch64 --target armv7
 

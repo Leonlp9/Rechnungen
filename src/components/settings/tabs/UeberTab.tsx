@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Code2, ExternalLink, GitBranch, RefreshCw, Trash2 } from 'lucide-react';
+import { Code2, ExternalLink, GitBranch, RefreshCw, Trash2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { toast } from 'sonner';
 import { checkForUpdates } from '@/lib/updater';
 
@@ -14,6 +16,71 @@ interface UeberTabProps {
 }
 
 export function UeberTab({ version, checkingUpdate, setCheckingUpdate, clearingCache, setClearingCache }: UeberTabProps) {
+  const isMobile = useIsMobile();
+
+  const clearCache = async () => {
+    setClearingCache(true);
+    try {
+      const deleted = await invoke<number>('cleanup_old_invoice_files', { days: 0 });
+      toast.success(deleted > 0 ? `Cache geleert – ${deleted} Datei${deleted === 1 ? '' : 'en'} gelöscht` : 'Cache ist bereits leer');
+    } catch (e) {
+      toast.error('Fehler beim Leeren des Caches: ' + String(e));
+    } finally {
+      setClearingCache(false);
+    }
+  };
+
+  // ── Handy: Zeilen statt Karte ──
+  // Version, Entwickler und Verweise sind Angaben zum Nachschlagen – auf dem
+  // Telefon stehen die in Zeilen mit Wert rechts, nicht als Textblöcke.
+  if (isMobile) {
+    return (
+      <div className="space-y-8">
+        <ListGroup title="App">
+          <ListRow icon={<Code2 />} tint="blue" label="Klevr" value={version ? `v${version}` : '…'} noChevron />
+          <ListRow label="Technik" value="Tauri · React · SQLite" noChevron />
+        </ListGroup>
+
+        <ListGroup title="Entwickler">
+          <ListRow icon={<User />} tint="gray" label="Leon Rabe" hint="Softwareentwicklung · Freelancer" noChevron />
+        </ListGroup>
+
+        <ListGroup title="Verweise">
+          <ListRow
+            icon={<GitBranch />}
+            tint="purple"
+            label="Quelltext"
+            hint="github.com/Leonlp9/Rechnungen"
+            onClick={() => window.open('https://github.com/Leonlp9/Rechnungen', '_blank', 'noopener')}
+          />
+          <ListRow
+            icon={<ExternalLink />}
+            tint="indigo"
+            label="Entwicklerprofil"
+            hint="github.com/Leonlp9"
+            onClick={() => window.open('https://github.com/Leonlp9', '_blank', 'noopener')}
+          />
+        </ListGroup>
+
+        <div className="space-y-3">
+          <Button
+            variant="secondary"
+            className="h-11 w-full text-[17px]"
+            onClick={async () => { setCheckingUpdate(true); await checkForUpdates(false); setCheckingUpdate(false); }}
+            disabled={checkingUpdate}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${checkingUpdate ? 'animate-spin' : ''}`} />
+            {checkingUpdate ? 'Suche…' : 'Nach Updates suchen'}
+          </Button>
+          <Button variant="secondary" className="h-11 w-full text-[17px]" onClick={clearCache} disabled={clearingCache}>
+            <Trash2 className={`mr-2 h-4 w-4 ${clearingCache ? 'animate-spin' : ''}`} />
+            {clearingCache ? 'Leere…' : 'Cache leeren'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card className="rounded-xl shadow-sm">
       <CardHeader><CardTitle className="text-base">Über</CardTitle></CardHeader>
@@ -47,14 +114,7 @@ export function UeberTab({ version, checkingUpdate, setCheckingUpdate, clearingC
           <Button variant="outline" onClick={async () => { setCheckingUpdate(true); await checkForUpdates(false); setCheckingUpdate(false); }} disabled={checkingUpdate}>
             <RefreshCw className={`mr-2 h-4 w-4 ${checkingUpdate ? 'animate-spin' : ''}`} />{checkingUpdate ? 'Suche...' : 'Nach Updates suchen'}
           </Button>
-          <Button variant="outline" onClick={async () => {
-            setClearingCache(true);
-            try {
-              const deleted = await invoke<number>('cleanup_old_invoice_files', { days: 0 });
-              toast.success(deleted > 0 ? `Cache geleert – ${deleted} Datei${deleted === 1 ? '' : 'en'} gelöscht` : 'Cache ist bereits leer');
-            } catch (e) { toast.error('Fehler beim Leeren des Caches: ' + String(e)); }
-            finally { setClearingCache(false); }
-          }} disabled={clearingCache}>
+          <Button variant="outline" onClick={clearCache} disabled={clearingCache}>
             <Trash2 className={`mr-2 h-4 w-4 ${clearingCache ? 'animate-spin' : ''}`} />{clearingCache ? 'Leere...' : 'Cache leeren'}
           </Button>
         </div>

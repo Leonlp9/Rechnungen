@@ -35,10 +35,15 @@ interface PageHeaderProps {
    * also keinen Eintrag im Verlauf, zu dem man springen könnte).
    */
   back?: { label: string; onClick: () => void };
+  /**
+   * Öffnet die Seite mit großem Titel. One UI klappt Seiten sonst gleich ein
+   * – auf der Startseite eines Bereichs gehört der große Titel aber dazu.
+   */
+  startExpanded?: boolean;
   className?: string;
 }
 
-export function PageHeader({ title, subtitle, actions, back, className }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, back, startExpanded, className }: PageHeaderProps) {
   const isMobile = useIsMobile();
   const setPageHeaderMounted = useAppStore((s) => s.setPageHeaderMounted);
   const pageBar = usePageBar();
@@ -63,6 +68,7 @@ export function PageHeader({ title, subtitle, actions, back, className }: PageHe
       {...pageBar}
       {...(back ? { target: back.label, current: title, onBack: back.onClick } : null)}
       hasTitle
+      startExpanded={startExpanded}
       onSlotReady={(el) => setSlot(inBar ? el : null)}
     />
   ) : null;

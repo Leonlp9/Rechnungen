@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getSetting, setSetting } from '@/lib/db';
 import { getGeminiApiKey, saveGeminiApiKey } from '@/lib/gemini';
 import type { AuditLogEntry } from '@/lib/db';
@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { useAppStore } from '@/store';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
-import { User, Bot, Palette, DatabaseBackup, Info, Bug, Cloud } from 'lucide-react';
+import { User, Bot, Palette, DatabaseBackup, Info, Bug, Cloud, ChevronRight } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { BackupProgressOverlay } from '@/components/BackupProgressOverlay';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,7 @@ import { ProfilTab } from '@/components/settings/tabs/ProfilTab';
 import { PROFILE_FIELDS } from '@/components/settings/tabs/ProfilTab';
 import { KiTab } from '@/components/settings/tabs/KiTab';
 import { ErscheinungsbildTab } from '@/components/settings/tabs/ErscheinungsbildTab';
+import { BRANCHEN_LABELS } from '@/components/settings/tabs/ProfilTab';
 import { DatenTab } from '@/components/settings/tabs/DatenTab';
 import { SyncTab } from '@/components/settings/tabs/SyncTab';
 import { UeberTab } from '@/components/settings/tabs/UeberTab';
@@ -51,22 +52,59 @@ const TABS: SettingsTab[] = [
   { id: 'dev', label: 'Dev Debug', icon: Bug, devOnly: true, tint: 'yellow' },
 ];
 
+/**
+ * Aufteilung der Liste auf dem Handy. Telefone stellen ihre Einstellungen
+ * nicht als eine lange Kolonne dar, sondern als mehrere kurze Gruppen mit
+ * Luft dazwischen – so findet das Auge Halt. `profil` fehlt hier bewusst:
+ * Der Eintrag steht als Profilzeile darüber.
+ */
+const MOBILE_GROUPS: TabId[][] = [
+  ['ki'],
+  ['erscheinungsbild'],
+  ['daten', 'sync'],
+  ['ueber', 'dev'],
+];
+
 const TAB_IDS = TABS.map((t) => t.id);
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Deep-Link: /settings?tab=sync – u. a. vom Sync-Indikator genutzt
   const paramTab = searchParams.get('tab') as TabId | null;
   const isMobile = useIsMobile();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeTab, setActiveTabState] = useState<TabId>(
     paramTab && TAB_IDS.includes(paramTab) ? paramTab : 'profil',
   );
-  const setActiveTab = (id: TabId) => {
+
+  // Ob auf dem Handy eine Unterseite offen ist, steht in der Adresse und
+  // nicht in einem eigenen Zustand: Nur so bringt die Zurück-Geste des
+  // Systems (oder die Maustaste) einen wieder zur Liste, statt gleich die
+  // ganze Seite zu verlassen.
+  const mobileOpen = paramTab != null && TAB_IDS.includes(paramTab);
+  /** Merkt, ob der Eintrag im Verlauf von uns stammt – sonst kein Zurück. */
+  const pushedTab = useRef(false);
+
+  const setActiveTab = (id: TabId, push = false) => {
     setActiveTabState(id);
+    if (push) pushedTab.current = true;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tab', id);
+      return next;
+    }, { replace: !push });
+  };
+
+  /** Zurück zur Liste – über den Verlauf, wenn wir ihn selbst erweitert haben. */
+  const closeTab = () => {
+    if (pushedTab.current) {
+      pushedTab.current = false;
+      navigate(-1);
+      return;
+    }
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('tab');
       return next;
     }, { replace: true });
   };
@@ -90,8 +128,6 @@ export default function SettingsPage() {
   const setShowAiChat = useAppStore((s) => s.setShowAiChat);
 
   // Erscheinungsbild
-  const darkMode = useAppStore((s) => s.darkMode);
-  const setDarkMode = useAppStore((s) => s.setDarkMode);
 
   // Über
   const [version, setVersion] = useState('');
@@ -173,13 +209,29 @@ export default function SettingsPage() {
     catch (e) { toast.error('Fehler: ' + String(e)); } finally { setAiInstructionsSaving(false); }
   };
 
-  const toggleDark = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    document.documentElement.classList.toggle('dark', next);
-  };
+  const rechtsform = useAppStore((s) => s.rechtsform);
+  const branchenprofil = useAppStore((s) => s.branchenprofil);
 
   const visibleTabs = TABS.filter((t) => !t.devOnly || import.meta.env.DEV);
+
+  /* Die Profilzeile zeigt, was schon hinterlegt ist – und sagt sonst, was
+     dort hingehört. Die Initialen stehen im runden Feld, wie es beide
+     Systeme in ihren Einstellungen machen. */
+  const profileName = profile.profile_name?.trim() || 'Profil & Steuer';
+  const profileSubtitle = profile.profile_name?.trim()
+    ? [
+        profile.profile_city?.trim(),
+        rechtsform === 'freiberufler' ? 'Freiberufler' : 'Gewerbetreibend',
+        BRANCHEN_LABELS[branchenprofil],
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : 'Firmendaten, Steuerregelung und Bankverbindung';
+  const profileInitials = (profile.profile_name?.trim() || 'Klevr')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
   const activeIdx = visibleTabs.findIndex((t) => t.id === activeTab);
   const prevTab = activeIdx > 0 ? visibleTabs[activeIdx - 1] : null;
   const nextTab = activeIdx < visibleTabs.length - 1 ? visibleTabs[activeIdx + 1] : null;
@@ -214,7 +266,7 @@ export default function SettingsPage() {
       )}
 
       {activeTab === 'erscheinungsbild' && (
-        <ErscheinungsbildTab toggleDark={toggleDark} />
+        <ErscheinungsbildTab />
       )}
 
       {activeTab === 'daten' && (
@@ -271,20 +323,60 @@ export default function SettingsPage() {
         <div className="h-full overflow-y-auto px-4 pb-8" style={{ paddingBottom: 'var(--app-main-pb, 2rem)' }}>
           {/* Dieselbe Überschrift wie auf jeder anderen Seite – damit sitzt
               der Titel dort, wo das Theme ihn erwartet (One UI: mittig). */}
-          <PageHeader title="Einstellungen" className="mb-4" />
+          {/* Einzige Seite, die mit großem Titel startet: Hier ist er die
+              Überschrift des ganzen Bereichs, nicht nur einer Unterseite. */}
+          <PageHeader title="Einstellungen" startExpanded className="mb-4" />
           <div className="space-y-8">
+            {/* Ganz oben steht, wem die App gehört – so beginnen die
+                Einstellungen auf beiden Systemen. Die Zeile ist höher als
+                die übrigen und trägt statt eines Symbols ein rundes Feld
+                mit den Anfangsbuchstaben. */}
             <ListGroup>
-              {visibleTabs.map((tab) => (
-                <ListRow
-                  key={tab.id}
-                  tint={tab.tint}
-                  icon={<tab.icon />}
-                  label={tab.label}
-                  hint={tab.hint}
-                  onClick={() => { setActiveTab(tab.id); setMobileOpen(true); }}
-                />
-              ))}
+              <button
+                data-list-row
+                data-profile-row
+                type="button"
+                onClick={() => setActiveTab('profil', true)}
+                className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors active:bg-accent"
+              >
+                <span
+                  data-profile-avatar
+                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-primary/15 text-[19px] font-semibold text-primary"
+                >
+                  {profileInitials}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span data-profile-name className="block truncate text-[19px] font-semibold">
+                    {profileName}
+                  </span>
+                  <span data-profile-hint className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+                    {profileSubtitle}
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+              </button>
             </ListGroup>
+
+            {MOBILE_GROUPS.map((group, index) => {
+              const rows = group
+                .map((id) => visibleTabs.find((t) => t.id === id))
+                .filter((t): t is SettingsTab => t != null);
+              if (rows.length === 0) return null;
+              return (
+                <ListGroup key={index}>
+                  {rows.map((tab) => (
+                    <ListRow
+                      key={tab.id}
+                      tint={tab.tint}
+                      icon={<tab.icon />}
+                      label={tab.label}
+                      hint={tab.hint}
+                      onClick={() => setActiveTab(tab.id, true)}
+                    />
+                  ))}
+                </ListGroup>
+              );
+            })}
           </div>
         </div>
       );
@@ -300,7 +392,7 @@ export default function SettingsPage() {
           <div className="space-y-6" style={{ paddingBottom: 'var(--app-main-pb, 2rem)' }}>
             <PageHeader
               title={openTab?.label ?? 'Einstellungen'}
-              back={{ label: 'Einstellungen', onClick: () => setMobileOpen(false) }}
+              back={{ label: 'Einstellungen', onClick: closeTab }}
             />
             {tabContent}
           </div>

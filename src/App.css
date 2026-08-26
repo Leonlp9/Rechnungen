@@ -247,6 +247,16 @@
   input, textarea, [contenteditable] {
     user-select: text;
     }
+  /* Der Schreibzeiger braucht Platz an den Rändern. Felder schneiden ab,
+     was über ihren Inhaltsbereich hinausragt – steht der Zeiger ganz links
+     oder (bei rechtsbündigen Feldern) ganz rechts, fällt er genau in diesen
+     Schnitt und blinkt unsichtbar vor sich hin. Zwei Pixel genügen.
+     Bewusst in `base`: Felder mit eigenem Innenabstand (px-3 & Co.)
+     überschreiben den Wert, die randlosen Felder in Listenzeilen erben ihn. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea {
+    padding-inline: 2px;
+    }
 }
 
 /* ── Custom Scrollbars ── */
@@ -338,22 +348,32 @@
   --w11-control-stroke-bottom: rgba(0, 0, 0, 0.16);
   --w11-subtle-hover: rgba(0, 0, 0, 0.0373);
   --w11-overlay-radius: 8px;
+  /* Die Ebene, auf der der Inhalt liegt – heller als das Fenster ringsum */
+  --w11-layer: #FFFFFF;
 }
 
 .windows11.dark {
+  /* Die Flächenstufen von WinUI, von unten nach oben:
+       Fenster (#202020) → Ebene (#272727) → Karte (#2D2D2D).
+     Vorher lagen Karte, Fläche und Rand fast auf demselben Wert – das ergab
+     einen flachen, schmutzigen Grauschleier statt sichtbarer Stufen. */
   --background: #202020;
   --foreground: #FFFFFF;
-  --card: #2B2B2B;
+  --card: #2D2D2D;
   --card-foreground: #FFFFFF;
   --popover: #2C2C2C;
   --popover-foreground: #FFFFFF;
   --primary: #60CDFF;
   --primary-foreground: #003966;
-  --secondary: #2D2D2D;
+  --secondary: #323232;
   --secondary-foreground: #FFFFFF;
-  --muted: #2D2D2D;
-  --muted-foreground: rgba(255, 255, 255, 0.786);
-  --accent: #1F3A4D;
+  --muted: #2A2A2A;
+  /* Zweitrangiger Text: WinUI setzt 78,6 % Weiß, das steht auf großen
+     dunklen Flächen aber fast so laut da wie der Haupttext. */
+  --muted-foreground: rgba(255, 255, 255, 0.62);
+  /* Auswahl und Hover sind in Fluent neutrale Aufhellungen, kein Blaugrau –
+     eingefärbt wirkte die Oberfläche stumpf. */
+  --accent: rgba(255, 255, 255, 0.0837);
   --accent-foreground: #FFFFFF;
   --destructive: #FF99A4;
   --border: rgba(255, 255, 255, 0.0837);
@@ -365,6 +385,7 @@
   --sidebar-primary-foreground: #003966;
   --sidebar-accent: rgba(255, 255, 255, 0.0605);
   --sidebar-accent-foreground: #FFFFFF;
+  --w11-layer: #272727;
   --sidebar-border: rgba(255, 255, 255, 0.0837);
   --sidebar-ring: rgba(96, 205, 255, 0.4);
   --chart-1: #60CDFF;
@@ -379,6 +400,14 @@
   --w11-control-stroke: rgba(255, 255, 255, 0.0698);
   --w11-control-stroke-bottom: rgba(255, 255, 255, 0.0698);
   --w11-subtle-hover: rgba(255, 255, 255, 0.0605);
+}
+
+/* Mica im Dunkeln: eine entsättigte Aufhellung, keine Farbe. Der blaugrüne
+   Schleier der hellen Fassung legte sich sonst wie Schmutz über das Grau. */
+.windows11.dark body {
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.035) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(255, 255, 255, 0.025) 0%, transparent 55%);
 }
 
 /* Segoe UI Variable ist die Systemschrift von Windows 11; auf anderen
@@ -571,6 +600,18 @@
 .windows11 [data-slot="switch-thumb"][data-state="checked"] {
   background: var(--primary-foreground);
   translate: 23px 0;
+}
+
+/* ── Der Inhalt liegt auf einer eigenen Ebene ──
+   So sieht Windows 11 aus: links die Navigationsspalte auf der Fensterfarbe,
+   rechts der Inhalt auf einer helleren Fläche mit abgerundeter oberer Ecke.
+   Nur am Rechner – auf dem Handy gibt es keine Spalte daneben. */
+@media (min-width: 768px) {
+  .windows11 main {
+    background: var(--w11-layer);
+    border-top-left-radius: var(--w11-overlay-radius);
+    box-shadow: inset 1px 1px 0 0 var(--w11-card-stroke);
+  }
 }
 
 /* ── Reiter als Pivot: Unterstrich statt Pille ── */
@@ -897,6 +938,12 @@
   border-radius: 9999px;
   background: var(--a26-glass-bg);
   box-shadow: var(--a26-glass-shadow);
+  /* Unten derselbe Rand wie oben. Das Markup setzt den unteren Innenabstand
+     auf die Sicherheitszone des Geräts – die steckt hier aber schon im
+     Abstand zum Bildschirmrand (`bottom:` oben). Ohne diesen Wert bekäme die
+     Kapsel unten also entweder gar keinen Rand (Browser) oder einen viel zu
+     großen (Handy mit Home-Leiste), und die Einträge säßen nicht mittig. */
+  --nav-safe-bottom: 0.25rem;
 }
 
 .apple26 [data-mobile-nav] > * {
@@ -1325,6 +1372,19 @@
     0 0 0 0.5px rgba(0, 0, 0, 0.06);
   /* Lichtkante der übrigen Glasflächen */
   --lg-rim-top: rgba(255, 255, 255, 0.85);
+
+  /* Kleine Bedienelemente – Knöpfe, Marken, Felder, Schalter */
+  /* Der schwebende Zurück-Knopf steht über laufendem Text und braucht
+     deshalb mehr Deckung als die großen Scheiben – sonst liest man die
+     Zeile darunter mitten durch seine Beschriftung. */
+  --lg-capsule-fill: rgba(255, 255, 255, 0.88);
+  --lg-ctl-fill: rgba(255, 255, 255, 0.5);
+  --lg-ctl-rim:
+    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.5);
+  /* Der gewählte Reiter einer segmentierten Auswahl liegt eine Stufe höher */
+  --lg-thumb-fill: rgba(255, 255, 255, 0.85);
+  --lg-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 24%, transparent 52%);
   --lg-nav-shadow: 0 12px 30px rgba(31, 38, 135, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
   --lg-nav-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.14) 22%, transparent 46%);
   /* Kissen unter dem aktiven Reiter. Auf heller Scheibe ist es GRAU, nicht
@@ -1353,6 +1413,14 @@
   --lg-pill-fill: rgba(255, 255, 255, 0.22);
   --lg-pill-rim: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.38);
   --lg-rim-top: rgba(255, 255, 255, 0.35);
+
+  --lg-capsule-fill: rgba(28, 28, 32, 0.9);
+  --lg-ctl-fill: rgba(255, 255, 255, 0.1);
+  --lg-ctl-rim:
+    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  --lg-thumb-fill: rgba(255, 255, 255, 0.22);
+  --lg-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 24%, transparent 52%);
 }
 
 /* Farbiger Grund – ohne ihn wäre die Unschärfe unsichtbar */
@@ -1515,16 +1583,60 @@
     0 1px 4px color-mix(in oklab, var(--primary) 32%, transparent);
 }
 
-/* Auch die Kopfleiste ist Glas – sie gehört zur selben Ebene wie die
-   Navigationsleiste, und der Inhalt läuft sichtbar darunter durch. */
+/* ── Oben trägt nicht die Leiste das Glas, sondern der Knopf ──
+   In iOS 26 gibt es dort keinen durchgehenden Balken mehr: Der Inhalt
+   scrollt bis an den oberen Rand, und die Bedienelemente schweben als
+   einzelne Glaskapseln darüber. Die Leiste selbst ist also unsichtbar. */
 .liquid-glass [data-back-link] {
-  /* Anders als die Leiste unten braucht sie einen Schleier: Unter ihr läuft
-     Fließtext durch, und zwei Zeilen Text übereinander liest niemand. Der
-     Glanz liegt darum über einer getönten Fläche, nicht auf blankem Glas. */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)), var(--lg-tint-strong);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  /* Nur der Knopf soll anklickbar sein, nicht das leere Band daneben –
+     sonst fängt es Tipper ab, die dem Inhalt darunter gelten. */
+  pointer-events: none;
+}
+
+.liquid-glass [data-back-link] > button {
+  pointer-events: auto;
+  height: 2.25rem;
+  padding-inline: 0.75rem 0.875rem;
+  border-radius: 9999px;
+  /* Kräftiger als die Leiste unten: Diese Kapsel steht allein über
+     laufendem Text. Bliebe sie so dünn wie die große Scheibe, schräbe
+     der Inhalt sichtbar durch die Beschriftung. */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)), var(--lg-capsule-fill);
   backdrop-filter: blur(30px) saturate(200%) brightness(1.06);
   -webkit-backdrop-filter: blur(30px) saturate(200%) brightness(1.06);
-  box-shadow: inset 0 -0.5px 0 0 var(--lg-edge);
+  box-shadow: var(--lg-nav-rim), 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+/* Ohne Ziel (Hauptseiten) gibt es keinen Knopf – dann auch keine Kapsel. */
+.liquid-glass [data-back-link] > button:disabled {
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+@media (max-width: 767px) {
+  /* Der Knopf schwebt ÜBER dem Inhalt, statt eine eigene Zeile zu belegen.
+     Als Zeile bliebe oben ein Streifen, in den nie Inhalt kommt: In den
+     anderen Themes füllt ihn die Leiste mit ihrer Fläche, hier wäre er
+     schlicht leer – und genau der sah aus wie ein vergessener Balken.
+     Den Platz, damit anfangs nichts unter dem Knopf verschwindet, gibt der
+     Innenabstand des Scrollbereichs; beim Scrollen läuft der Inhalt dann
+     sichtbar darunter durch. Betrifft nur Seiten, deren Höhe sie selbst
+     verwalten – sonst steckt die Leiste ohnehin im Inhalt. */
+  .liquid-glass [data-app-main] > [data-back-link] {
+    position: absolute;
+    top: 0.25rem;
+    left: 0;
+    right: 0;
+    z-index: 30;
+  }
+  .liquid-glass [data-app-main] > [data-back-link] ~ * .overflow-y-auto {
+    padding-top: 3rem;
+  }
 }
 
 /* Gefüllte Eingabefelder werden zu Glasflächen */
@@ -1550,12 +1662,103 @@
   -webkit-backdrop-filter: none;
 }
 
-/* Gefüllte Knöpfe bleiben deckend (Lesbarkeit), getönte werden Glas */
+/* ══ Nicht nur Flächen: auch die Bedienelemente sind aus Glas ══
+   iOS 26 zieht das Material durch – Knöpfe, Marken, segmentierte Auswahl,
+   Schalter und Meldungen sind dieselbe Scheibe wie die Leisten, nur kleiner.
+   Gefüllte Hauptknöpfe bleiben deckend: Sie tragen die wichtigste Aktion und
+   müssen auf jedem Untergrund lesbar sein. */
+
+/* Getönte Knöpfe */
 .liquid-glass [data-slot="button"][data-variant="outline"],
 .liquid-glass [data-slot="button"][data-variant="secondary"] {
-  background: var(--lg-tint);
+  background: var(--lg-ctl-fill);
+  border-color: transparent;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--lg-ctl-rim);
+}
+
+/* Marken (Filter, Kategorien) – die gesetzte bleibt in der Akzentfarbe */
+.liquid-glass [data-filter-chip]:not([data-active]) {
+  background: var(--lg-ctl-fill);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--lg-ctl-rim);
+}
+
+/* Segmentierte Auswahl: Spur aus Glas, der gewählte Reiter eine Stufe heller */
+.liquid-glass [data-segmented] {
+  background: var(--lg-ctl-fill);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--lg-ctl-rim);
+}
+.liquid-glass [data-segmented] > button[data-selected] {
+  background: var(--lg-thumb-fill);
+  box-shadow: var(--lg-pill-rim), 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Schalter: aus ist er Glas, an bleibt er in der Systemfarbe */
+.liquid-glass [data-slot="switch"]:not([data-state="checked"]) {
+  background: var(--lg-ctl-fill);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--lg-ctl-rim);
+}
+
+/* Abzeichen */
+.liquid-glass [data-slot="badge"] {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  box-shadow: var(--lg-ctl-rim);
+}
+
+/* Meldungen schweben über allem – also erst recht aus Glas */
+.liquid-glass .cn-toast {
+  background: var(--lg-tint-strong);
+  backdrop-filter: blur(var(--lg-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(180%);
+  box-shadow:
+    inset 0 0.5px 0 0 var(--lg-rim-top),
+    inset 0 0 0 0.5px var(--lg-edge),
+    var(--lg-shadow);
+}
+
+/* ── Glanzlicht auf den großen Scheiben ──
+   Dasselbe schräge Licht wie auf der Navigationsleiste, nur schwächer. Es
+   liegt über der Fläche, aber unter dem Inhalt (`isolation` macht daraus
+   eine eigene Ebene, sonst rutschte es hinter den Hintergrund). */
+/* Nur die Flächen im Fließtext brauchen einen Bezugspunkt. Blätter, Dialoge
+   und Menüs sind bereits positioniert – ein `position: relative` würde ihnen
+   ihre feste Lage nehmen, und sie lägen irgendwo im Dokument statt am
+   Bildschirmrand. */
+.liquid-glass [data-slot="card"],
+.liquid-glass [data-list-group] {
+  position: relative;
+  isolation: isolate;
+}
+.liquid-glass [data-slot="sheet-content"][data-side="bottom"],
+.liquid-glass [data-slot="dialog-content"],
+.liquid-glass [data-slot="dropdown-menu-content"],
+.liquid-glass [data-slot="popover-content"],
+.liquid-glass [data-slot="select-content"] {
+  isolation: isolate;
+}
+.liquid-glass [data-slot="card"]::before,
+.liquid-glass [data-list-group]::before,
+.liquid-glass [data-slot="sheet-content"][data-side="bottom"]::before,
+.liquid-glass [data-slot="dialog-content"]::before,
+.liquid-glass [data-slot="dropdown-menu-content"]::before,
+.liquid-glass [data-slot="popover-content"]::before,
+.liquid-glass [data-slot="select-content"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-sheen);
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 
@@ -1771,15 +1974,23 @@
      Leiste vom Layout gestellt. Dort schwebt sie über dem Inhalt, statt als
      Zeile darüber zu sitzen – nur so läuft etwas darunter durch. Den Platz
      schafft der Innenabstand im Scrollbereich der Seite. */
+  /* Bezugspunkt der schwebenden Leiste ist der Inhaltsbereich, nicht die
+     Hülle: Deren Innenrahmen beginnt über dem Rand, den das Gerät für
+     Kamera und Statusleiste braucht – der Knopf säße sonst genau dort, wo
+     das Telefon seine eigenen Symbole zeichnet. */
+  .oneui [data-app-main],
+  .liquid-glass [data-app-main] {
+    position: relative;
+  }
   .oneui [data-app-main] > [data-back-link] {
     position: absolute;
-    top: 0;
+    top: 0.25rem;
     left: 0;
     right: 0;
     z-index: 30;
   }
   .oneui [data-app-main] > [data-back-link] ~ * .overflow-y-auto {
-    padding-top: 2.75rem;
+    padding-top: 3rem;
   }
 }
 
@@ -1932,6 +2143,41 @@
   background: var(--card);
   color: var(--primary);
   box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+/* ── Listenzeilen ohne Pfeil ──
+   One UI verzichtet in seinen Einstellungen auf den Chevron am Zeilenende –
+   dass eine Zeile weiterführt, sagt sie durch ihre Beschriftung. Das Häkchen
+   einer getroffenen Wahl bleibt selbstverständlich stehen. */
+.oneui [data-row-chevron] {
+  display: none;
+}
+
+/* ── Profilzeile der Einstellungen ──
+   Samsungs Konto-Karte: Name groß, darunter eine gepunktete Linie und ein
+   Hinweis in Akzentfarbe, das Bild steht rechts und es gibt keinen Pfeil.
+   iOS macht es genau andersherum (Bild links, Pfeil rechts). */
+.oneui [data-profile-row] {
+  flex-direction: row-reverse;
+  padding-block: 1.125rem;
+}
+.oneui [data-profile-row] > svg:last-child {
+  display: none;
+}
+.oneui [data-profile-avatar] {
+  height: 56px;
+  width: 56px;
+  font-size: 21px;
+}
+.oneui [data-profile-name] {
+  font-size: 20px;
+  font-weight: 600;
+}
+.oneui [data-profile-hint] {
+  margin-top: 0.625rem;
+  padding-top: 0.625rem;
+  border-top: 1px dotted var(--border);
+  color: var(--primary);
 }
 
 /* ── Untere Leiste: flach am Bildschirmrand ──
@@ -2102,6 +2348,12 @@
 .oneui [data-back-link] [data-back-title] {
   max-width: 16rem;
   opacity: clamp(0, (var(--bar-progress, 1) - 0.55) / 0.45, 1);
+}
+/* Seiten ohne große Überschrift (ein Beleg etwa) haben nichts zu
+   überblenden: Dort ist der kleine Titel die einzige Ortsangabe und steht
+   deshalb sofort da – es gibt auf ihnen gar keinen aufgeklappten Zustand. */
+.oneui [data-back-link]:not([data-has-title]) [data-back-title] {
+  opacity: 1;
 }
 .oneui [data-page-header] [data-page-title] {
   opacity: clamp(0, (0.45 - var(--bar-progress, 0)) / 0.45, 1);
@@ -2503,6 +2755,55 @@
   [data-help-article] code,
   [data-help-article] kbd {
     overflow-wrap: anywhere;
+  }
+
+  /* ── Notfallstreifen unter der Statusleiste ──
+     Die Symbole oben (Uhr, Empfang, Akku) malt das Betriebssystem, und ihre
+     Farbe richtet sich nach dessen Hell-/Dunkelmodus. Läuft die App gerade
+     andersherum – etwa dunkel gewählt, während das Telefon hell ist –,
+     stünden helle Symbole auf hellem Grund. Dann wird der Streifen unter der
+     Statusleiste passend ausgefüllt, damit sie lesbar bleiben. Stimmen beide
+     überein (Normalfall, besonders im Modus „Automatisch"), bleibt er leer. */
+  [data-app-shell]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    z-index: 50;
+    pointer-events: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    html:not(.dark) [data-app-shell]::before {
+      background: #1C1C1E;
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    html.dark [data-app-shell]::before {
+      background: #F2F2F7;
+    }
+  }
+
+  /* ── Senkrechte Bildlaufleisten ausblenden ──
+     Von oben nach unten ist auf dem Handy die selbstverständliche Richtung –
+     dafür braucht es keine Anzeige, sie nimmt nur Platz weg. Waagerecht ist
+     das etwas anderes: Dass eine Tabelle seitwärts weitergeht, sieht man ihr
+     sonst nicht an, diese Leiste bleibt also stehen.
+
+     Über `scrollbar-width` statt über die alten `::-webkit-`Regeln: Die
+     könnten zwar eine einzelne Achse treffen (`:vertical`), werden aber in
+     aktuellen Chromium-Versionen von der Standardeigenschaft geschlagen –
+     und über Leisten, die über dem Inhalt schweben (Android), haben sie
+     ohnehin keine Macht. Also: überall aus, und die Bereiche, die
+     tatsächlich seitwärts laufen, bekommen ihre Leiste zurück. */
+  * {
+    scrollbar-width: none;
+  }
+  .overflow-x-auto,
+  .overflow-x-scroll,
+  [data-slot="table-container"] {
+    scrollbar-width: thin;
   }
 
   /* ── Dialoge passen sich dem Bildschirm an ──
