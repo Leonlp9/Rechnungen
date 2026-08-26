@@ -7,6 +7,7 @@
 import { useRef, useState } from 'react';
 import {
   Camera,
+  ImagePlus,
   FileUp,
   Trash2,
   Pencil,
@@ -84,6 +85,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export default function MobileScanPage() {
   const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   /** Fertig bearbeitete Seiten (Data-URLs) für das nächste PDF */
@@ -111,6 +113,30 @@ export default function MobileScanPage() {
       toast.error(`Foto konnte nicht geladen werden: ${e instanceof Error ? e.message : e}`);
     } finally {
       if (cameraRef.current) cameraRef.current.value = '';
+    }
+  };
+
+  /**
+   * Bilder aus der Galerie. Ein einzelnes geht durch den Zuschnitt wie ein
+   * frisches Foto; mehrere landen direkt als Seiten – sonst müsste man sich
+   * durch einen Zuschnitt nach dem anderen tippen.
+   */
+  const handleGalleryFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const liste = Array.from(files);
+    try {
+      if (liste.length === 1) {
+        const dataUrl = await fileToDataUrl(liste[0]);
+        setEditor({ dataUrl, replaceIndex: null });
+        return;
+      }
+      const urls = await Promise.all(liste.map(fileToDataUrl));
+      setPages((prev) => [...prev, ...urls]);
+      toast.success(`${urls.length} Bilder als Seiten übernommen`);
+    } catch (e) {
+      toast.error(`Bild konnte nicht geladen werden: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      if (galleryRef.current) galleryRef.current.value = '';
     }
   };
 
@@ -193,7 +219,7 @@ export default function MobileScanPage() {
     <div className="mx-auto flex max-w-md flex-col gap-7">
       <PageHeader
         title="Beleg scannen"
-        subtitle="Foto oder PDF – landet als Entwurf hier und auf allen Geräten."
+        subtitle="Foto machen, Bild auswählen oder PDF – landet als Entwurf hier und auf allen Geräten."
       />
 
       <input
@@ -203,6 +229,15 @@ export default function MobileScanPage() {
         capture="environment"
         className="hidden"
         onChange={(e) => void handleCameraFile(e.target.files)}
+      />
+      {/* Ohne `capture`: Damit öffnet sich die Galerie statt der Kamera. */}
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => void handleGalleryFiles(e.target.files)}
       />
       <input
         ref={pdfRef}
@@ -225,6 +260,15 @@ export default function MobileScanPage() {
           >
             <Camera className="mr-2 h-5 w-5" />
             Foto aufnehmen
+          </Button>
+          <Button
+            variant="secondary"
+            className="h-[50px] w-full text-[17px]"
+            disabled={busy}
+            onClick={() => galleryRef.current?.click()}
+          >
+            <ImagePlus className="mr-2 h-5 w-5" />
+            Foto auswählen
           </Button>
           <Button
             variant="secondary"
@@ -272,7 +316,17 @@ export default function MobileScanPage() {
               onClick={() => cameraRef.current?.click()}
             >
               <Plus className="h-5 w-5" />
-              <span className="text-[11px]">Seite</span>
+              <span className="text-[11px]">Foto</span>
+            </button>
+            {/* Auch eine weitere Seite darf aus der Galerie kommen – nicht
+                jeder Beleg liegt noch auf dem Tisch. */}
+            <button
+              type="button"
+              className="flex h-28 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed text-muted-foreground"
+              onClick={() => galleryRef.current?.click()}
+            >
+              <ImagePlus className="h-5 w-5" />
+              <span className="text-[11px]">Auswählen</span>
             </button>
           </div>
           <Button
