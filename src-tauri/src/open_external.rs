@@ -8,12 +8,15 @@
 //! Ausnahme, und die empfangende App dürfte den Ordner ohnehin nicht lesen.
 //! Der vorgesehene Weg ist ein `content://`-Verweis über einen FileProvider:
 //! Damit bekommt die andere App genau für diese eine Datei Leserecht, sonst
-//! für nichts. Der Provider steckt schon im erzeugten Android-Projekt
-//! (`${applicationId}.fileprovider`); welche Ordner er herausgeben darf,
-//! trägt der Build in `file_paths.xml` nach.
+//! für nichts.
 //!
-//! Genau das erledigt diese Datei – für die PDF eines Belegs ebenso wie für
-//! die heruntergeladene APK, die an den Paket-Installer geht.
+//! Ein FileProvider gibt allerdings nur Ordner heraus, die in seiner Liste
+//! stehen (`file_paths.xml`). Das erzeugte Android-Projekt führt dort von
+//! Haus aus den Zwischenspeicher (`cache-path`) – die Belege und die
+//! heruntergeladene APK liegen aber im Datenordner. Statt sich darauf zu
+//! verlassen, dass der Build die Liste erweitert hat, legt diese Datei eine
+//! Kopie in den Zwischenspeicher und übergibt die. Das kostet einen
+//! Kopiervorgang und funktioniert dafür mit der Liste, die ohnehin da ist.
 
 /// Übergibt `path` an die zuständige App. `mime` sagt dem System, welche das
 /// ist – etwa `application/pdf` oder `application/vnd.android.package-archive`.
@@ -31,68 +34,129 @@ fn open_impl(app: &tauri::AppHandle, path: &str, _mime: &str) -> Result<(), Stri
 }
 
 #[cfg(target_os = "android")]
-fn open_impl(_app: &tauri::AppHandle, path: &str, mime: &str) -> Result<(), String> {
+mod android {
     use jni::objects::{JObject, JString, JValue};
+    use jni::JNIEnv;
 
-    /// Bricht ab, sobald auf Java-Seite eine Ausnahme offen steht. Ohne das
-    /// bliebe sie hängen und der nächste JNI-Aufruf stürbe an ihr statt an
-    /// der eigentlichen Ursache.
-    fn check(env: &mut jni::JNIEnv, was: &str) -> Result<(), String> {
-        if env.exception_check().unwrap_or(false) {
-            let _ = env.exception_describe();
-            let _ = env.exception_clear();
-            return Err(format!("{was} fehlgeschlagen"));
+    /// Holt die Meldung einer offenen Java-Ausnahme und räumt sie weg.
+    ///
+    /// Ohne das bliebe von jedem Fehler nur „Java exception was raised" übrig –
+    /// und die Ausnahme stünde weiter an, sodass der nächste Aufruf an ihr
+    /// stirbt statt an seiner eigenen Ursache.
+    pub fn java_error(env: &mut JNIEnv, was: &str) -> String {
+        if !env.exception_check().unwrap_or(false) {
+            return was.to_string();
         }
-        Ok(())
+        let Ok(ex) = env.exception_occurred() else {
+            let _ = env.exception_clear();
+            return was.to_string();
+        };
+        let _ = env.exception_clear();
+        // Bewusst Schritt für Schritt: `get_string` leiht sich den JString,
+        // in einer Kette lebte der nicht lange genug.
+        let Ok(value) = env.call_method(&ex, "toString", "()Ljava/lang/String;", &[]) else {
+            return was.to_string();
+        };
+        let Ok(obj) = value.l() else { return was.to_string() };
+        let jstr = JString::from(obj);
+        let text = match env.get_string(&jstr) {
+            Ok(s) => Some(String::from(s)),
+            Err(_) => None,
+        };
+        match text {
+            Some(t) => format!("{was}: {t}"),
+            None => was.to_string(),
+        }
     }
+
+    /// `context.getCacheDir().getAbsolutePath()`
+    pub fn cache_dir(env: &mut JNIEnv, context: &JObject) -> Result<String, String> {
+        let dir = env
+            .call_method(context, "getCacheDir", "()Ljava/io/File;", &[])
+            .map_err(|_| java_error(env, "Zwischenspeicher finden"))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        let path = env
+            .call_method(&dir, "getAbsolutePath", "()Ljava/lang/String;", &[])
+            .map_err(|_| java_error(env, "Pfad des Zwischenspeichers lesen"))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        Ok(env
+            .get_string(&JString::from(path))
+            .map_err(|e| e.to_string())?
+            .into())
+    }
+
+    /// `FileProvider.getUriForFile(context, "<paket>.fileprovider", new File(path))`
+    pub fn content_uri<'a>(
+        env: &mut JNIEnv<'a>,
+        context: &JObject<'a>,
+        path: &str,
+    ) -> Result<JObject<'a>, String> {
+        let jpath = env.new_string(path).map_err(|e| e.to_string())?;
+        let file = env
+            .new_object(
+                "java/io/File",
+                "(Ljava/lang/String;)V",
+                &[JValue::Object(&jpath)],
+            )
+            .map_err(|_| java_error(env, "Datei öffnen"))?;
+
+        let package = env
+            .call_method(context, "getPackageName", "()Ljava/lang/String;", &[])
+            .map_err(|_| java_error(env, "Paketnamen lesen"))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        let package: String = env
+            .get_string(&JString::from(package))
+            .map_err(|e| e.to_string())?
+            .into();
+        let authority = env
+            .new_string(format!("{package}.fileprovider"))
+            .map_err(|e| e.to_string())?;
+
+        let uri = env
+            .call_static_method(
+                "androidx/core/content/FileProvider",
+                "getUriForFile",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/io/File;)Landroid/net/Uri;",
+                &[
+                    JValue::Object(context),
+                    JValue::Object(&authority),
+                    JValue::Object(&file),
+                ],
+            )
+            .map_err(|_| java_error(env, "Verweis auf die Datei erstellen"))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        Ok(uri)
+    }
+}
+
+#[cfg(target_os = "android")]
+fn open_impl(_app: &tauri::AppHandle, path: &str, mime: &str) -> Result<(), String> {
+    use android::{cache_dir, content_uri, java_error};
+    use jni::objects::{JObject, JValue};
 
     let ctx = ndk_context::android_context();
     let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
     let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
     let context = unsafe { JObject::from_raw(ctx.context().cast()) };
 
-    // new File(path)
-    let jpath = env.new_string(path).map_err(|e| e.to_string())?;
-    let file = env
-        .new_object(
-            "java/io/File",
-            "(Ljava/lang/String;)V",
-            &[JValue::Object(&jpath)],
-        )
-        .map_err(|e| e.to_string())?;
-    check(&mut env, "Datei öffnen")?;
+    // Kopie im Zwischenspeicher: Der steht in der Liste des FileProviders,
+    // der Datenordner nicht unbedingt. Der Dateiname bleibt erhalten – bei
+    // einer APK zeigt der Installer ihn an.
+    let quelle = std::path::Path::new(path);
+    let name = quelle
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "datei".to_string());
+    let ordner = std::path::PathBuf::from(cache_dir(&mut env, &context)?).join("weitergabe");
+    std::fs::create_dir_all(&ordner).map_err(|e| format!("Ordner anlegen: {e}"))?;
+    let ziel = ordner.join(&name);
+    std::fs::copy(quelle, &ziel).map_err(|e| format!("Datei kopieren: {e}"))?;
 
-    // Die Autorität des Providers heißt wie das Paket plus „.fileprovider" –
-    // so legt das erzeugte Android-Projekt sie an.
-    let package = env
-        .call_method(&context, "getPackageName", "()Ljava/lang/String;", &[])
-        .map_err(|e| e.to_string())?
-        .l()
-        .map_err(|e| e.to_string())?;
-    let package: String = env
-        .get_string(&JString::from(package))
-        .map_err(|e| e.to_string())?
-        .into();
-    let authority = env
-        .new_string(format!("{package}.fileprovider"))
-        .map_err(|e| e.to_string())?;
-
-    // FileProvider.getUriForFile(context, authority, file)
-    let uri = env
-        .call_static_method(
-            "androidx/core/content/FileProvider",
-            "getUriForFile",
-            "(Landroid/content/Context;Ljava/lang/String;Ljava/io/File;)Landroid/net/Uri;",
-            &[
-                JValue::Object(&context),
-                JValue::Object(&authority),
-                JValue::Object(&file),
-            ],
-        )
-        .map_err(|e| e.to_string())?
-        .l()
-        .map_err(|e| e.to_string())?;
-    check(&mut env, "Verweis auf die Datei erstellen")?;
+    let uri = content_uri(&mut env, &context, &ziel.to_string_lossy())?;
 
     // new Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
     let action = env
@@ -112,7 +176,7 @@ fn open_impl(_app: &tauri::AppHandle, path: &str, mime: &str) -> Result<(), Stri
         "(Landroid/net/Uri;Ljava/lang/String;)Landroid/content/Intent;",
         &[JValue::Object(&uri), JValue::Object(&jmime)],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|_| java_error(&mut env, "Absicht zusammenstellen"))?;
 
     // FLAG_GRANT_READ_URI_PERMISSION (1): Leserecht nur für diesen Verweis.
     // FLAG_ACTIVITY_NEW_TASK (0x10000000): Pflicht, weil der Aufruf nicht aus
@@ -133,8 +197,7 @@ fn open_impl(_app: &tauri::AppHandle, path: &str, mime: &str) -> Result<(), Stri
         "(Landroid/content/Intent;)V",
         &[JValue::Object(&intent)],
     )
-    .map_err(|e| e.to_string())?;
-    check(&mut env, "App zum Öffnen finden")?;
+    .map_err(|_| java_error(&mut env, "Keine App gefunden, die das öffnen kann"))?;
 
     Ok(())
 }
