@@ -124,12 +124,15 @@ jobs:
   #   ANDROID_KEYSTORE_PASSWORD – Keystore-Passwort
   #   ANDROID_KEY_ALIAS         – Key-Alias
   #   ANDROID_KEY_PASSWORD      – Key-Passwort
+  # Läuft von Anfang an neben den Desktop-Builds, nicht hinter ihnen: Der
+  # Android-Build braucht nichts von ihnen. Nur der letzte Schritt setzt das
+  # Release voraus, das der Desktop-Job anlegt – und der wartet ohnehin
+  # darauf, bis es da ist.
   android:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    needs: build
-    if: always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -324,7 +327,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Das (Draft-)Release wird vom Desktop-Job erstellt – kurz warten, falls nötig
+          # Das (Draft-)Release legt der Desktop-Job an. Da beide Jobs
+          # gleichzeitig starten, ist die APK oft zuerst fertig – dann wartet
+          # dieser Schritt, bis das Release existiert.
           for i in $(seq 1 30); do
             if gh release upload "${{ github.ref_name }}" "$APK_PATH" --clobber -R "${{ github.repository }}"; then
               echo "APK ans Release angehängt."
