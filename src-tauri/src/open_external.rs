@@ -115,21 +115,49 @@ mod android {
             .new_string(format!("{package}.fileprovider"))
             .map_err(|e| e.to_string())?;
 
-        let uri = env
-            .call_static_method(
-                "androidx/core/content/FileProvider",
-                "getUriForFile",
-                "(Landroid/content/Context;Ljava/lang/String;Ljava/io/File;)Landroid/net/Uri;",
-                &[
-                    JValue::Object(context),
-                    JValue::Object(&authority),
-                    JValue::Object(&file),
-                ],
-            )
-            .map_err(|_| java_error(env, "Verweis auf die Datei erstellen"))?
-            .l()
-            .map_err(|e| e.to_string())?;
-        Ok(uri)
+        match env.call_static_method(
+            "androidx/core/content/FileProvider",
+            "getUriForFile",
+            "(Landroid/content/Context;Ljava/lang/String;Ljava/io/File;)Landroid/net/Uri;",
+            &[
+                JValue::Object(context),
+                JValue::Object(&authority),
+                JValue::Object(&file),
+            ],
+        ) {
+            Ok(value) => value.l().map_err(|e| e.to_string()),
+            Err(_) => {
+                // Fällt der Helfer aus (R8 wirft ihn weg, wenn ihn kein
+                // Java-Code aufruft), bauen wir den Verweis selbst. Sein
+                // Aufbau ist festgelegt:
+                //     content://<paket>.fileprovider/<name des Ordners>/<pfad>
+                // `my_cache_images` ist der Name, unter dem das erzeugte
+                // Projekt den Zwischenspeicher freigibt – und dorthin haben
+                // wir die Datei kopiert.
+                let _ = java_error(env, "Helfer nicht verfügbar");
+                let rest = path.rsplit_once("/cache/").map(|(_, r)| r).unwrap_or(path);
+                fallback_uri(env, &package, rest)
+            }
+        }
+    }
+
+    /// `Uri.parse("content://<paket>.fileprovider/my_cache_images/<pfad>")`
+    fn fallback_uri<'a>(
+        env: &mut JNIEnv<'a>,
+        package: &str,
+        relativ: &str,
+    ) -> Result<JObject<'a>, String> {
+        let text = format!("content://{package}.fileprovider/my_cache_images/{relativ}");
+        let jtext = env.new_string(&text).map_err(|e| e.to_string())?;
+        env.call_static_method(
+            "android/net/Uri",
+            "parse",
+            "(Ljava/lang/String;)Landroid/net/Uri;",
+            &[JValue::Object(&jtext)],
+        )
+        .map_err(|_| java_error(env, "Verweis auf die Datei erstellen"))?
+        .l()
+        .map_err(|e| e.to_string())
     }
 }
 

@@ -253,6 +253,24 @@ jobs:
           perl -0pi -e 's|(<paths[^>]*>)|$1\n  <root-path name="root" path="." />|' "$PATHS"
           cat "$PATHS"
 
+      - name: FileProvider vor dem Wegoptimieren schützen
+        shell: bash
+        run: |
+          # Der Release-Build lässt R8 über den Java-Code laufen, und R8
+          # wirft weg, was niemand aufruft. `FileProvider.getUriForFile`
+          # ruft nur unser Rust-Code über JNI auf – das sieht R8 nicht,
+          # also flog die Methode raus ("NoSuchMethodError"). Die Klasse
+          # selbst blieb stehen, weil das Manifest sie nennt.
+          #
+          # Der Build zieht jede *.pro-Datei im App-Ordner heran, ein
+          # Anhängen genügt also.
+          RULES="src-tauri/gen/android/app/proguard-rules.pro"
+          echo "" >> "$RULES"
+          echo "# Wird ausschliesslich ueber JNI aufgerufen (src/open_external.rs)." >> "$RULES"
+          echo "# Ohne diese Zeile entfernt R8 die Methode, und das Weiterreichen" >> "$RULES"
+          echo "# von PDF und APK scheitert erst zur Laufzeit." >> "$RULES"
+          echo "-keep class androidx.core.content.FileProvider { *; }" >> "$RULES"
+          tail -6 "$RULES"
       - name: Build APK
         run: npx tauri android build --apk --target aarch64 --target armv7
 
