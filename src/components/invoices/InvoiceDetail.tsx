@@ -39,7 +39,8 @@ import { CATEGORIES, CATEGORY_LABELS, INVOICE_TYPES, TYPE_LABELS, getCategoriesF
 import type { Invoice, Category } from '@/types';
 import { Loader2, Trash2, Save, FolderOpen, ChevronLeft, ChevronRight, Sparkles, AlertTriangle, Calculator, FileCode2, Lock, Check, Undo2, MoreHorizontal, ExternalLink } from 'lucide-react';
 import { readFile } from '@tauri-apps/plugin-fs';
-import { revealItemInDir, openPath } from '@tauri-apps/plugin-opener';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import { cn, fmtCurrency } from '@/lib/utils';
 import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
 import { StornoDialog } from './StornoDialog';
@@ -457,7 +458,10 @@ export default function InvoiceDetail() {
     if (!invoice?.pdf_path) return;
     try {
       const abs = await getAbsolutePdfPath(invoice.pdf_path);
-      await openPath(abs);
+      // Eigener Befehl statt Opener: Auf Android muss die Datei als
+      // `content://`-Verweis übergeben werden, sonst darf die andere App sie
+      // gar nicht lesen. Auf dem Desktop reicht der Befehl an den Opener weiter.
+      await invoke('open_file_external', { path: abs, mime: 'application/pdf' });
     } catch (e) {
       toast.error('Konnte das PDF nicht an eine andere App übergeben', { description: String(e) });
     }

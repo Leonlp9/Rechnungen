@@ -41,6 +41,12 @@ csv = "1.4.0"
 ureq = { version = "2", default-features = false, features = ["tls"] }
 urlencoding = "2"
 
+# Android: Dateien an andere Apps übergeben (FileProvider + Intent). Auf dem
+# Desktop erledigt das der Opener, dort werden die beiden Kisten nicht gebaut.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 # Desktop-only: IMAP/SMTP (native-tls baut nicht auf Android/iOS), Keyring,
 # Updater und Systemstatistiken gibt es nur in der Desktop-App.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

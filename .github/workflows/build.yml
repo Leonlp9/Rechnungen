@@ -217,21 +217,41 @@ jobs:
         shell: bash
         run: |
           # Die App zeichnet bis unter die Statusleiste, deren Symbole malt
-          # aber weiter das System. Ohne diese Angabe bleiben sie immer hell –
+          # aber weiter Android. Ohne diese Angabe bleiben sie immer hell –
           # auf hellem Grund sieht man dann oben schlicht nichts.
           #
           # `windowLightStatusBar` heißt "heller Hintergrund, also dunkle
-          # Symbole". Der Wert steht in der Tag-Fassung des Themes; die
-          # Nacht-Fassung (values-night) dreht ihn um. Damit folgen die
-          # Symbole dem Hell-/Dunkelmodus des Telefons – und die App tut das
-          # im Modus „Automatisch" ebenfalls.
+          # Symbole": in der Tag-Fassung des Themes wahr, in der Nacht-Fassung
+          # falsch. Damit folgen die Symbole dem Hell-/Dunkelmodus des
+          # Telefons – und die App tut das im Modus „Automatisch" ebenfalls.
+          #
+          # Der Name des Themes richtet sich nach der App ("Theme.<name>"),
+          # deshalb greift das Muster auf den Anfang und nicht auf einen
+          # festen Namen.
           RES="src-tauri/gen/android/app/src/main/res"
-          THEMES="$RES/values/themes.xml"
-          perl -0pi -e 's|(<style name="AppTheme"[^>]*>)|$1\n        <item name="android:windowLightStatusBar">true</item>\n        <item name="android:windowLightNavigationBar">true</item>|' "$THEMES"
-          mkdir -p "$RES/values-night"
-          sed 's|>true<|>false<|g' "$THEMES" > "$RES/values-night/themes.xml"
-          cat "$THEMES"
-          cat "$RES/values-night/themes.xml"
+          for variant in "values:true" "values-night:false"; do
+            dir="${variant%%:*}"
+            light="${variant##*:}"
+            file="$RES/$dir/themes.xml"
+            [ -f "$file" ] || continue
+            perl -0pi -e "s|(<style name=\"Theme\.[^\"]*\"[^>]*>)|\$1\n        <item name=\"android:windowLightStatusBar\">$light</item>\n        <item name=\"android:windowLightNavigationBar\">$light</item>|" "$file"
+            cat "$file"
+          done
+
+      - name: FileProvider auf den App-Ordner ausweiten
+        shell: bash
+        run: |
+          # Dateien aus dem eigenen Ordner darf eine App auf Android nicht als
+          # Pfad weiterreichen – sie geht als `content://`-Verweis über den
+          # FileProvider, der pro Datei Leserecht vergibt. Der Provider steckt
+          # schon im erzeugten Projekt; seine Liste kennt aber nur den
+          # externen Speicher und den Zwischenspeicher. Belege und die
+          # heruntergeladene APK liegen im Datenordner der App, deshalb kommt
+          # hier ein Eintrag dafür dazu. Der Provider ist nicht exportiert,
+          # das Leserecht gilt jeweils nur für die übergebene Datei.
+          PATHS="src-tauri/gen/android/app/src/main/res/xml/file_paths.xml"
+          perl -0pi -e 's|(<paths[^>]*>)|$1\n  <root-path name="root" path="." />|' "$PATHS"
+          cat "$PATHS"
 
       - name: Build APK
         run: npx tauri android build --apk --target aarch64 --target armv7

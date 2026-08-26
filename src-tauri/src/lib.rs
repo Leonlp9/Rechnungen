@@ -11,6 +11,7 @@ mod bank_commands;
 mod audit_commands;
 mod sync_storage;
 mod sync_files;
+mod open_external;
 mod update_commands;
 
 // Desktop-only: IMAP/SMTP, Keyring, Systemstatistiken
@@ -77,6 +78,7 @@ pub fn run() {
             sync_files::sync_scan_app_files,
             sync_files::sync_hash_app_file,
             sync_files::sync_write_app_file,
+            open_external::open_file_external,
         ]);
 
     #[cfg(mobile)]
@@ -101,6 +103,7 @@ pub fn run() {
         sync_files::sync_scan_app_files,
         sync_files::sync_hash_app_file,
         sync_files::sync_write_app_file,
+        open_external::open_file_external,
         update_commands::download_update,
         update_commands::downloaded_file_size,
         update_commands::cleanup_update_files,

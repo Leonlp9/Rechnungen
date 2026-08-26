@@ -16,7 +16,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater';
 import { toast } from 'sonner';
 import type { UpdatePhase } from '@/components/UpdateDialog';
 import { getVersion } from '@tauri-apps/api/app';
-import { openUrl, openPath } from '@tauri-apps/plugin-opener';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { appDataDir, join } from '@tauri-apps/api/path';
@@ -261,7 +261,12 @@ async function startMobileUpdate() {
 export async function openInstaller() {
   if (!_mobileUpdate) return;
   try {
-    await openPath(_mobileUpdate.path);
+    // Über den eigenen Befehl statt über den Opener: Android nimmt keinen
+    // Dateipfad entgegen, sondern nur einen Verweis über den FileProvider.
+    await invoke('open_file_external', {
+      path: _mobileUpdate.path,
+      mime: 'application/vnd.android.package-archive',
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     _setState?.({ error: message });

@@ -2,12 +2,27 @@
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
   "description": "Capability for the main window (Android/iOS) – ohne Desktop-only-Plugins (Updater, Keyring)",
-  "windows": ["main"],
-  "platforms": ["android", "iOS"],
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "android",
+    "iOS"
+  ],
   "permissions": [
     "core:default",
     "opener:default",
-    "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPLOCALDATA/**"
+        }
+      ]
+    },
     "sql:default",
     "sql:allow-execute",
     "sql:allow-select",
@@ -32,7 +47,9 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$APPDATA/**" }
+        {
+          "path": "$APPDATA/**"
+        }
       ]
     }
   ]
