@@ -107,15 +107,27 @@ function ZeilenListe({
                 setzen={(v) => setzen(zeilen.map((x) => (x.id === z.id ? { ...x, wert: v } : x)))}
               />
             </div>
+            {/* Ringsum staffelt diese Datei längst nach `handy` – diese drei
+                blieben als Einzige auf Mausgröße stehen. 28 Pixel trifft man
+                mit dem Finger nicht. */}
             <div className="flex shrink-0 items-center gap-0.5 self-end">
-              <Button variant="ghost" size="icon-sm" aria-label="Nach oben" disabled={i === 0} onClick={() => tausche(i, -1)}>
+              <Button
+                variant="ghost" size="icon-sm" aria-label="Nach oben"
+                className={cn(handy && 'h-11 w-11')}
+                disabled={i === 0} onClick={() => tausche(i, -1)}
+              >
                 <ArrowUp />
               </Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Nach unten" disabled={i === zeilen.length - 1} onClick={() => tausche(i, 1)}>
+              <Button
+                variant="ghost" size="icon-sm" aria-label="Nach unten"
+                className={cn(handy && 'h-11 w-11')}
+                disabled={i === zeilen.length - 1} onClick={() => tausche(i, 1)}
+              >
                 <ArrowDown />
               </Button>
               <Button
                 variant="ghost" size="icon-sm" aria-label="Zeile löschen"
+                className={cn(handy && 'h-11 w-11')}
                 onClick={() => setzen(zeilen.filter((x) => x.id !== z.id))}
               >
                 <Trash2 className="text-muted-foreground" />

@@ -17,7 +17,7 @@
 // nichts auseinanderlaufen. Auf dem Handy ist die Vorschau bewusst nicht
 // dauerhaft sichtbar: Auf 375 Pixeln bliebe sonst für die Eingabe nichts übrig.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   DndContext,
@@ -56,6 +56,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PageHeader } from '@/components/layout/PageHeader';
 import { SaveInvoiceDialog } from '@/components/invoices/SaveInvoiceDialog';
 import { Blattvorschau } from '@/components/rechnung/Blattvorschau';
+import { useKneifzoom } from '@/components/rechnung/useKneifzoom';
 
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppStore } from '@/store';
@@ -499,22 +500,27 @@ function useTeiler(anfang: number) {
 
 // ─── Blattvorschau, die sich einpasst ────────────────────────────────────────
 
+/** Pixel je Millimeter bei 96 dpi – der Maßstab, den „100 %" meint. */
+const PIXEL_JE_MM = 3.78;
+
 /** Misst die verfügbare Breite, damit „Anpassen" das Blatt genau einpasst. */
 function useBlattBreite(rand: number) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [passend, setPassend] = useState(3.78);
+  // Der Knoten als Zustand statt als Ref: Am Handy steht die Vorschau in einem
+  // Blatt, das auf- und zugeht. Nur so merken Messung und Fingergeste, dass es
+  // den Bereich jetzt gibt.
+  const [knoten, setKnoten] = useState<HTMLDivElement | null>(null);
+  const [passend, setPassend] = useState(PIXEL_JE_MM);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const messen = () => setPassend(Math.max(0.6, (el.clientWidth - rand) / A4_BREITE));
+  useLayoutEffect(() => {
+    if (!knoten) return;
+    const messen = () => setPassend(Math.max(0.6, (knoten.clientWidth - rand) / A4_BREITE));
     messen();
     const beobachter = new ResizeObserver(messen);
-    beobachter.observe(el);
+    beobachter.observe(knoten);
     return () => beobachter.disconnect();
-  }, [rand]);
+  }, [knoten, rand]);
 
-  return { ref, passend };
+  return { knoten, setKnoten, passend };
 }
 
 // ─── Die Seite ───────────────────────────────────────────────────────────────
@@ -1491,8 +1497,33 @@ function VorschauBlatt({
   zoom?: number | null;
   rand: number;
 }) {
-  const { ref, passend } = useBlattBreite(rand);
-  const massstab = zoom === null ? passend : (3.78 * zoom) / 100;
+  const { knoten, setKnoten, passend } = useBlattBreite(rand);
+  const isMobile = useIsMobile();
+
+  // Am Handy steht keine Zoomleiste zur Verfügung – dort passt das Blatt in die
+  // Breite und der Fließtext ist gut vier Pixel groß. Lesbar wird das erst
+  // dadurch, dass man wie in jedem Dokumentenbetrachter mit zwei Fingern
+  // hineingehen kann; ein Doppeltipper bringt einen wieder aufs ganze Blatt.
+  const [fingerZoom, setFingerZoom] = useState<number | null>(null);
+  const massstab = fingerZoom !== null
+    ? (PIXEL_JE_MM * fingerZoom) / 100
+    : zoom === null ? passend : (PIXEL_JE_MM * zoom) / 100;
+
+  const doppeltippen = useCallback(() => {
+    setFingerZoom((v) => (v === null ? 100 : null));
+  }, []);
+
+  useKneifzoom({
+    knoten,
+    massstab,
+    prozent: Math.round((massstab / PIXEL_JE_MM) * 100),
+    setzeProzent: setFingerZoom,
+    aufDoppeltippen: doppeltippen,
+    min: 25,
+    max: 300,
+    aktiv: isMobile,
+  });
+
   const gezeigt = seiten.length > 0 ? [seiten[Math.min(seiteIndex, seiten.length - 1)]] : [];
 
   return (
@@ -1500,7 +1531,11 @@ function VorschauBlatt({
       {/* Der Innenabstand ist die Hälfte des Randes, den die Einpassung
           abzieht – so bleibt links und rechts genau so viel Luft, wie
           gerechnet wurde, und das Blatt scrollt nicht seitwärts. */}
-      <div ref={ref} className="min-h-0 flex-1 overflow-auto" style={{ padding: rand / 2 }}>
+      <div
+        ref={setKnoten}
+        className="min-h-0 flex-1 overflow-auto"
+        style={{ padding: rand / 2, ...(isMobile ? { touchAction: 'pan-x pan-y' as const } : null) }}
+      >
         <Blattvorschau seiten={gezeigt} schriftart={schriftart} massstab={massstab} />
       </div>
       {seiten.length > 1 && (

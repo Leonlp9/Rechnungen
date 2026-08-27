@@ -20,7 +20,7 @@
 // eigenen Absenderdaten aus den Einstellungen, damit man die eigene Rechnung
 // sieht und nicht ein Muster.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -46,6 +46,7 @@ import { FormFullRow, FormGroup } from '@/components/ui/form-list';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Blattvorschau } from '@/components/rechnung/Blattvorschau';
+import { useKneifzoom } from '@/components/rechnung/useKneifzoom';
 
 import {
   Farbzeile, Feldgruppe, Feldzeile, HandyKontext, Marke, Reglerzeile, Vollzeile,
@@ -72,6 +73,20 @@ import type { LineItem } from '@/types/template';
 
 /** Pixel je Millimeter bei 96 dpi – der Maßstab, den „100 %" meint. */
 const PIXEL_JE_MM = 3.78;
+
+// Feste Stufen statt fester Schrittweite. Vorher ging es in Zehnerschritten
+// aufwärts: Von 44 auf 54 Prozent ist ein Viertel mehr und deutlich zu sehen,
+// von 290 auf 300 fast nichts. Wer tippt, will jedes Mal einen sichtbaren
+// Unterschied bekommen – Dokumentenbetrachter machen es genauso.
+const ZOOMSTUFEN = [25, 33, 50, 67, 75, 100, 125, 150, 200, 300];
+const ZOOM_MIN = ZOOMSTUFEN[0];
+const ZOOM_MAX = ZOOMSTUFEN[ZOOMSTUFEN.length - 1];
+
+/** Die nächste Stufe über bzw. unter dem aktuellen Wert. */
+function naechsteStufe(jetzt: number, richtung: 1 | -1): number {
+  if (richtung > 0) return ZOOMSTUFEN.find((s) => s > jetzt + 0.5) ?? ZOOM_MAX;
+  return [...ZOOMSTUFEN].reverse().find((s) => s < jetzt - 0.5) ?? ZOOM_MIN;
+}
 
 const SCHRIFTEN = [
   { wert: 'Helvetica, Arial, sans-serif', label: 'Serifenlos' },
@@ -149,8 +164,12 @@ export default function InvoiceDesigner() {
   const [auswahlZiel, setAuswahlZiel] = useState<string | null>(null);
 
   const logoFeld = useRef<HTMLInputElement>(null);
-  const blattbereich = useRef<HTMLDivElement>(null);
   const rahmen = useRef<HTMLDivElement>(null);
+
+  // Der Vorschaubereich als Zustand, nicht als Ref: Am Handy entsteht er erst
+  // beim Wechsel auf den Vorschau-Reiter. An einem Ref hätte weder die Messung
+  // noch die Fingergeste gemerkt, dass es ihn jetzt gibt.
+  const [blattbereich, setBlattbereich] = useState<HTMLDivElement | null>(null);
   const [bereich, setBereich] = useState({ breite: 0, hoehe: 0 });
   const [rahmenBreite, setRahmenBreite] = useState(0);
 
@@ -180,15 +199,19 @@ export default function InvoiceDesigner() {
   }, []);
 
   // ── Die Größe des Vorschaubereichs ──
-  useEffect(() => {
-    const knoten = blattbereich.current;
-    if (!knoten) return;
-    const messen = () => setBereich({ breite: knoten.clientWidth, hoehe: knoten.clientHeight });
+  //
+  // Bewusst vor dem Zeichnen: Als gewöhnlicher Effekt lief die Messung erst
+  // danach, und beim ersten Blick auf die Vorschau stand das Blatt eine
+  // Bildfolge lang auf 100 Prozent, bevor es auf den passenden Maßstab sprang.
+  useLayoutEffect(() => {
+    if (!blattbereich) return;
+    const messen = () =>
+      setBereich({ breite: blattbereich.clientWidth, hoehe: blattbereich.clientHeight });
     messen();
     const beobachter = new ResizeObserver(messen);
-    beobachter.observe(knoten);
+    beobachter.observe(blattbereich);
     return () => beobachter.disconnect();
-  }, [reiter, isMobile, eng]);
+  }, [blattbereich]);
 
   // ── Die Größe der Seite selbst ──
   useEffect(() => {
@@ -262,10 +285,47 @@ export default function InvoiceDesigner() {
   const massstab = zoom === 'passend' ? passendermassstab : (zoom / 100) * PIXEL_JE_MM;
   const zoomProzent = Math.round((massstab / PIXEL_JE_MM) * 100);
 
-  const zoomen = (richtung: 1 | -1) => {
-    const naechster = Math.min(300, Math.max(30, zoomProzent + richtung * 10));
-    setZoom(naechster);
-  };
+  const setzeProzent = useCallback((p: number) => setZoom(Math.round(p)), []);
+
+  // Doppeltippen bringt einen an die Schrift heran und beim zweiten Mal wieder
+  // aufs ganze Blatt zurück.
+  const doppeltippen = useCallback(() => {
+    setZoom((vorher) => (vorher === 'passend' ? 100 : 'passend'));
+  }, []);
+
+  // Am Handy passt eine A4-Seite nur bei rund 44 Prozent in die Breite, und
+  // dann ist der Fließtext vier Pixel groß. Lesbar wird das erst, wenn man wie
+  // in jedem Dokumentenbetrachter mit zwei Fingern hineingehen kann.
+  const { merkeStelle } = useKneifzoom({
+    knoten: blattbereich,
+    massstab,
+    prozent: zoomProzent,
+    setzeProzent,
+    aufDoppeltippen: doppeltippen,
+    min: ZOOM_MIN,
+    max: ZOOM_MAX,
+    aktiv: isMobile,
+  });
+
+  // Der neue Wert muss aus dem vorigen Zustand kommen, nicht aus dem gerade
+  // gerenderten. Wer am Handy fünfmal schnell hintereinander tippt, löst fünf
+  // Änderungen in einem Rutsch aus – die lasen vorher alle denselben veralteten
+  // Prozentwert, und aus fünf Schritten wurde einer. Genau das sah aus, als
+  // täte der Zoom nichts.
+  const zoomen = useCallback((richtung: 1 | -1) => {
+    // Auch der Knopf braucht einen Anker. Ohne ihn wächst das Blatt nach rechts
+    // unten aus dem Fenster, weil der Scrollstand stehen bleibt – man drückt
+    // auf „Größer" und verliert dabei die Stelle, die man ansieht. Gehalten
+    // wird die Mitte des Sichtfensters.
+    if (blattbereich) {
+      const r = blattbereich.getBoundingClientRect();
+      merkeStelle(r.left + r.width / 2, r.top + r.height / 2);
+    }
+    setZoom((vorher) => naechsteStufe(
+      vorher === 'passend' ? Math.round((passendermassstab / PIXEL_JE_MM) * 100) : vorher,
+      richtung,
+    ));
+  }, [passendermassstab, blattbereich, merkeStelle]);
 
   // ── Änderungen ──
   //
@@ -635,22 +695,49 @@ export default function InvoiceDesigner() {
 
   // ── Die Vorschau ──
   const zoomleiste = (
-    // Rechts bleibt Platz: Dort schwebt der Knopf für den KI-Assistenten und
-    // deckte sonst die Zoomstufe zu.
-    <div className="flex shrink-0 items-center gap-1.5 border-t border-border bg-background py-1.5 pl-3 pr-16">
+    // Rechts blieb Platz für den schwebenden KI-Knopf – aber nur am Desktop:
+    // Am Handy wird der gar nicht erst gerendert, und die 64 Pixel hielten dort
+    // Platz für nichts frei, während die Knöpfe daneben zusammenrückten.
+    //
+    // Unten ebenso. Im Apple-Theme ist die Navigationsleiste keine Leiste am
+    // Rand, sondern eine Kapsel, die über dem Inhalt schwebt – und die lag
+    // genau auf diesen Knöpfen. Den Platz dafür kennt --app-main-pb. Wo es die
+    // Variable nicht gibt, steht die Leiste im Fluss darunter und kein Sockel
+    // ist nötig – deshalb 0 statt eines geratenen Wertes.
+    <div
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 border-t border-border bg-background py-1.5 pl-3',
+        isMobile ? 'pr-3' : 'pr-16',
+      )}
+      style={isMobile ? { paddingBottom: 'var(--app-main-pb, 0px)' } : undefined}
+    >
       <span className="mr-auto truncate text-xs text-muted-foreground">
-        DIN A4 · {layout?.seiten.length ?? 1} {(layout?.seiten.length ?? 1) === 1 ? 'Seite' : 'Seiten'}
+        {isMobile ? '' : 'DIN A4 · '}
+        {layout?.seiten.length ?? 1} {(layout?.seiten.length ?? 1) === 1 ? 'Seite' : 'Seiten'}
       </span>
-      <Button variant="ghost" size="icon-sm" onClick={() => zoomen(-1)} aria-label="Kleiner">
+      {/* Am Handy sind das Fingerziele, keine Mausziele – 28 Pixel trifft man
+          nicht zuverlässig. */}
+      <Button
+        variant="ghost" size="icon-sm" aria-label="Kleiner"
+        className={cn(isMobile && 'h-11 w-11')}
+        disabled={zoomProzent <= ZOOM_MIN}
+        onClick={() => zoomen(-1)}
+      >
         <Minus />
       </Button>
       <span className="w-11 text-center text-xs tabular-nums">{zoomProzent} %</span>
-      <Button variant="ghost" size="icon-sm" onClick={() => zoomen(1)} aria-label="Größer">
+      <Button
+        variant="ghost" size="icon-sm" aria-label="Größer"
+        className={cn(isMobile && 'h-11 w-11')}
+        disabled={zoomProzent >= ZOOM_MAX}
+        onClick={() => zoomen(1)}
+      >
         <Plus />
       </Button>
       <Button
         variant={zoom === 'passend' ? 'secondary' : 'ghost'}
         size="sm"
+        className={cn(isMobile && 'h-11')}
         onClick={() => setZoom('passend')}
       >
         <ZoomIn /> Passend
@@ -660,7 +747,14 @@ export default function InvoiceDesigner() {
 
   const vorschau = (
     <>
-      <div ref={blattbereich} className="min-h-0 flex-1 overflow-auto bg-muted/40">
+      <div
+        ref={setBlattbereich}
+        className="min-h-0 flex-1 overflow-auto overscroll-contain bg-muted/40"
+        // Wischen soll scrollen, Aufziehen dagegen nur das Blatt vergrößern und
+        // nicht die ganze Oberfläche – deshalb nimmt der Webview hier die Hände
+        // vom Zoom und `useKneifzoom` rechnet ihn selbst.
+        style={isMobile ? { touchAction: 'pan-x pan-y' } : undefined}
+      >
         <div className={cn('flex min-h-full w-fit min-w-full justify-center', isMobile ? 'p-3' : 'p-8')}>
           {/*
             Kein `aktiverBaustein`: Die fertigen Kästen tragen keine Kennung
@@ -881,12 +975,24 @@ export default function InvoiceDesigner() {
               actions={
                 // Ein Stift verspricht „umbenennen". Hier wird gewechselt, und
                 // dafür ist das Zeichen der Auswahlfelder das richtige.
-                <Button size="icon" variant="outline" onClick={() => setVorlagenlisteOffen(true)} aria-label="Vorlage wechseln">
+                //
+                // Beschriftet und 44 Pixel hoch: Hinter diesem einen Knopf
+                // liegen Vorlagenwechsel, Kopieren, Umbenennen und Löschen –
+                // als unbeschriftetes 32-Pixel-Symbol war das weder zu finden
+                // noch zuverlässig zu treffen.
+                <Button
+                  variant="outline"
+                  className="h-11 gap-1.5 px-3 text-[15px]"
+                  onClick={() => setVorlagenlisteOffen(true)}
+                >
+                  Wechseln
                   <ChevronsUpDown className="h-4 w-4" />
                 </Button>
               }
             />
-            {vorlage.mitgeliefert && (
+            {/* Beim Blick auf das Blatt ändert man nichts – dort ist der Hinweis
+                nur eine Zeile, die dem Blatt Platz wegnimmt. */}
+            {vorlage.mitgeliefert && reiter !== 'vorschau' && (
               <p className="text-[13px] leading-snug text-muted-foreground">
                 Mitgelieferte Vorlage – die erste Änderung legt automatisch eine eigene Kopie an.
               </p>
@@ -906,7 +1012,7 @@ export default function InvoiceDesigner() {
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{vorschau}</div>
           ) : (
             <div
-              className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4"
+              className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4"
               style={{ paddingBottom: 'var(--app-main-pb, 2rem)' }}
             >
               {reiter === 'aufbau' ? aufbau : aussehen}
