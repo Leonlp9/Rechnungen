@@ -543,42 +543,62 @@ const ARTICLES: HelpArticle[] = [
   },
   {
     id: 'designer',
-    title: 'Rechnungsvorlagen gestalten',
+    title: 'Vorlagen gestalten',
     icon: Palette,
     category: 'Designer',
-    keywords: ['designer', 'vorlage', 'template', 'variable', 'gestalten', 'layout', 'drag', 'drop'],
+    keywords: ['designer', 'vorlage', 'template', 'baukasten', 'baustein', 'gestalten', 'layout', 'logo', 'farbe', 'schrift'],
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground">
-          Im Template Designer kannst du eigene Rechnungsvorlagen per Drag & Drop erstellen.
+          Eine Vorlage ist eine Reihenfolge von Bausteinen. Du sagst, welche vorkommen und in welcher
+          Reihenfolge – wo sie auf dem Blatt landen, rechnet die App aus. Deshalb sitzen Ränder und
+          Ausrichtung immer, ohne dass du sie triffst.
         </p>
-        <Section title="Grundkonzept">
-          <ul className="space-y-2 text-sm">
-            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Jede Vorlage besteht aus frei platzierbaren <strong>Elementen</strong> (Text, Bild, Tabelle, Linie)</span></li>
-            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Variablen</strong> wie <code className="rounded bg-muted px-1">{'{{name}}'}</code> werden beim Drucken durch echte Daten ersetzt</span></li>
-            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Mehrere Vorlagen möglich – du wählst beim Drucken welche genutzt wird</span></li>
-          </ul>
-        </Section>
-        <Section title="Wichtige Variablen">
-          <div className="grid grid-cols-2 gap-1 text-xs font-mono">
+        <Section title="Die Bausteine">
+          <div className="space-y-2 text-sm">
             {[
-              ['{{name}}', 'Dein Name / Firma'],
-              ['{{address}}', 'Deine Adresse'],
-              ['{{invoice_nr}}', 'Rechnungsnummer'],
-              ['{{date}}', 'Rechnungsdatum'],
-              ['{{partner}}', 'Empfänger'],
-              ['{{total}}', 'Gesamtbetrag'],
-              ['{{items}}', 'Positionstabelle'],
-              ['{{tax_number}}', 'Steuernummer'],
-            ].map(([v, d]) => (
-              <div key={v} className="flex flex-col rounded bg-muted px-2 py-1">
-                <span className="text-primary">{v}</span>
-                <span className="text-muted-foreground font-sans">{d}</span>
+              ['Kopfzeile', 'Logo und Dokumenttitel, wahlweise mit farbigem Balken darunter.'],
+              ['Anschriftfeld', 'Kleine Absenderzeile, darunter der Empfänger – passt ins Fenster eines Briefumschlags.'],
+              ['Eckdaten', 'Nummer, Datum, Leistungszeitpunkt, Fälligkeit. Als Block rechts oder als Zeile darunter.'],
+              ['Betreff', 'Eine fette Zeile, die sagt, worum es geht.'],
+              ['Text', 'Freier Absatz – Anschreiben, Hinweise oder der Steuerhinweis.'],
+              ['Positionen', 'Die Tabelle samt Summen. Spalten, Stil und Steuersatz stellst du hier ein.'],
+              ['Zahlung', 'Bankverbindung und Zahlungsziel, auf Wunsch mit QR-Code zum Überweisen.'],
+              ['Fußzeile', 'Absenderdaten klein und mehrspaltig am Seitenfuß, auf jeder Seite.'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex gap-3">
+                <span className="font-medium w-32 shrink-0">{k}</span>
+                <span className="text-muted-foreground">{v}</span>
               </div>
             ))}
           </div>
         </Section>
-        <Tip>Die eingebauten Standardvorlagen können als Ausgangspunkt kopiert und angepasst werden.</Tip>
+        <Section title="Aussehen">
+          <p className="text-sm text-muted-foreground">
+            Akzentfarbe, Schriftart, Schriftgröße, Seitenränder, Abstand zwischen den Bausteinen und
+            das Logo gelten für das ganze Dokument. Genau das war am alten Editor mühsam: Dort stand
+            jede Schriftgröße an jedem Element einzeln und wich überall leicht ab.
+          </p>
+        </Section>
+        <Section title="Mitgelieferte Vorlagen">
+          <div className="space-y-2 text-sm">
+            {[
+              ['Klar', 'Farbiger Tabellenkopf, kräftiger Titel. Das, was die meisten erwarten.'],
+              ['Ruhig', 'Ohne Balken, dünne Linien, viel Weißraum. Zurückhaltend.'],
+              ['Kompakt', 'Kleinere Schrift und engere Abstände – für Rechnungen mit vielen Positionen.'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex gap-3">
+                <span className="font-medium w-24 shrink-0">{k}</span>
+                <span className="text-muted-foreground">{v}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+        <Tip>
+          Änderst du eine mitgelieferte Vorlage, legt die App automatisch eine Kopie an. Das Original
+          bleibt, damit du jederzeit zurück kannst. Vorschau und PDF entstehen aus derselben
+          Berechnung – was du siehst, kommt auch aus dem Drucker.
+        </Tip>
       </div>
     ),
   },

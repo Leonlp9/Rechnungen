@@ -1,857 +1,1523 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+// ─── Rechnung schreiben ──────────────────────────────────────────────────────
+//
+// Die alte Fassung war ein Konfigurationsdialog, keine Rechnung: Alle Felder
+// kamen generisch aus `template.variables` und standen als eine endlose Kolonne
+// aus Beschriftung und Eingabe in einer 220 Pixel schmalen Spalte – Absender,
+// Empfänger, Nummer und Steuerhinweis gleich gewichtet, ohne Reihenfolge und
+// ohne Zusammenhang. Auf dem Handy gab es diese Fassung ebenfalls, nur eben auf
+// 375 Pixeln, samt Vorschau daneben.
+//
+// Hier ist die Seite nach der Frage gebaut, in welcher Reihenfolge man eine
+// Rechnung tatsächlich schreibt: erst an wen, dann die Eckdaten, dann was man
+// geleistet hat, zuletzt die Texte. Vier Abschnitte, aufklappbar, mit dem
+// Wichtigsten offen. Die Absenderangaben stehen gar nicht mehr im Formular –
+// sie kommen aus den Einstellungen und sind nur noch ein Hinweis mit Verweis.
+//
+// Vorschau und PDF kommen aus demselben Layout (`layoutRechnung`), es kann also
+// nichts auseinanderlaufen. Auf dem Handy ist die Vorschau bewusst nicht
+// dauerhaft sichtbar: Auf 375 Pixeln bliebe sonst für die Eingabe nichts übrig.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+import {
+  ChevronDown, ChevronLeft, ChevronRight, Eye, FileDown, FileText, GripVertical,
+  Maximize2, Minus, Plus, Save, Settings2, Trash2, Users, Wand2,
+} from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { FIELD, FormFullRow, FormGroup, FormRow } from '@/components/ui/form-list';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useTemplateStore } from '@/store/templateStore';
-import { DesignerCanvas } from '@/components/designer/DesignerCanvas';
-import { generateTemplatePdf } from '@/lib/pdfExport';
-import { getSetting, customers } from '@/lib/db';
-import type { Customer } from '@/lib/db';
-import { generateInvoiceNumber } from '@/lib/db';
-import { saveXRechnungToAppData, importXRechnungFromFile } from '@/lib/xrechnung';
-import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
-import { copyPdfToAppData } from '@/lib/pdf';
-import { toast } from 'sonner';
-import {
-  FileDown, Eye, EyeOff, FileText, ArrowLeftRight,
-  Maximize2, Users, Check, ChevronsUpDown, Sparkles, AlertCircle,
-  AlertTriangle, Lightbulb, Wand2, QrCode, ChevronRight, Upload,
-} from 'lucide-react';
-import { format } from 'date-fns';
-import type { LineItem, ItemsElement, QrCodeElement } from '@/types/template';
-import { CANVAS_W, CANVAS_H } from '@/types/template';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { SaveInvoiceDialog } from '@/components/invoices/SaveInvoiceDialog';
-import { LineItemsEditor, emptyItem } from '@/components/invoices/LineItemsEditor';
+import { Blattvorschau } from '@/components/rechnung/Blattvorschau';
+
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppStore } from '@/store';
+import { useVorlagenStore } from '@/store/vorlagenStore';
+import { fuelle, layoutRechnung, zeilenBetrag, type Seite } from '@/lib/rechnung/layout';
+import { pdfBytes } from '@/lib/rechnung/pdf';
+import { A4_BREITE, type PositionsSpalte, type Rechnungsvorlage } from '@/types/rechnungsvorlage';
+import type { LineItem } from '@/types/template';
+import { customers, generateInvoiceNumber, getSetting, type Customer } from '@/lib/db';
+import { copyPdfToAppData } from '@/lib/pdf';
+import { saveXRechnungToAppData } from '@/lib/xrechnung';
 import { cn } from '@/lib/utils';
-import { checkInvoiceCompliance, improveInvoiceNote } from '@/lib/gemini';
-import type { ComplianceIssue } from '@/lib/gemini';
-import { generateEpcQrDataUrl } from '@/lib/epcQrCode';
 
-const SETTINGS_KEYS = [
-  'profile_name', 'profile_address', 'profile_street', 'profile_zip', 'profile_city', 'profile_country',
-  'profile_email', 'profile_phone', 'profile_tax_number', 'profile_w_idnr', 'profile_vat_id',
-  'profile_finanzamt', 'profile_iban', 'profile_bic', 'profile_business_type',
-];
+// ─── Kleinkram ───────────────────────────────────────────────────────────────
 
-function effectiveItemTotal(item: LineItem): number {
-  const base = item.quantity * item.unitPrice;
-  return item.discount ? base * (1 - item.discount / 100) : base;
+const euro = (n: number) =>
+  n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+/** Deutsche Zahleneingabe („1.234,50") in eine Zahl. */
+function parseZahl(text: string): number {
+  const n = Number.parseFloat(text.replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
 }
 
-export default function WriteInvoice() {
-  const { templates } = useTemplateStore();
-  const steuerregelung = useAppStore((s) => s.steuerregelung);
-  const isKleinunternehmer = steuerregelung === 'kleinunternehmer';
-  const [selectedId, setSelectedId] = useState<string>(templates[0]?.id ?? '');
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [settingsValues, setSettingsValues] = useState<Record<string, string>>({});
-  const [showPreview, setShowPreview] = useState(true);
-  const [previewScale, setPreviewScale] = useState(0.65);
-  const [fitMode, setFitMode] = useState<'width' | 'page' | 'manual'>('page');
-  const previewContainerRef = useRef<HTMLDivElement>(null);
-  const [exporting, setExporting] = useState(false);
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [saveDialogPrefill, setSaveDialogPrefill] = useState<{
-    partner: string; date: string; description: string;
-    netto: number; ust: number; brutto: number;
-    xrechnungPath?: string; pdfPath?: string; deliveryDate?: string;
-  } | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(360);
-  const isResizing = useRef(false);
-  const startX = useRef(0);
-  const startWidth = useRef(360);
+const heute = () => format(new Date(), 'dd.MM.yyyy');
 
-  // Customer picker
-  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
-  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+function inTagen(tage: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + tage);
+  return format(d, 'dd.MM.yyyy');
+}
 
-  // Line items + discounts
-  const [lineItems, setLineItems] = useState<LineItem[]>([emptyItem()]);
-  const [includeMwst, setIncludeMwst] = useState(!isKleinunternehmer);
-  const [simpleMode, setSimpleMode] = useState(false);
-  const [customMwstRate, setCustomMwstRate] = useState<number | null>(null);
-  const [globalDiscount, setGlobalDiscount] = useState(0);
-
-  // AI compliance
-  const [complianceOpen, setComplianceOpen] = useState(false);
-  const [complianceLoading, setComplianceLoading] = useState(false);
-  const [complianceResult, setComplianceResult] = useState<{ ok: boolean; issues: ComplianceIssue[]; improvedNote?: string } | null>(null);
-
-  // EPC QR
-  const [epcQrDataUrl, setEpcQrDataUrl] = useState<string | null>(null);
-  const [epcQrLoading, setEpcQrLoading] = useState(false);
-  const [showEpcPanel, setShowEpcPanel] = useState(false);
-
-  // Improve dialog
-  const [improveDialog, setImproveDialog] = useState<{ key: string; original: string; suggested: string } | null>(null);
-  const [improvingKey, setImprovingKey] = useState<string | null>(null);
-
-  const template = templates.find((t) => t.id === selectedId) ?? null;
-  const itemsEl = template?.elements.find((e) => e.type === 'items') as ItemsElement | undefined;
-  const qrEl = template?.elements.find((e) => e.type === 'qr_code') as QrCodeElement | undefined;
-  const hasItemsTable = !!itemsEl;
-  const mwstRate = customMwstRate ?? (itemsEl?.mwstRate ?? 19);
-
-  const dataItems = lineItems.filter(i => !i.isGroupHeader);
-  const netto = dataItems.reduce((s, i) => s + effectiveItemTotal(i), 0);
-  const nettoFinal = globalDiscount > 0 ? netto * (1 - globalDiscount / 100) : netto;
-  const mwstAmt = includeMwst ? nettoFinal * (mwstRate / 100) : 0;
-  const brutto = nettoFinal + mwstAmt;
-  const fmt = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR';
-
-  useEffect(() => {
-    customers.getAll().then(setAllCustomers).catch(() => {});
-  }, []);
-
-  const filteredCustomers = allCustomers.filter((c) =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    (c.customer_number ?? '').toLowerCase().includes(customerSearch.toLowerCase())
-  );
-
-  function applyCustomer(c: Customer) {
-    setSelectedCustomerId(c.id);
-    setCustomerPickerOpen(false);
-    setCustomerSearch('');
-    const addressParts = [c.street, [c.zip, c.city].filter(Boolean).join(' ')].filter(Boolean);
-    setValue('receiver_name', c.name);
-    setValue('receiver_address', addressParts.join('\n'));
-    if (c.payment_days) {
-      const due = new Date();
-      due.setDate(due.getDate() + c.payment_days);
-      setValue('due_date', format(due, 'dd.MM.yyyy'));
-      setValue('payment_terms', `Zahlbar innerhalb von ${c.payment_days} Tagen`);
-    }
+/** „31.12.2026" → „2026-12-31". Fällt auf heute zurück, wenn nichts Gültiges dasteht. */
+function isoDatum(deutsch: string): string {
+  const t = (deutsch ?? '').split('.');
+  if (t.length === 3 && t[2].length === 4) {
+    return `${t[2]}-${t[1].padStart(2, '0')}-${t[0].padStart(2, '0')}`;
   }
+  return new Date().toISOString().slice(0, 10);
+}
 
-  const handleResizeStart = (e: React.MouseEvent) => {
-    isResizing.current = true;
-    startX.current = e.clientX;
-    startWidth.current = sidebarWidth;
-    const onMove = (ev: MouseEvent) => {
-      if (!isResizing.current) return;
-      const newW = Math.min(600, Math.max(220, startWidth.current + ev.clientX - startX.current));
-      setSidebarWidth(newW);
-    };
-    const onUp = () => {
-      isResizing.current = false;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+function neuePosition(): LineItem {
+  return {
+    id: `pos-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    description: '',
+    quantity: 1,
+    // Ohne Einheit, nicht mit „Std." vorbelegt: Die Spalte erscheint auf dem
+    // Blatt nur, wenn wirklich eine dasteht – sonst trüge jede Rechnung eine
+    // Einheit, die nie jemand gewollt hat. Als Platzhalter steht sie trotzdem
+    // im Feld, damit man sieht, was dort hingehört.
+    unit: '',
+    unitPrice: 0,
+    parentGroupId: null,
   };
+}
 
-  useEffect(() => {
-    Promise.all(SETTINGS_KEYS.map(async (k) => [k, (await getSetting(k)) ?? ''] as const))
-      .then((entries) => setSettingsValues(Object.fromEntries(entries)))
-      .catch(console.error);
-  }, []);
+/**
+ * Ergänzt die Spalten der Positionstabelle um Einheit und Rabatt, sobald in den
+ * Positionen etwas steht, das sonst unter den Tisch fiele. Die Reihenfolge ist
+ * fest vorgegeben, damit die Einheit hinter der Menge landet und der Rabatt vor
+ * dem Betrag – egal, in welcher Reihenfolge die Vorlage ihre Spalten führt.
+ */
+function mitSpalten(
+  spalten: PositionsSpalte[],
+  braucht: { einheit: boolean; rabatt: boolean },
+): PositionsSpalte[] {
+  const reihenfolge: PositionsSpalte[] = [
+    'pos', 'beschreibung', 'menge', 'einheit', 'einzelpreis', 'rabatt', 'betrag',
+  ];
+  const gewuenscht = new Set(spalten);
+  if (braucht.einheit) gewuenscht.add('einheit');
+  if (braucht.rabatt) gewuenscht.add('rabatt');
+  // Nur ergänzen, nie umsortieren, was die Vorlage schon hatte: Eine Vorlage
+  // ohne Mengenspalte soll auch keine bekommen.
+  return reihenfolge.filter((s) => gewuenscht.has(s));
+}
 
-  useEffect(() => {
-    if (!template) return;
-    const today = format(new Date(), 'dd.MM.yyyy');
-    const initial: Record<string, string> = {};
-    for (const v of template.variables) {
-      if (v.settingsKey && settingsValues[v.settingsKey]) {
-        initial[v.key] = settingsValues[v.settingsKey];
-      } else {
-        initial[v.key] = v.defaultValue || (v.key === 'doc_date' ? today : '');
-      }
-    }
-    setValues(initial);
-    setLineItems([emptyItem()]);
-    setGlobalDiscount(0);
-    setEpcQrDataUrl(null);
-    setComplianceResult(null);
-  }, [selectedId, template, settingsValues]);
+/** Die Profilschlüssel aus der Tabelle `settings`, die auf der Rechnung landen. */
+const PROFIL_SCHLUESSEL = [
+  'profile_name', 'profile_address', 'profile_street', 'profile_zip', 'profile_city',
+  'profile_country', 'profile_email', 'profile_phone', 'profile_tax_number',
+  'profile_w_idnr', 'profile_vat_id', 'profile_finanzamt', 'profile_iban', 'profile_bic',
+] as const;
 
-  const setValue = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
-
-  // Auto-populate calculated variables
-  useEffect(() => {
-    if (!hasItemsTable) return;
-    const fmtVal = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
-    setValues((v) => ({
-      ...v,
-      netto: fmtVal(nettoFinal),
-      vat_amount: includeMwst ? fmtVal(mwstAmt) : '0,00 \u20ac',
-      total: fmtVal(brutto),
-    }));
-  }, [netto, nettoFinal, mwstAmt, brutto, includeMwst, hasItemsTable]);
-
-  // Ctrl+Wheel zoom
-  useEffect(() => {
-    const container = previewContainerRef.current;
-    if (!container) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return;
-      e.preventDefault();
-      setFitMode('manual');
-      setPreviewScale((s) => Math.min(5, Math.max(0.2, +(s * (e.deltaY > 0 ? 0.9 : 1.1)).toFixed(2))));
-    };
-    container.addEventListener('wheel', onWheel, { passive: false });
-    return () => container.removeEventListener('wheel', onWheel);
-  }, []);
-
-  // Auto-fit scale
-  useEffect(() => {
-    if (fitMode === 'manual') return;
-    const container = previewContainerRef.current;
-    if (!container) return;
-    const compute = () => {
-      const pw = container.clientWidth - 64;
-      const ph = container.clientHeight - 64;
-      setPreviewScale(Math.max(0.1, fitMode === 'width' ? pw / CANVAS_W : Math.min(pw / CANVAS_W, ph / CANVAS_H)));
-    };
-    compute();
-    const ro = new ResizeObserver(compute);
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [fitMode, showPreview]);
-
-  // Suggest next invoice number
-  const suggestInvoiceNumber = useCallback(async () => {
-    try {
-      const next = await generateInvoiceNumber('R');
-      setValue('doc_number', next);
-      toast.success(`Rechnungsnummer vorgeschlagen: ${next}`);
-    } catch {
-      toast.error('Konnte keine Rechnungsnummer generieren');
-    }
-  }, []);
-
-  // XRechnung Import (eingehende E-Rechnung)
-  const importXRechnung = useCallback(async () => {
-    try {
-      const filePath = await openDialog({
-        multiple: false,
-        filters: [{ name: 'E-Rechnung XML', extensions: ['xml'] }],
-      });
-      if (!filePath) return;
-      const parsed = await importXRechnungFromFile(filePath as string);
-      if (!parsed) {
-        toast.error('Datei konnte nicht als XRechnung / ZUGFeRD erkannt werden.');
-        return;
-      }
-      // Formular vorausfüllen
-      if (parsed.sellerName) setValue('receiver_name', parsed.sellerName);
-      if (parsed.invoiceNumber) setValue('doc_number', parsed.invoiceNumber);
-      if (parsed.note) setValue('notes', parsed.note);
-      // Datum formatieren: YYYY-MM-DD → DD.MM.YYYY für das Formular
-      if (parsed.issueDate) {
-        const [y, m, d] = parsed.issueDate.split('-');
-        setValue('doc_date', `${d}.${m}.${y}`);
-      }
-      if (parsed.deliveryDate) {
-        const [y, m, d] = parsed.deliveryDate.split('-');
-        setValue('delivery_date', `${d}.${m}.${y}`);
-      }
-      toast.success(
-        `E-Rechnung eingelesen: ${parsed.sellerName || 'Unbekannter Aussteller'} – ${parsed.bruttoAmount.toLocaleString('de-DE', { style: 'currency', currency: parsed.currency || 'EUR' })}`
-      );
-    } catch (e) {
-      toast.error('Import fehlgeschlagen: ' + String(e));
-    }
-  }, []);
-
-  // AI Compliance Check
-  const runComplianceCheck = useCallback(async () => {
-    setComplianceLoading(true);
-    setComplianceOpen(true);
-    setComplianceResult(null);
-    try {
-      const result = await checkInvoiceCompliance({
-        values, lineItems, includeMwst, mwstRate,
-        netto: nettoFinal, globalDiscount, isKleinunternehmer,
-      });
-      setComplianceResult(result);
-    } catch (e) {
-      toast.error('KI-Prüfung fehlgeschlagen: ' + String(e));
-      setComplianceOpen(false);
-    } finally {
-      setComplianceLoading(false);
-    }
-  }, [values, lineItems, includeMwst, mwstRate, nettoFinal, globalDiscount, isKleinunternehmer]);
-
-  const improveNote = useCallback(async (noteKey: string) => {
-    const current = values[noteKey] ?? '';
-    setImprovingKey(noteKey);
-    try {
-      const improved = await improveInvoiceNote(current, values['receiver_name']);
-      setImproveDialog({ key: noteKey, original: current, suggested: improved });
-    } catch (e) {
-      toast.error('KI-Verbesserung fehlgeschlagen: ' + String(e));
-    } finally {
-      setImprovingKey(null);
-    }
-  }, [values]);
-
-  // Generate EPC QR code
-  const generateEpcQr = useCallback(async () => {
-    const iban = settingsValues['profile_iban'] || values['sender_iban'];
-    const bic = settingsValues['profile_bic'] || values['sender_bic'] || '';
-    const name = settingsValues['profile_name'] || values['sender_name'] || '';
-    if (!iban) { toast.error('Keine IBAN in den Einstellungen hinterlegt'); return; }
-    if (brutto <= 0) { toast.error('Bitte erst Positionen mit Preisen eingeben'); return; }
-    setEpcQrLoading(true);
-    try {
-      const url = await generateEpcQrDataUrl(
-        iban,
-        bic,
-        name,
-        brutto,
-        values['doc_number'] || 'Rechnung',
-        {
-          fgColor: qrEl?.fgColor,
-          bgColor: qrEl?.bgColor,
-        }
-      );
-      setEpcQrDataUrl(url);
-      toast.success('EPC QR-Code generiert');
-    } catch (e) {
-      toast.error('QR-Code-Fehler: ' + String(e));
-    } finally {
-      setEpcQrLoading(false);
-    }
-  }, [settingsValues, values, brutto, qrEl]);
-
-  const exportPdf = async () => {
-    if (!template) return;
-    if (!values['delivery_date']?.trim()) {
-      toast.warning('Leistungszeitpunkt fehlt – Pflichtangabe nach § 14 Abs. 4 UStG.');
-    }
-    try {
-      setExporting(true);
-      const ab = await generateTemplatePdf(
-        template, values,
-        hasItemsTable ? lineItems : undefined,
-        simpleMode, globalDiscount, epcQrDataUrl ?? undefined
-      );
-      const suggested = (values['doc_number'] || 'Rechnung').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const path = await saveDialog({ defaultPath: `${suggested}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
-      if (!path) return;
-      await writeFile(path, new Uint8Array(ab));
-      toast.success('PDF gespeichert!');
-
-      // ── E-Rechnungspflicht: XRechnung automatisch als Original archivieren ──
-      const today = new Date().toISOString().slice(0, 10);
-      const docDate = values['doc_date']
-        ? (() => {
-            const parts = values['doc_date'].split('.');
-            if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            return today;
-          })()
-        : today;
-
-      let xrechnungPath = '';
-      // Nur für ausgehende Rechnungen (Einnahmen) die XRechnung erzeugen
-      const sellerName = settingsValues['profile_name'] || values['sender_name'] || '';
-      if (sellerName) {
-        try {
-          // Temporäres Invoice-Objekt für den XML-Builder
-          const tmpId = `inv-${Date.now()}`;
-          const tmpInvoice = {
-            id: tmpId,
-            date: docDate,
-            year: parseInt(docDate.split('-')[0]),
-            month: parseInt(docDate.split('-')[1]),
-            category: 'umsatz_pflichtig' as const,
-            description: values['doc_number'] || suggested,
-            partner: values['receiver_name'] || '',
-            netto: nettoFinal,
-            fee: 0,
-            ust: mwstAmt,
-            brutto,
-            type: 'einnahme' as const,
-            currency: 'EUR',
-            pdf_path: '',
-            note: values['notes'] || '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            is_locked: false,
-            pdf_sha256: '',
-            delivery_date: values['delivery_date'] || docDate,
-            storno_of: '',
-            xrechnung_path: '',
-          };
-          xrechnungPath = await saveXRechnungToAppData(tmpInvoice, {
-            sellerName,
-            sellerStreet: settingsValues['profile_street'] || '',
-            sellerZip: settingsValues['profile_zip'] || '',
-            sellerCity: settingsValues['profile_city'] || '',
-            sellerCountry: settingsValues['profile_country'] || 'DE',
-            taxNumber: settingsValues['profile_tax_number'] || '',
-            vatId: settingsValues['profile_vat_id'] || '',
-            sellerEmail: settingsValues['profile_email'] || '',
-          });
-          toast.success('✅ E-Rechnung (XRechnung UBL 2.1) automatisch archiviert');
-        } catch (xmlErr) {
-          toast.warning('XRechnung-Archivierung fehlgeschlagen (Profil unvollständig?): ' + String(xmlErr));
-        }
-      } else {
-        toast.info('ℹ️ Kein Profil-Name → XRechnung nicht archiviert. Bitte Einstellungen → Profil ausfüllen.');
-      }
-
-      // ── PDF auch in app_data_dir archivieren (für Backup-Vollständigkeit) ──
-      let pdfPath = '';
-      try {
-        const pdfFileName = `${suggested}-${Date.now()}.pdf`;
-        pdfPath = await copyPdfToAppData(path, pdfFileName);
-      } catch { /* nicht kritisch */ }
-
-      setSaveDialogPrefill({
-        partner: values['receiver_name'] ?? '',
-        date: values['doc_date'] ?? format(new Date(), 'dd.MM.yyyy'),
-        description: values['doc_number'] ?? suggested,
-        netto: nettoFinal, ust: mwstAmt, brutto,
-        xrechnungPath,
-        pdfPath,
-        deliveryDate: values['delivery_date'] || docDate,
-      });
-      setSaveDialogOpen(true);
-    } catch (e) {
-      toast.error('Fehler: ' + String(e));
-    } finally {
-      setExporting(false);
-    }
+/**
+ * Aus dem Profil werden die `sender_*`-Felder, die das Layout kennt. Diese
+ * Angaben stehen bewusst nicht mehr im Formular: Sie ändern sich einmal im Jahr,
+ * standen aber als zehn Eingabefelder direkt neben dem Empfänger und haben den
+ * Blick von dem weggezogen, was an dieser Rechnung neu ist.
+ */
+function absenderFelder(p: Record<string, string>): Record<string, string> {
+  const anschrift =
+    p.profile_address?.trim() ||
+    [p.profile_street, [p.profile_zip, p.profile_city].filter(Boolean).join(' ')]
+      .filter(Boolean)
+      .join(', ');
+  return {
+    sender_name: p.profile_name ?? '',
+    sender_address: anschrift,
+    sender_email: p.profile_email ?? '',
+    sender_phone: p.profile_phone ?? '',
+    sender_tax_number: p.profile_tax_number ?? '',
+    sender_w_idnr: p.profile_w_idnr ?? '',
+    sender_vat_id: p.profile_vat_id ?? '',
+    sender_finanzamt: p.profile_finanzamt ?? '',
+    sender_iban: p.profile_iban ?? '',
+    sender_bic: p.profile_bic ?? '',
   };
+}
 
-  const settingsVars = template?.variables.filter((v) => v.settingsKey && !v.autoCalculated) ?? [];
-  const manualVars = template?.variables.filter((v) => !v.settingsKey && !v.autoCalculated && v.key !== 'delivery_date' && v.key !== 'payment_terms') ?? [];
-  const complianceIssueCount = complianceResult?.issues.filter(i => i.type === 'error').length ?? 0;
-  const complianceWarningCount = complianceResult?.issues.filter(i => i.type === 'warning').length ?? 0;
+// ─── Zahlenfeld ──────────────────────────────────────────────────────────────
+//
+// Zahlen als Text zu führen, solange jemand tippt, ist der einzige Weg, bei dem
+// „1," nicht sofort wieder zu „1" wird. Beim Verlassen des Feldes übernimmt
+// wieder die formatierte Zahl.
+
+interface ZahlFeldProps extends Omit<React.ComponentProps<'input'>, 'value' | 'onChange'> {
+  wert: number;
+  onWert: (n: number) => void;
+  /** Feste Nachkommastellen in der Anzeige; ohne Angabe bis zu zwei. */
+  nachkomma?: number;
+}
+
+function ZahlFeld({ wert, onWert, nachkomma, ...rest }: ZahlFeldProps) {
+  const [roh, setRoh] = useState<string | null>(null);
+  const anzeige =
+    roh ??
+    (wert === 0
+      ? ''
+      : wert.toLocaleString('de-DE', {
+        minimumFractionDigits: nachkomma ?? 0,
+        maximumFractionDigits: nachkomma ?? 2,
+      }));
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <div style={{ width: sidebarWidth, minWidth: 220, maxWidth: 600 }} data-tutorial="write-invoice-sidebar" className="border-r border-border bg-background overflow-y-auto flex flex-col shrink-0">
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-bold text-base flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              Rechnung schreiben
-            </h2>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-[11px] gap-1 text-violet-600 border-violet-300/60 hover:bg-violet-50 dark:hover:bg-violet-950/30"
-              onClick={importXRechnung}
-              title="Eingehende E-Rechnung (XRechnung / ZUGFeRD XML) importieren und Formular vorausfüllen"
-            >
-              <Upload className="h-3 w-3" />
-              XML importieren
-            </Button>
-          </div>
-        </div>
-        <div className="p-4 space-y-4 flex-1">
-          <div className="space-y-1.5">
-            <Label className="text-sm">Template</Label>
-            <Select value={selectedId} onValueChange={setSelectedId}>
-              <SelectTrigger><SelectValue placeholder="Template wählen..." /></SelectTrigger>
-              <SelectContent>
-                {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {template && (
-            <>
-              {/* Customer picker */}
-              {allCustomers.length > 0 && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5" />
-                    Empfänger aus Kunden wählen
-                  </Label>
-                  <Popover open={customerPickerOpen} onOpenChange={setCustomerPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between text-sm font-normal h-9">
-                        <span className={cn(!selectedCustomerId && 'text-muted-foreground')}>
-                          {selectedCustomerId
-                            ? (allCustomers.find((c) => c.id === selectedCustomerId)?.name ?? 'Kunde wählen…')
-                            : 'Kunde wählen…'}
-                        </span>
-                        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-2" align="start">
-                      <Input placeholder="Suchen…" value={customerSearch}
-                        onChange={(e) => setCustomerSearch(e.target.value)}
-                        className="h-8 text-sm mb-2" autoFocus />
-                      <div className="max-h-52 overflow-y-auto space-y-0.5">
-                        {filteredCustomers.length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-3">Keine Kunden gefunden</p>
-                        )}
-                        {filteredCustomers.map((c) => (
-                          <button key={c.id}
-                            className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted transition-colors text-left"
-                            onClick={() => applyCustomer(c)}>
-                            <Check className={cn('h-3.5 w-3.5 shrink-0', selectedCustomerId === c.id ? 'opacity-100' : 'opacity-0')} />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{c.name}</p>
-                              {c.customer_number && <p className="text-xs text-muted-foreground font-mono">{c.customer_number}</p>}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
+    <Input
+      inputMode="decimal"
+      {...rest}
+      value={anzeige}
+      onChange={(e) => { setRoh(e.target.value); onWert(parseZahl(e.target.value)); }}
+      onFocus={(e) => { setRoh(e.target.value); e.currentTarget.select(); }}
+      onBlur={() => setRoh(null)}
+    />
+  );
+}
 
-              {/* Document data */}
-              {manualVars.length > 0 && (
-                <Card className="rounded-xl">
-                  <CardHeader className="py-3 px-4"><CardTitle className="text-sm">Dokumentdaten</CardTitle></CardHeader>
-                  <CardContent className="px-4 pb-4 space-y-3">
-                    {manualVars.map((v) => (
-                      <div key={v.key} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs">{v.label}</Label>
-                          {v.key === 'doc_number' && (
-                            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-primary"
-                              onClick={suggestInvoiceNumber} title="Nächste fortlaufende Nummer vorschlagen">
-                              <Wand2 className="h-2.5 w-2.5" /> Vorschlagen
-                            </Button>
-                          )}
-                          {(v.key === 'notes' || v.key === 'payment_terms') && (
-                            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-primary"
-                              onClick={() => improveNote(v.key)} title="Mit KI verbessern"
-                              disabled={improvingKey === v.key}>
-                              <Sparkles className={cn("h-2.5 w-2.5", improvingKey === v.key && "animate-spin")} />
-                              {improvingKey === v.key ? 'Verbessere…' : 'Verbessern'}
-                            </Button>
-                          )}
-                        </div>
-                        {v.multiline ? (
-                          <textarea value={values[v.key] ?? ''} rows={4}
-                            onChange={(e) => setValue(v.key, e.target.value)}
-                            className="w-full text-sm border border-border rounded px-3 py-2 bg-background resize-y min-h-20"
-                            placeholder={v.label} />
-                        ) : (
-                          <Input value={values[v.key] ?? ''} onChange={(e) => setValue(v.key, e.target.value)}
-                            placeholder={v.label} className="text-sm" />
-                        )}
-                      </div>
-                    ))}
-                    {/* Delivery date */}
-                    <div className="space-y-1">
-                      <Label className="text-xs">Leistungszeitpunkt *</Label>
-                      <Input value={values['delivery_date'] ?? ''}
-                        onChange={(e) => setValue('delivery_date', e.target.value)}
-                        placeholder="z.B. März 2026 oder 01.03.2026 – 31.03.2026" className="text-sm" />
-                      <p className="text-[10px] text-muted-foreground">Pflichtangabe (§ 14 Abs. 4 UStG)</p>
-                    </div>
-                    {/* Payment terms */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">Zahlungsbedingungen</Label>
-                        <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-primary"
-                          onClick={() => improveNote('payment_terms')}
-                          disabled={improvingKey === 'payment_terms'}>
-                          <Sparkles className={cn("h-2.5 w-2.5", improvingKey === 'payment_terms' && "animate-spin")} />
-                          {improvingKey === 'payment_terms' ? 'Verbessere…' : 'Verbessern'}
-                        </Button>
-                      </div>
-                      <Input value={values['payment_terms'] ?? ''}
-                        onChange={(e) => setValue('payment_terms', e.target.value)}
-                        placeholder="z.B. Zahlbar innerhalb von 14 Tagen" className="text-sm" />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+// ─── Positionstabelle (Desktop) ──────────────────────────────────────────────
 
-              {/* Line items with DnD, groups, discounts */}
-              {hasItemsTable && (
-                <LineItemsEditor
-                  lineItems={lineItems} onChange={setLineItems}
-                  simpleMode={simpleMode} onSimpleModeChange={setSimpleMode}
-                  includeMwst={includeMwst} onIncludeMwstChange={setIncludeMwst}
-                  mwstRate={mwstRate} onMwstRateChange={setCustomMwstRate}
-                  globalDiscount={globalDiscount} onGlobalDiscountChange={setGlobalDiscount}
-                  isKleinunternehmer={isKleinunternehmer}
-                />
-              )}
+/**
+ * Spaltenraster – Kopfzeile und Zeilen teilen es sich, sonst verrutscht alles.
+ *
+ * Die Beschreibung ist `minmax(0,1fr)` und nicht `minmax(96px,1fr)`: Mit einer
+ * festen Mindestbreite war die Tabelle breiter als die Eingabespalte und bekam
+ * einen waagerechten Rollbalken – ausgerechnet der Betrag stand dann außerhalb
+ * des Sichtfelds. Lieber schrumpft die Beschreibung, sie scrollt in sich selbst.
+ *
+ * Die festen Spalten sind so knapp bemessen, wie ihr längster zu erwartender
+ * Wert es zulässt („12.500,00 €" im Betrag), damit für die Beschreibung möglichst
+ * viel übrig bleibt – sie ist die einzige Spalte, in der man wirklich schreibt.
+ */
+const RASTER =
+  'grid grid-cols-[16px_minmax(0,1fr)_40px_42px_60px_38px_72px_22px] items-center gap-0.5';
 
-              {/* EPC QR Panel */}
-              {hasItemsTable && (
-                <Card className="rounded-xl">
-                  <CardHeader className="py-2.5 px-4 cursor-pointer select-none" onClick={() => setShowEpcPanel(v => !v)}>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <QrCode className="h-4 w-4 text-primary" />
-                        Bezahl-QR (EPC/GiroCode)
-                        {epcQrDataUrl && <Badge variant="secondary" className="h-4 text-[10px] px-1.5">Aktiv</Badge>}
-                      </CardTitle>
-                      <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', showEpcPanel && 'rotate-90')} />
-                    </div>
-                  </CardHeader>
-                  {showEpcPanel && (
-                    <CardContent className="px-4 pb-4 space-y-3">
-                      <p className="text-xs text-muted-foreground">
-                        Generiert einen EPC QR-Code aus deiner IBAN und dem Bruttobetrag.
-                        Der Kunde scannt ihn mit der Banking-App – alle Daten vorausgefüllt.
-                      </p>
-                      {settingsValues['profile_iban'] ? (
-                        <div className="flex items-start gap-3">
-                          {epcQrDataUrl && <img src={epcQrDataUrl} alt="EPC QR" className="w-16 h-16 border border-border rounded shrink-0" />}
-                          <div className="flex-1 space-y-1.5">
-                            <p className="text-xs text-muted-foreground">
-                              IBAN: <span className="font-mono">{settingsValues['profile_iban'].slice(0, 8)}…</span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Betrag: <span className="font-medium text-foreground">{fmt(brutto)}</span>
-                            </p>
-                            <Button variant={epcQrDataUrl ? 'outline' : 'default'} size="sm"
-                              className="w-full h-7 text-xs gap-1"
-                              onClick={generateEpcQr} disabled={epcQrLoading || brutto <= 0}>
-                              <QrCode className="h-3 w-3" />
-                              {epcQrLoading ? 'Generiere…' : epcQrDataUrl ? 'Aktualisieren' : 'QR-Code generieren'}
-                            </Button>
-                            {epcQrDataUrl && (
-                              <Button variant="ghost" size="sm" className="w-full h-6 text-xs text-muted-foreground"
-                                onClick={() => setEpcQrDataUrl(null)}>
-                                Entfernen
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Hinterlege deine IBAN in den <a href="/settings" className="text-primary underline">Einstellungen</a>.
-                        </p>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              )}
+/** Zellen sehen erst dann nach Eingabefeld aus, wenn man sie anfasst. */
+const ZELLE =
+  'h-8 rounded-md border-transparent bg-transparent px-1 text-[13px] hover:border-input focus-visible:border-ring';
 
-              {/* Sender settings */}
-              {settingsVars.length > 0 && (
-                <Card className="rounded-xl">
-                  <CardHeader className="py-3 px-4">
-                    <CardTitle className="text-sm text-muted-foreground">Absender (aus Einstellungen)</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 space-y-3">
-                    {settingsVars.map((v) => (
-                      <div key={v.key} className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">{v.label}</Label>
-                        <Input value={values[v.key] ?? ''} onChange={(e) => setValue(v.key, e.target.value)}
-                          placeholder={v.label} className="text-xs" />
-                      </div>
-                    ))}
-                    <p className="text-xs text-muted-foreground">Überschreibbar für diese Rechnung.</p>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
-        </div>
+interface ZeileProps {
+  position: LineItem;
+  nummer: number;
+  aendern: (patch: Partial<LineItem>) => void;
+  loeschen: () => void;
+  tasten: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+}
 
-        {/* Footer */}
-        <div className="p-4 border-t border-border space-y-2">
-          {template && (
-            <Button
-              variant="outline"
-              className={cn(
-                'w-full text-xs gap-1.5',
-                complianceResult && !complianceResult.ok && complianceIssueCount > 0 && 'border-red-300 text-red-600',
-                complianceResult?.ok && 'border-green-300 text-green-600',
-              )}
-              onClick={complianceResult ? () => setComplianceOpen(true) : runComplianceCheck}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              KI-Compliance-Check
-              {complianceIssueCount > 0 && (
-                <Badge variant="destructive" className="h-4 min-w-4 text-[10px] px-1 ml-auto">{complianceIssueCount}</Badge>
-              )}
-              {complianceWarningCount > 0 && complianceIssueCount === 0 && (
-                <Badge variant="secondary" className="h-4 min-w-4 text-[10px] px-1 ml-auto">{complianceWarningCount}</Badge>
-              )}
-              {complianceResult?.ok && complianceResult.issues.length === 0 && (
-                <Check className="h-3 w-3 text-green-500 ml-auto" />
-              )}
-            </Button>
-          )}
-          <Button className="w-full" onClick={exportPdf} disabled={!template || exporting}>
-            <FileDown className="mr-2 h-4 w-4" />
-            {exporting ? 'Erstelle PDF...' : 'Als PDF exportieren'}
-          </Button>
-          <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setShowPreview((p) => !p)}>
-            {showPreview ? <EyeOff className="mr-2 h-3.5 w-3.5" /> : <Eye className="mr-2 h-3.5 w-3.5" />}
-            Vorschau {showPreview ? 'ausblenden' : 'einblenden'}
-          </Button>
-        </div>
-      </div>
+function PositionsZeile({ position, nummer, aendern, loeschen, tasten }: ZeileProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: position.id });
 
-      {/* Resize Handle */}
-      <div onMouseDown={handleResizeStart}
-        className="w-1.5 cursor-col-resize bg-border hover:bg-primary/40 transition-colors shrink-0 active:bg-primary/60"
-        title="Breite anpassen" />
-
-      {showPreview && (
-        <div className="flex-1 overflow-auto bg-muted/20 flex flex-col">
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background shrink-0">
-            <span className="text-xs text-muted-foreground">Zoom</span>
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs"
-              onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.max(0.2, +(s * 0.9).toFixed(2))); }}>-</Button>
-            <input type="range" min={20} max={500} value={Math.round(previewScale * 100)}
-              onChange={(e) => { setFitMode('manual'); setPreviewScale(Number(e.target.value) / 100); }}
-              className="w-28 h-1.5 accent-primary" />
-            <Button variant="outline" size="icon" className="h-7 w-7 text-xs"
-              onClick={() => { setFitMode('manual'); setPreviewScale((s) => Math.min(5, +(s * 1.1).toFixed(2))); }}>+</Button>
-            <span className="text-xs text-muted-foreground w-10">{Math.round(previewScale * 100)}%</span>
-            <Button
-              variant={(fitMode === 'width' || fitMode === 'page') ? 'default' : 'outline'}
-              size="icon" className="h-7 w-7"
-              onClick={() => setFitMode((m) => m === 'width' ? 'page' : 'width')}
-            >
-              {fitMode === 'width' ? <ArrowLeftRight className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            </Button>
-            {epcQrDataUrl && (
-              <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                <QrCode className="h-3.5 w-3.5 text-green-500" />
-                <span>EPC QR aktiv</span>
-              </div>
-            )}
-          </div>
-          <div className="flex-1 overflow-auto p-8 select-text" ref={previewContainerRef}>
-            {template ? (
-              <div className="space-y-3 w-fit mx-auto">
-                <p className="text-xs text-center text-muted-foreground">Vorschau (Variablen aufgelöst)</p>
-                <DesignerCanvas
-                  template={template} selectedId={null}
-                  onSelect={() => {}} onUpdate={() => {}}
-                  scale={previewScale} variableValues={values}
-                  lineItems={hasItemsTable ? lineItems : undefined}
-                  includeMwst={includeMwst} simpleMode={simpleMode} readOnly
-                  epcQrDataUrl={epcQrDataUrl ?? undefined}
-                />
-              </div>
-            ) : (
-              <div className="text-muted-foreground text-sm mt-20">Template auswählen</div>
-            )}
-          </div>
-        </div>
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        RASTER,
+        'group border-b border-border/60 px-1 py-0.5 last:border-b-0',
+        isDragging && 'relative z-10 rounded-md bg-accent/60 shadow-sm',
       )}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        title={`Position ${nummer} verschieben`}
+        className="flex h-8 w-4 cursor-grab items-center justify-center text-muted-foreground/30 transition-colors group-hover:text-muted-foreground active:cursor-grabbing"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
 
-      {saveDialogOpen && saveDialogPrefill && (
-        <SaveInvoiceDialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} prefill={saveDialogPrefill} />
-      )}
-
-      {/* AI Compliance Dialog */}
-      <Dialog open={complianceOpen} onOpenChange={setComplianceOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              KI-Compliance-Check
-            </DialogTitle>
-          </DialogHeader>
-          {complianceLoading ? (
-            <div className="space-y-3 py-2">
-              <Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" />
-              <p className="text-xs text-muted-foreground text-center mt-2">KI prüft deine Rechnung auf Pflichtangaben…</p>
-            </div>
-          ) : complianceResult ? (
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-              {complianceResult.ok && complianceResult.issues.length === 0 ? (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 text-green-600">
-                  <Check className="h-4 w-4 shrink-0" />
-                  <p className="text-sm font-medium">Rechnung ist vollständig und rechtssicher ✓</p>
-                </div>
-              ) : (
-                complianceResult.issues.map((issue, i) => (
-                  <div key={i} className={cn(
-                    'flex gap-2.5 p-3 rounded-lg text-sm',
-                    issue.type === 'error' && 'bg-destructive/10 text-destructive',
-                    issue.type === 'warning' && 'bg-orange-500/10 text-orange-600',
-                    issue.type === 'tip' && 'bg-blue-500/10 text-blue-600',
-                  )}>
-                    {issue.type === 'error' && <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
-                    {issue.type === 'warning' && <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
-                    {issue.type === 'tip' && <Lightbulb className="h-4 w-4 shrink-0 mt-0.5" />}
-                    <div>
-                      {issue.field && <p className="font-medium text-xs mb-0.5 opacity-80">{issue.field}</p>}
-                      <p className="text-xs">{issue.message}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-              {complianceResult.improvedNote && (
-                <div className="border border-primary/20 rounded-lg p-3 space-y-2 bg-primary/5">
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
-                    <Wand2 className="h-3.5 w-3.5" />
-                    Vorgeschlagener Hinweistext
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{complianceResult.improvedNote}</p>
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
-                    onClick={() => { setValue('notes', complianceResult.improvedNote!); toast.success('Hinweistext übernommen'); }}>
-                    <Check className="h-3 w-3" /> Übernehmen
-                  </Button>
-                </div>
-              )}
-              <div className="pt-1 flex gap-2">
-                <Button variant="outline" size="sm" className="text-xs gap-1" onClick={runComplianceCheck}>
-                  <Sparkles className="h-3 w-3" /> Erneut prüfen
-                </Button>
-                <Button size="sm" className="text-xs ml-auto" onClick={() => setComplianceOpen(false)}>Schließen</Button>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
-      {/* Improve Note Dialog */}
-      <Dialog open={!!improveDialog} onOpenChange={(open) => { if (!open) setImproveDialog(null); }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              KI-Verbesserungsvorschlag
-            </DialogTitle>
-          </DialogHeader>
-          {improveDialog && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Original</p>
-                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm leading-relaxed min-h-20 whitespace-pre-wrap">
-                    {improveDialog.original || <span className="text-muted-foreground italic">Kein Text vorhanden</span>}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold text-primary uppercase tracking-wide">Vorschlag</p>
-                  <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm leading-relaxed min-h-20 whitespace-pre-wrap">
-                    {improveDialog.suggested}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setImproveDialog(null)}>Verwerfen</Button>
-            <Button onClick={() => {
-              if (improveDialog) {
-                setValue(improveDialog.key, improveDialog.suggested);
-                toast.success('Verbesserung übernommen');
-                setImproveDialog(null);
-              }
-            }}>
-              <Check className="h-3.5 w-3.5 mr-1.5" /> Übernehmen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Input
+        data-zelle
+        value={position.description}
+        onChange={(e) => aendern({ description: e.target.value })}
+        onKeyDown={tasten}
+        placeholder={nummer === 1 ? 'z. B. Konzeption und Umsetzung Website' : 'Weitere Leistung'}
+        className={cn(ZELLE, 'font-medium')}
+      />
+      <ZahlFeld
+        data-zelle
+        wert={position.quantity}
+        onWert={(n) => aendern({ quantity: n })}
+        onKeyDown={tasten}
+        placeholder="1"
+        className={cn(ZELLE, 'text-right')}
+      />
+      <Input
+        data-zelle
+        value={position.unit ?? ''}
+        onChange={(e) => aendern({ unit: e.target.value })}
+        onKeyDown={tasten}
+        placeholder="Std."
+        className={cn(ZELLE, 'text-center')}
+      />
+      <ZahlFeld
+        data-zelle
+        wert={position.unitPrice}
+        onWert={(n) => aendern({ unitPrice: n })}
+        onKeyDown={tasten}
+        nachkomma={2}
+        placeholder="0,00"
+        className={cn(ZELLE, 'text-right')}
+      />
+      <ZahlFeld
+        data-zelle
+        wert={position.discount ?? 0}
+        onWert={(n) => aendern({ discount: n })}
+        onKeyDown={tasten}
+        placeholder="–"
+        className={cn(ZELLE, 'text-right')}
+      />
+      <span className="truncate px-1 text-right text-[13px] tabular-nums text-muted-foreground">
+        {euro(zeilenBetrag(position))}
+      </span>
+      <button
+        type="button"
+        onClick={loeschen}
+        title="Position löschen"
+        className="flex h-8 w-[22px] items-center justify-center rounded-md text-muted-foreground/0 transition-colors group-hover:text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
 
+// ─── Positionskarte (Handy) ──────────────────────────────────────────────────
+//
+// Eine Tabelle mit sieben Spalten ist auf einem Telefon nicht zu bedienen.
+// Dieselbe Position hier als Karte: Beschreibung groß, darunter die Rechnung
+// „Menge × Preis = Betrag" in einer Zeile, Einheit und Rabatt hinter einem
+// Aufklapper – die braucht man selten.
+
+function PositionsKarte({
+  position, nummer, aendern, loeschen,
+}: {
+  position: LineItem;
+  nummer: number;
+  aendern: (patch: Partial<LineItem>) => void;
+  loeschen: () => void;
+}) {
+  const [offen, setOffen] = useState(false);
+
+  return (
+    <div className="rounded-xl bg-card p-3">
+      <div className="flex items-start gap-2">
+        <span className="mt-1 w-5 shrink-0 text-[13px] tabular-nums text-muted-foreground">{nummer}.</span>
+        <textarea
+          rows={1}
+          value={position.description}
+          onChange={(e) => aendern({ description: e.target.value })}
+          placeholder="Was hast du geleistet?"
+          className="min-h-[26px] w-full resize-none bg-transparent text-[17px] leading-snug font-medium outline-none placeholder:text-muted-foreground/60"
+        />
+        <button
+          type="button"
+          onClick={loeschen}
+          className="-mr-1 shrink-0 p-1 text-muted-foreground active:opacity-60"
+          aria-label={`Position ${nummer} löschen`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-2 flex items-center gap-1.5 pl-7 text-[15px]">
+        <ZahlFeld
+          wert={position.quantity}
+          onWert={(n) => aendern({ quantity: n })}
+          placeholder="1"
+          className="h-9 w-16 text-center text-[15px]"
+        />
+        <span className="text-muted-foreground">×</span>
+        <ZahlFeld
+          wert={position.unitPrice}
+          onWert={(n) => aendern({ unitPrice: n })}
+          nachkomma={2}
+          placeholder="0,00"
+          className="h-9 w-24 text-right text-[15px]"
+        />
+        <span className="ml-auto text-[17px] font-semibold tabular-nums">{euro(zeilenBetrag(position))}</span>
+      </div>
+
+      {offen && (
+        <div className="mt-2 flex items-center gap-2 pl-7">
+          <Label className="text-[13px] text-muted-foreground">Einheit</Label>
+          <Input
+            value={position.unit ?? ''}
+            onChange={(e) => aendern({ unit: e.target.value })}
+            placeholder="Std."
+            className="h-9 w-24 text-[15px]"
+          />
+          <Label className="ml-2 text-[13px] text-muted-foreground">Rabatt</Label>
+          <ZahlFeld
+            wert={position.discount ?? 0}
+            onWert={(n) => aendern({ discount: n })}
+            placeholder="0"
+            className="h-9 w-16 text-right text-[15px]"
+          />
+          <span className="text-[13px] text-muted-foreground">%</span>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOffen((v) => !v)}
+        className="mt-1 pl-7 text-[13px] text-primary active:opacity-60"
+      >
+        {offen ? 'Weniger' : 'Einheit und Rabatt'}
+      </button>
+    </div>
+  );
+}
+
+// ─── Aufklappbarer Abschnitt (Desktop) ───────────────────────────────────────
+
+function Abschnitt({
+  titel, kurzfassung, offen, umschalten, children, anker,
+}: {
+  titel: string;
+  /** Was rechts in der Kopfzeile steht, solange der Abschnitt zu ist. */
+  kurzfassung?: string;
+  offen: boolean;
+  umschalten: () => void;
+  children: React.ReactNode;
+  anker?: string;
+}) {
+  return (
+    <section data-tutorial={anker} className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+      <button
+        type="button"
+        onClick={umschalten}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-accent/40"
+      >
+        <ChevronDown
+          className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', !offen && '-rotate-90')}
+        />
+        <span className="font-heading text-[15px] font-semibold">{titel}</span>
+        {!offen && kurzfassung && (
+          <span className="ml-auto truncate pl-3 text-[13px] text-muted-foreground">{kurzfassung}</span>
+        )}
+      </button>
+      {offen && <div className="space-y-3 px-4 pb-4">{children}</div>}
+    </section>
+  );
+}
+
+// ─── Der Teiler zwischen Eingabe und Vorschau ────────────────────────────────
+//
+// Eingabe und Vorschau streiten sich um dieselbe Breite: Die Positionstabelle
+// hat sieben Spalten und will Platz, das A4-Blatt will ihn genauso. Bei der
+// Fensterbreite, mit der die App startet, geht beides nicht zugleich auf.
+// Statt die Aufteilung zu erraten, darf sie der Nutzer verschieben – wer gerade
+// tippt, zieht nach rechts, wer prüft, nach links.
+
+const TEILER_MIN = 420;
+const TEILER_REST = 320;
+
+/** Hält die Breite in dem Bereich, in dem beide Seiten noch brauchbar sind. */
+const einpassen = (roh: number, gesamt: number) =>
+  Math.min(Math.max(TEILER_MIN, roh), Math.max(TEILER_MIN, gesamt - TEILER_REST));
+
+function useTeiler(anfang: number) {
+  const [breite, setBreite] = useState(anfang);
+  const rahmen = useRef<HTMLDivElement | null>(null);
+  // Der Rahmen kommt als Zustand und nicht nur als Ref: Zieht jemand das Fenster
+  // unter die Handy-Grenze und wieder darüber, entsteht die Desktop-Fassung neu.
+  // Eine Wirkung mit leerer Abhängigkeitsliste liefe dann nicht noch einmal, und
+  // die Aufteilung bliebe für den Rest der Sitzung starr.
+  const [gemessen, setGemessen] = useState<HTMLDivElement | null>(null);
+  const rahmenRef = useCallback((el: HTMLDivElement | null) => {
+    rahmen.current = el;
+    setGemessen(el);
+  }, []);
+
+  // Wird das Fenster schmaler, muss die Eingabe nachgeben – sonst bliebe von
+  // der Vorschau irgendwann nur noch ein Streifen übrig, ohne dass jemand den
+  // Teiler angefasst hätte.
+  useEffect(() => {
+    if (!gemessen) return;
+    const messen = () => setBreite((b) => einpassen(b, gemessen.clientWidth));
+    messen();
+    const beobachter = new ResizeObserver(messen);
+    beobachter.observe(gemessen);
+    return () => beobachter.disconnect();
+  }, [gemessen]);
+
+  const beginnen = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startBreite = rahmen.current
+      ? (rahmen.current.firstElementChild as HTMLElement).getBoundingClientRect().width
+      : anfang;
+    const gesamt = rahmen.current?.getBoundingClientRect().width ?? 0;
+    const startX = e.clientX;
+
+    const bewegen = (ev: MouseEvent) => setBreite(einpassen(startBreite + ev.clientX - startX, gesamt));
+    const loslassen = () => {
+      window.removeEventListener('mousemove', bewegen);
+      window.removeEventListener('mouseup', loslassen);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize';
+    // Ohne diese Sperre markiert das Ziehen den Text, über den die Maus fährt,
+    // und die halbe Seite blaut ein, sobald man die Vorschau streift.
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', bewegen);
+    window.addEventListener('mouseup', loslassen);
+  }, [anfang]);
+
+  return { rahmenRef, breite, beginnen };
+}
+
+// ─── Blattvorschau, die sich einpasst ────────────────────────────────────────
+
+/** Misst die verfügbare Breite, damit „Anpassen" das Blatt genau einpasst. */
+function useBlattBreite(rand: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [passend, setPassend] = useState(3.78);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const messen = () => setPassend(Math.max(0.6, (el.clientWidth - rand) / A4_BREITE));
+    messen();
+    const beobachter = new ResizeObserver(messen);
+    beobachter.observe(el);
+    return () => beobachter.disconnect();
+  }, [rand]);
+
+  return { ref, passend };
+}
+
+// ─── Die Seite ───────────────────────────────────────────────────────────────
+
+type AbschnittName = 'empfaenger' | 'eckdaten' | 'positionen' | 'texte';
+
+interface Buchung {
+  partner: string;
+  date: string;
+  description: string;
+  netto: number;
+  ust: number;
+  brutto: number;
+  xrechnungPath?: string;
+  pdfPath?: string;
+  deliveryDate?: string;
+}
+
+export default function WriteInvoice() {
+  const isMobile = useIsMobile();
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
+  const kleinunternehmer = steuerregelung === 'kleinunternehmer';
+
+  const vorlagen = useVorlagenStore((s) => s.vorlagen);
+
+  // Wer aus dem Vorlagen-Baukasten über „Rechnung damit schreiben" kommt, hat
+  // sich dort schon für eine Vorlage entschieden. Die Kennung steht in der
+  // Adresse; sie hier zu übergehen hieße, ihn zweimal dasselbe fragen.
+  const [suchparameter] = useSearchParams();
+  const [vorlageId, setVorlageId] = useState<string>(() => {
+    const gewuenscht = suchparameter.get('vorlage');
+    if (gewuenscht && vorlagen.some((v) => v.id === gewuenscht)) return gewuenscht;
+    return vorlagen[0]?.id ?? '';
+  });
+
+  // ── Eingaben ──
+  const [feld, setFeld] = useState<Record<string, string>>(() => ({
+    doc_date: heute(),
+    delivery_date: heute(),
+    due_date: inTagen(14),
+    payment_terms: 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
+    legal_notice: kleinunternehmer
+      ? 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.'
+      : '',
+  }));
+  const setzeFeld = useCallback((schluessel: string, wert: string) => {
+    setFeld((f) => ({ ...f, [schluessel]: wert }));
+  }, []);
+
+  const [positionen, setPositionen] = useState<LineItem[]>(() => [neuePosition()]);
+  const [nachlass, setNachlass] = useState(0);
+  const [mwstSatz, setMwstSatz] = useState(kleinunternehmer ? 0 : 19);
+
+  const [profil, setProfil] = useState<Record<string, string>>({});
+  const [kunden, setKunden] = useState<Customer[]>([]);
+  const [kundenOffen, setKundenOffen] = useState(false);
+  const [kundenSuche, setKundenSuche] = useState('');
+
+  const [offen, setOffen] = useState<Record<AbschnittName, boolean>>({
+    empfaenger: true,
+    eckdaten: false,
+    positionen: true,
+    texte: false,
+  });
+  const umschalten = (name: AbschnittName) => setOffen((o) => ({ ...o, [name]: !o[name] }));
+
+  // ── Vorschau ──
+  const [zoom, setZoom] = useState<number | null>(null); // null = einpassen
+  const [seiteIndex, setSeiteIndex] = useState(0);
+  const [vorschauOffen, setVorschauOffen] = useState(false);
+
+  const [arbeitet, setArbeitet] = useState<'pdf' | 'beleg' | null>(null);
+  const [buchung, setBuchung] = useState<Buchung | null>(null);
+
+  const tabelleRef = useRef<HTMLDivElement>(null);
+  const teiler = useTeiler(520);
+  const sensoren = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  useEffect(() => {
+    Promise.all(PROFIL_SCHLUESSEL.map(async (k) => [k, (await getSetting(k)) ?? ''] as const))
+      .then((paare) => setProfil(Object.fromEntries(paare)))
+      .catch(console.error);
+    customers.getAll().then(setKunden).catch(() => { /* Ohne Kundenliste tippt man den Namen eben. */ });
+  }, []);
+
+  // ── Vorlage samt Angaben, die zu dieser einen Rechnung gehören ──
+  //
+  // Der Steuersatz gehört zur einzelnen Rechnung, nicht zur Vorlage: Dieselbe
+  // Vorlage trägt mal 19 %, mal eine Leistung ins Ausland ohne Steuer. Dasselbe
+  // gilt für die Spalten Einheit und Rabatt – die mitgelieferten Vorlagen zeigen
+  // sie nicht, wer sie hier aber ausfüllt, will sie auch auf dem Blatt sehen.
+  // Ohne diese Ergänzung verschwand eine getippte Einheit spurlos und ein
+  // Zeilenrabatt kürzte nur den Betrag, ohne sich zu erklären.
+  //
+  // Alles wird über die Vorlage gelegt, ohne sie zu ändern – gespeichert bleibt
+  // sie so, wie der Nutzer sie im Baukasten eingestellt hat.
+  const basisVorlage: Rechnungsvorlage | undefined =
+    vorlagen.find((v) => v.id === vorlageId) ?? vorlagen[0];
+
+  const braucht = useMemo(
+    () => ({
+      einheit: positionen.some((p) => (p.unit ?? '').trim() !== ''),
+      rabatt: positionen.some((p) => (p.discount ?? 0) > 0),
+    }),
+    [positionen],
+  );
+
+  const vorlage = useMemo<Rechnungsvorlage | null>(() => {
+    if (!basisVorlage) return null;
+    return {
+      ...basisVorlage,
+      bausteine: basisVorlage.bausteine.map((b) => {
+        if (b.typ === 'positionen') {
+          return {
+            ...b,
+            mwstSatz,
+            summenAusweisen: mwstSatz > 0,
+            spalten: mitSpalten(b.spalten, braucht),
+          };
+        }
+        // Ein eigener Betreff schlägt den der Vorlage; leer heißt: Vorlage gilt.
+        if (b.typ === 'betreff' && feld.subject?.trim()) {
+          return { ...b, inhalt: feld.subject };
+        }
+        return b;
+      }),
+    };
+  }, [basisVorlage, mwstSatz, braucht, feld.subject]);
+
+  const werte = useMemo(
+    () => {
+      const w = { ...absenderFelder(profil), ...feld };
+      // Solange keine Nummer vergeben ist, stünde im Betreff „Rechnung" mit
+      // einem Leerzeichen dahinter – das sieht nach einem Fehler aus. Die
+      // Nummer wird bewusst nicht beim Öffnen vergeben: `generateInvoiceNumber`
+      // zieht sie aus der lückenlosen Folge, und die darf nicht bei jedem
+      // Seitenaufruf weiterzählen. Also sagt die Vorschau, dass sie fehlt.
+      if (!w.doc_number?.trim()) w.doc_number = '(Nummer folgt)';
+      return w;
+    },
+    [profil, feld],
+  );
+
+  /** Was ohne eigenen Betreff auf dem Blatt stünde – als Platzhalter im Feld. */
+  const betreffVorgabe = useMemo(() => {
+    const b = basisVorlage?.bausteine.find((x) => x.typ === 'betreff');
+    return b && b.typ === 'betreff' ? fuelle(b.inhalt, werte).trim() : '';
+  }, [basisVorlage, werte]);
+
+  const { seiten, summen } = useMemo(() => {
+    if (!vorlage) {
+      return { seiten: [] as Seite[], summen: { netto: 0, steuer: 0, brutto: 0, rabatt: 0 } };
+    }
+    return layoutRechnung({ vorlage, werte, positionen, globalerRabatt: nachlass });
+  }, [vorlage, werte, positionen, nachlass]);
+
+  const zwischensumme = useMemo(
+    () => positionen.reduce((s, p) => s + zeilenBetrag(p), 0),
+    [positionen],
+  );
+
+  const aktiveSeite = Math.min(seiteIndex, Math.max(0, seiten.length - 1));
+  useEffect(() => { if (seiteIndex > seiten.length - 1) setSeiteIndex(0); }, [seiten.length, seiteIndex]);
+
+  // ── Positionen ──
+  const positionAendern = useCallback((id: string, patch: Partial<LineItem>) => {
+    setPositionen((liste) => liste.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }, []);
+
+  const positionLoeschen = useCallback((id: string) => {
+    // Eine Zeile bleibt immer stehen – ein leerer Positionsblock sieht aus wie
+    // ein Fehler, und der erste Klick wäre ohnehin „Position hinzufügen".
+    setPositionen((liste) => (liste.length <= 1 ? [neuePosition()] : liste.filter((p) => p.id !== id)));
+  }, []);
+
+  const positionAnhaengen = useCallback((fokussieren = false) => {
+    const frisch = neuePosition();
+    setPositionen((liste) => [...liste, frisch]);
+    if (fokussieren) {
+      requestAnimationFrame(() => {
+        const felder = tabelleRef.current?.querySelectorAll<HTMLInputElement>('[data-zelle]');
+        felder?.[felder.length - 5]?.focus();
+      });
+    }
+  }, []);
+
+  const beimZiehen = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setPositionen((liste) => {
+      const von = liste.findIndex((p) => p.id === active.id);
+      const nach = liste.findIndex((p) => p.id === over.id);
+      return von < 0 || nach < 0 ? liste : arrayMove(liste, von, nach);
+    });
+  };
+
+  /**
+   * Eingabetaste und Tabulator springen ins nächste Feld – und am Ende der
+   * letzten Zeile in eine neue Zeile. Vorher landete man mit der Eingabetaste
+   * nirgendwo und musste zur Maus greifen, um weiterzuschreiben.
+   */
+  const zellenTasten = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' && !(e.key === 'Tab' && !e.shiftKey)) return;
+    const felder = Array.from(tabelleRef.current?.querySelectorAll<HTMLInputElement>('[data-zelle]') ?? []);
+    const stelle = felder.indexOf(e.currentTarget);
+    const naechstes = felder[stelle + 1];
+    if (naechstes) {
+      if (e.key === 'Enter') { e.preventDefault(); naechstes.focus(); naechstes.select(); }
+      return;
+    }
+    e.preventDefault();
+    positionAnhaengen(true);
+  }, [positionAnhaengen]);
+
+  // ── Kunden ──
+  const gefilterteKunden = kunden.filter((c) => {
+    const q = kundenSuche.trim().toLowerCase();
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q) || (c.customer_number ?? '').toLowerCase().includes(q);
+  });
+
+  const kundeUebernehmen = (c: Customer) => {
+    const anschrift = [c.street, [c.zip, c.city].filter(Boolean).join(' ')].filter(Boolean).join('\n');
+    setFeld((f) => ({
+      ...f,
+      receiver_name: c.name,
+      receiver_address: anschrift,
+      customer_number: c.customer_number ?? '',
+      ...(c.payment_days
+        ? {
+          due_date: inTagen(c.payment_days),
+          payment_terms: `Zahlbar innerhalb von ${c.payment_days} Tagen ohne Abzug.`,
+        }
+        : {}),
+    }));
+    setKundenOffen(false);
+    setKundenSuche('');
+  };
+
+  const nummerVorschlagen = async () => {
+    try {
+      const naechste = await generateInvoiceNumber('R');
+      setzeFeld('doc_number', naechste);
+    } catch {
+      toast.error('Konnte keine Rechnungsnummer vergeben');
+    }
+  };
+
+  // ── Speichern ──
+
+  /** Schreibt das PDF dorthin, wo der Nutzer es haben will. */
+  const pdfSchreiben = async (): Promise<{ pfad: string; name: string } | null> => {
+    if (!vorlage) return null;
+    const bytes = await pdfBytes(seiten, vorlage.gestaltung.schriftart);
+    const name = (feld.doc_number || 'Rechnung').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const pfad = await saveDialog({
+      defaultPath: `${name}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (!pfad) return null;
+    await writeFile(pfad, bytes);
+    return { pfad, name };
+  };
+
+  /** Vor dem Speichern kurz zusammentragen, was fehlen könnte. */
+  const pruefen = (): boolean => {
+    if (!vorlage) { toast.error('Keine Vorlage ausgewählt'); return false; }
+    if (positionen.every((p) => zeilenBetrag(p) === 0 && !p.description.trim())) {
+      toast.error('Die Rechnung hat noch keine Positionen.');
+      return false;
+    }
+    if (!feld.doc_number?.trim()) toast.warning('Ohne Rechnungsnummer ist die Rechnung nicht vollständig.');
+    if (!feld.delivery_date?.trim()) toast.warning('Leistungszeitpunkt fehlt – Pflichtangabe nach § 14 Abs. 4 UStG.');
+    return true;
+  };
+
+  const alsPdfSpeichern = async () => {
+    if (!pruefen()) return;
+    setArbeitet('pdf');
+    try {
+      const ergebnis = await pdfSchreiben();
+      if (ergebnis) toast.success('PDF gespeichert.');
+    } catch (e) {
+      toast.error('Fehler beim Speichern: ' + String(e));
+    } finally {
+      setArbeitet(null);
+    }
+  };
+
+  /**
+   * Buchen heißt: PDF speichern, die XRechnung als eigentliches Original daneben
+   * archivieren (E-Rechnungspflicht seit 2025) und dann den Beleg anlegen. Die
+   * XML entsteht bewusst nur hier – wer nur schnell ein PDF verschickt, soll
+   * keine verwaiste Datei im Archiv hinterlassen.
+   */
+  const alsBelegBuchen = async () => {
+    if (!pruefen()) return;
+    setArbeitet('beleg');
+    try {
+      const ergebnis = await pdfSchreiben();
+      if (!ergebnis) return;
+
+      const datum = isoDatum(feld.doc_date ?? '');
+      let xrechnungPath = '';
+      const absender = profil.profile_name ?? '';
+      if (absender) {
+        try {
+          xrechnungPath = await saveXRechnungToAppData(
+            {
+              id: `inv-${Date.now()}`,
+              date: datum,
+              year: Number.parseInt(datum.slice(0, 4)),
+              month: Number.parseInt(datum.slice(5, 7)),
+              category: 'umsatz_pflichtig',
+              description: feld.doc_number || ergebnis.name,
+              partner: feld.receiver_name ?? '',
+              netto: summen.netto,
+              fee: 0,
+              ust: summen.steuer,
+              brutto: summen.brutto,
+              type: 'einnahme',
+              currency: 'EUR',
+              pdf_path: '',
+              note: feld.notes ?? '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              is_locked: false,
+              pdf_sha256: '',
+              delivery_date: isoDatum(feld.delivery_date ?? ''),
+              storno_of: '',
+              xrechnung_path: '',
+            },
+            {
+              sellerName: absender,
+              sellerStreet: profil.profile_street ?? '',
+              sellerZip: profil.profile_zip ?? '',
+              sellerCity: profil.profile_city ?? '',
+              sellerCountry: profil.profile_country || 'DE',
+              taxNumber: profil.profile_tax_number ?? '',
+              vatId: profil.profile_vat_id ?? '',
+              sellerEmail: profil.profile_email ?? '',
+            },
+          );
+        } catch (fehler) {
+          toast.warning('XRechnung nicht archiviert (Profil unvollständig?): ' + String(fehler));
+        }
+      } else {
+        toast.info('Kein Profilname hinterlegt – die XRechnung wurde nicht archiviert.');
+      }
+
+      // Das PDF wandert zusätzlich ins Archiv, damit die Sicherung vollständig
+      // ist, auch wenn der Nutzer seine Datei später verschiebt.
+      let pdfPath = '';
+      try {
+        pdfPath = await copyPdfToAppData(ergebnis.pfad, `${ergebnis.name}-${Date.now()}.pdf`);
+      } catch { /* Nicht kritisch – der Beleg steht auch ohne Kopie. */ }
+
+      setBuchung({
+        partner: feld.receiver_name ?? '',
+        date: feld.doc_date ?? heute(),
+        description: feld.doc_number || ergebnis.name,
+        netto: summen.netto,
+        ust: summen.steuer,
+        brutto: summen.brutto,
+        xrechnungPath,
+        pdfPath,
+        deliveryDate: isoDatum(feld.delivery_date ?? ''),
+      });
+    } catch (e) {
+      toast.error('Fehler beim Buchen: ' + String(e));
+    } finally {
+      setArbeitet(null);
+    }
+  };
+
+  // ── Gemeinsame Bausteine beider Fassungen ──
+
+  const kundenwahl = (
+    <ResponsiveModal
+      open={kundenOffen}
+      onClose={() => setKundenOffen(false)}
+      title="Kunde wählen"
+      description="Name, Anschrift und Zahlungsziel werden übernommen."
+    >
+      <div className="space-y-3">
+        <Input
+          autoFocus
+          value={kundenSuche}
+          onChange={(e) => setKundenSuche(e.target.value)}
+          placeholder="Suchen…"
+          className="h-10"
+        />
+        {gefilterteKunden.length === 0 ? (
+          <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+            {kunden.length === 0 ? 'Noch keine Kunden angelegt.' : 'Kein Kunde gefunden.'}
+          </p>
+        ) : (
+          <div className="max-h-[50vh] overflow-y-auto">
+            <ListGroup>
+              {gefilterteKunden.map((c) => (
+                <ListRow
+                  key={c.id}
+                  label={c.name}
+                  hint={[c.customer_number, c.city].filter(Boolean).join(' · ') || undefined}
+                  onClick={() => kundeUebernehmen(c)}
+                />
+              ))}
+            </ListGroup>
+          </div>
+        )}
+      </div>
+    </ResponsiveModal>
+  );
+
+  const buchungsdialog = buchung && (
+    <SaveInvoiceDialog open onClose={() => setBuchung(null)} prefill={buchung} />
+  );
+
+  const steuerwahl = (
+    <Select value={String(mwstSatz)} onValueChange={(v) => setMwstSatz(Number(v))}>
+      <SelectTrigger className="h-8 w-[104px] text-[13px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="0">Keine USt</SelectItem>
+        <SelectItem value="7">7 % USt</SelectItem>
+        <SelectItem value="19">19 % USt</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Handy
+  // ─────────────────────────────────────────────────────────────────────────
+
+  if (isMobile) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-4 pb-6">
+          <PageHeader
+            title="Rechnung schreiben"
+            startExpanded
+            className="mb-4"
+            actions={
+              // Nur das Symbol: Mit Beschriftung daneben blieb für den großen
+              // Titel zu wenig Platz, und er brach als „Rechnung schre…" ab.
+              <Button variant="outline" size="icon" onClick={() => setVorschauOffen(true)} aria-label="Vorschau">
+                <Eye className="h-4 w-4" />
+              </Button>
+            }
+          />
+
+          <FormGroup title="Vorlage" footer="Absender, Steuernummer und Bankverbindung kommen aus den Einstellungen.">
+            <FormRow label="Gestaltung">
+              <Select value={basisVorlage?.id ?? ''} onValueChange={setVorlageId}>
+                <SelectTrigger className="h-9 w-auto max-w-52 min-w-32 border-0 bg-transparent shadow-none">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {vorlagen.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormRow>
+            <FormRow label="Absender">
+              <Link to="/settings" className="text-[15px] text-primary">
+                {profil.profile_name || 'In den Einstellungen ergänzen'}
+              </Link>
+            </FormRow>
+          </FormGroup>
+
+          <FormGroup title="Empfänger">
+            <FormRow label="Aus Kunden">
+              <button type="button" onClick={() => setKundenOffen(true)} className="text-[17px] text-primary active:opacity-60">
+                Wählen
+              </button>
+            </FormRow>
+            <FormRow label="Name">
+              <input
+                className={FIELD}
+                value={feld.receiver_name ?? ''}
+                onChange={(e) => setzeFeld('receiver_name', e.target.value)}
+                placeholder="Firma oder Person"
+              />
+            </FormRow>
+            <FormFullRow>
+              <textarea
+                rows={3}
+                value={feld.receiver_address ?? ''}
+                onChange={(e) => setzeFeld('receiver_address', e.target.value)}
+                placeholder={'Straße und Hausnummer\nPLZ Ort'}
+                className="w-full resize-none bg-transparent text-[17px] leading-snug outline-none placeholder:text-muted-foreground/60"
+              />
+            </FormFullRow>
+          </FormGroup>
+
+          <FormGroup title="Eckdaten">
+            <FormRow label="Nummer">
+              <input
+                className={FIELD}
+                value={feld.doc_number ?? ''}
+                onChange={(e) => setzeFeld('doc_number', e.target.value)}
+                placeholder="R-2026-001"
+              />
+              <button type="button" onClick={nummerVorschlagen} className="ml-2 shrink-0 text-primary active:opacity-60" aria-label="Nummer vorschlagen">
+                <Wand2 className="h-4 w-4" />
+              </button>
+            </FormRow>
+            <FormRow label="Datum">
+              <input className={FIELD} value={feld.doc_date ?? ''} onChange={(e) => setzeFeld('doc_date', e.target.value)} placeholder="TT.MM.JJJJ" />
+            </FormRow>
+            <FormRow label="Leistung" hint="Pflichtangabe">
+              <input className={FIELD} value={feld.delivery_date ?? ''} onChange={(e) => setzeFeld('delivery_date', e.target.value)} placeholder="TT.MM.JJJJ" />
+            </FormRow>
+            <FormRow label="Fällig bis">
+              <input className={FIELD} value={feld.due_date ?? ''} onChange={(e) => setzeFeld('due_date', e.target.value)} placeholder="TT.MM.JJJJ" />
+            </FormRow>
+          </FormGroup>
+
+          <section className="space-y-1.5">
+            <h2 className="px-4 text-[13px] font-medium text-muted-foreground">Positionen</h2>
+            <div className="space-y-2">
+              {positionen.map((p, i) => (
+                <PositionsKarte
+                  key={p.id}
+                  position={p}
+                  nummer={i + 1}
+                  aendern={(patch) => positionAendern(p.id, patch)}
+                  loeschen={() => positionLoeschen(p.id)}
+                />
+              ))}
+            </div>
+            <Button variant="outline" className="w-full gap-1.5" onClick={() => positionAnhaengen()}>
+              <Plus className="h-4 w-4" />
+              Position hinzufügen
+            </Button>
+          </section>
+
+          <FormGroup title="Summe">
+            <FormRow label="Zwischensumme">
+              <span className="text-[17px] tabular-nums text-muted-foreground">{euro(zwischensumme)}</span>
+            </FormRow>
+            <FormRow label="Nachlass">
+              <ZahlFeld wert={nachlass} onWert={setNachlass} placeholder="0" className="h-9 w-16 text-right text-[17px]" />
+              <span className="ml-1 text-[17px] text-muted-foreground">%</span>
+            </FormRow>
+            <FormRow label="Umsatzsteuer" hint={kleinunternehmer ? 'Kleinunternehmer' : undefined}>
+              {steuerwahl}
+            </FormRow>
+            <FormRow label="Gesamt">
+              <span className="text-[17px] font-semibold tabular-nums">{euro(summen.brutto)}</span>
+            </FormRow>
+          </FormGroup>
+
+          <FormGroup title="Texte">
+            <FormRow label="Betreff">
+              <input
+                className={FIELD}
+                value={feld.subject ?? ''}
+                onChange={(e) => setzeFeld('subject', e.target.value)}
+                placeholder={betreffVorgabe || 'Rechnung'}
+              />
+            </FormRow>
+            <FormFullRow>
+              <Label className="mb-1 block text-[13px] text-muted-foreground">Anschreiben</Label>
+              <textarea
+                rows={3}
+                value={feld.notes ?? ''}
+                onChange={(e) => setzeFeld('notes', e.target.value)}
+                placeholder="Vielen Dank für den Auftrag …"
+                className="w-full resize-none bg-transparent text-[17px] leading-snug outline-none placeholder:text-muted-foreground/60"
+              />
+            </FormFullRow>
+            <FormFullRow>
+              <Label className="mb-1 block text-[13px] text-muted-foreground">Zahlungsbedingungen</Label>
+              <input
+                className="w-full bg-transparent text-[17px] outline-none placeholder:text-muted-foreground/60"
+                value={feld.payment_terms ?? ''}
+                onChange={(e) => setzeFeld('payment_terms', e.target.value)}
+                placeholder="Zahlbar innerhalb von 14 Tagen"
+              />
+            </FormFullRow>
+            <FormFullRow>
+              <Label className="mb-1 block text-[13px] text-muted-foreground">Steuerhinweis</Label>
+              <textarea
+                rows={2}
+                value={feld.legal_notice ?? ''}
+                onChange={(e) => setzeFeld('legal_notice', e.target.value)}
+                placeholder="z. B. Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)"
+                className="w-full resize-none bg-transparent text-[17px] leading-snug outline-none placeholder:text-muted-foreground/60"
+              />
+            </FormFullRow>
+          </FormGroup>
+        </div>
+
+        {/* Feste Leiste: Was am Ende dasteht, und die zwei Wege hinaus.
+            Ohne eigenen Abstand für die Safe-Area – die Leiste sitzt ÜBER der
+            Navigationsleiste des Layouts, und die hält den unteren Rand des
+            Geräts bereits frei. Beides zusammen ergäbe einen toten Streifen. */}
+        <div className="shrink-0 border-t border-border bg-background px-4 pt-2.5 pb-2.5">
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="text-[13px] text-muted-foreground">
+              {positionen.length} {positionen.length === 1 ? 'Position' : 'Positionen'}
+            </span>
+            <span className="text-[20px] font-bold tabular-nums">{euro(summen.brutto)}</span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 gap-1.5" onClick={alsPdfSpeichern} disabled={arbeitet !== null}>
+              <FileDown className="h-4 w-4" />
+              PDF
+            </Button>
+            <Button className="flex-1 gap-1.5" onClick={alsBelegBuchen} disabled={arbeitet !== null}>
+              <Save className="h-4 w-4" />
+              {arbeitet === 'beleg' ? 'Moment…' : 'Buchen'}
+            </Button>
+          </div>
+        </div>
+
+        <ResponsiveModal open={vorschauOffen} onClose={() => setVorschauOffen(false)} title="Vorschau" closeLabel="Fertig">
+          <VorschauBlatt seiten={seiten} schriftart={vorlage?.gestaltung.schriftart ?? 'Helvetica'} seiteIndex={aktiveSeite} onSeite={setSeiteIndex} rand={16} />
+        </ResponsiveModal>
+
+        {kundenwahl}
+        {buchungsdialog}
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Desktop
+  // ─────────────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Kopfleiste: links womit, in der Mitte wie groß, rechts wohin damit. */}
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2.5">
+        <FileText className="h-4 w-4 shrink-0 text-primary" />
+        {/* Ab etwa 1024 Pixeln Fensterbreite verschwindet der Titel: Darunter
+            drängt er die beiden Aktionen rechts aus der Leiste, und welche
+            Seite offen ist, sagt links ohnehin schon die Navigation. */}
+        <span className="hidden shrink-0 whitespace-nowrap font-heading text-[15px] font-semibold lg:inline">
+          Rechnung schreiben
+        </span>
+
+        <Select value={basisVorlage?.id ?? ''} onValueChange={setVorlageId}>
+          <SelectTrigger className="h-8 w-[150px] shrink-0 text-[13px]">
+            <SelectValue placeholder="Vorlage" />
+          </SelectTrigger>
+          <SelectContent>
+            {vorlagen.map((v) => (
+              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="mx-1 h-5 w-px bg-border" />
+
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="Kleiner"
+            onClick={() => setZoom((z) => Math.max(35, Math.round((z ?? 100) - 15)))}>
+            <Minus className="h-3.5 w-3.5" />
+          </Button>
+          <span className="w-11 text-center text-[13px] tabular-nums text-muted-foreground">
+            {zoom === null ? 'Auto' : `${zoom}%`}
+          </span>
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="Größer"
+            onClick={() => setZoom((z) => Math.min(300, Math.round((z ?? 100) + 15)))}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant={zoom === null ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-8 w-8"
+            title="Ins Fenster einpassen"
+            onClick={() => setZoom((z) => (z === null ? 100 : null))}
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {/* In schmalen Fenstern schrumpfen die Beschriftungen auf ein Wort.
+            Beide Wege müssen sichtbar bleiben – vorher schob sich „Als Beleg
+            buchen", also ausgerechnet die Hauptaktion, aus der Leiste heraus. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <Button variant="outline" className="gap-1.5" onClick={alsPdfSpeichern} disabled={arbeitet !== null}>
+            <FileDown className="h-4 w-4" />
+            {arbeitet === 'pdf' ? 'Speichere…' : (
+              <>
+                <span className="hidden xl:inline">Als PDF speichern</span>
+                <span className="xl:hidden">PDF</span>
+              </>
+            )}
+          </Button>
+          <Button className="gap-1.5" onClick={alsBelegBuchen} disabled={arbeitet !== null}>
+            <Save className="h-4 w-4" />
+            {arbeitet === 'beleg' ? 'Moment…' : (
+              <>
+                <span className="hidden xl:inline">Als Beleg buchen</span>
+                <span className="xl:hidden">Buchen</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <div ref={teiler.rahmenRef} className="flex min-h-0 flex-1">
+        {/* ── Eingabe ── */}
+        <div
+          data-tutorial="write-invoice-sidebar"
+          style={{ width: teiler.breite }}
+          className="shrink-0 space-y-3 overflow-y-auto p-4"
+        >
+          <Abschnitt
+            titel="Empfänger"
+            offen={offen.empfaenger}
+            umschalten={() => umschalten('empfaenger')}
+            kurzfassung={feld.receiver_name || 'Noch niemand'}
+          >
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setKundenOffen(true)}>
+                <Users className="h-3.5 w-3.5" />
+                Aus Kunden wählen
+              </Button>
+              <span className="text-[13px] text-muted-foreground">oder frei eintragen</span>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Name</Label>
+              <Input
+                value={feld.receiver_name ?? ''}
+                onChange={(e) => setzeFeld('receiver_name', e.target.value)}
+                placeholder="Firma oder Person"
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Anschrift</Label>
+              <textarea
+                rows={3}
+                value={feld.receiver_address ?? ''}
+                onChange={(e) => setzeFeld('receiver_address', e.target.value)}
+                placeholder={'Straße und Hausnummer\nPLZ Ort'}
+                className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Kundennummer</Label>
+              <Input
+                value={feld.customer_number ?? ''}
+                onChange={(e) => setzeFeld('customer_number', e.target.value)}
+                placeholder="optional"
+                className="h-9"
+              />
+            </div>
+          </Abschnitt>
+
+          <Abschnitt
+            titel="Eckdaten"
+            offen={offen.eckdaten}
+            umschalten={() => umschalten('eckdaten')}
+            kurzfassung={[feld.doc_number, feld.doc_date].filter(Boolean).join(' · ') || 'Ohne Nummer'}
+          >
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Rechnungsnummer</Label>
+                <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-[11px] text-primary" onClick={nummerVorschlagen}>
+                  <Wand2 className="h-3 w-3" />
+                  Vorschlagen
+                </Button>
+              </div>
+              <Input
+                value={feld.doc_number ?? ''}
+                onChange={(e) => setzeFeld('doc_number', e.target.value)}
+                placeholder="R-2026-001"
+                className="h-9"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                ['doc_date', 'Datum'],
+                ['delivery_date', 'Leistung'],
+                ['due_date', 'Fällig bis'],
+              ] as const).map(([schluessel, beschriftung]) => (
+                <div key={schluessel} className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">{beschriftung}</Label>
+                  <Input
+                    value={feld[schluessel] ?? ''}
+                    onChange={(e) => setzeFeld(schluessel, e.target.value)}
+                    placeholder="TT.MM.JJJJ"
+                    className="h-9"
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Der Leistungszeitpunkt ist Pflicht (§ 14 Abs. 4 UStG). Ein Zeitraum wie „März 2026" ist erlaubt.
+            </p>
+          </Abschnitt>
+
+          <Abschnitt
+            titel="Positionen"
+            anker="write-invoice-items"
+            offen={offen.positionen}
+            umschalten={() => umschalten('positionen')}
+            kurzfassung={`${positionen.length} · ${euro(summen.brutto)}`}
+          >
+            <div>
+              <div className={cn(RASTER, 'border-b border-border px-1 pb-1.5 text-[11px] font-medium text-muted-foreground')}>
+                <span />
+                {/* `truncate` an jeder Beschriftung: In einem schmalen Fenster
+                    schrumpft die Beschreibungsspalte, und ohne Beschnitt lief
+                    ihr Titel sichtbar in den der Mengenspalte hinein. */}
+                <span className="truncate">Beschreibung</span>
+                <span className="truncate text-right">Menge</span>
+                <span className="truncate text-center">Einheit</span>
+                {/* „Preis" statt „Einzelpreis": Der lange Titel passte nicht über
+                    die Spalte und wurde beschnitten – neben „Betrag" ist ohnehin
+                    klar, welcher Preis gemeint ist. */}
+                <span className="truncate text-right">Preis</span>
+                <span className="truncate text-right">Rabatt</span>
+                <span className="truncate text-right">Betrag</span>
+                <span />
+              </div>
+
+              <div ref={tabelleRef}>
+                <DndContext sensors={sensoren} collisionDetection={closestCenter} onDragEnd={beimZiehen}>
+                  <SortableContext items={positionen.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                    {positionen.map((p, i) => (
+                      <PositionsZeile
+                        key={p.id}
+                        position={p}
+                        nummer={i + 1}
+                        aendern={(patch) => positionAendern(p.id, patch)}
+                        loeschen={() => positionLoeschen(p.id)}
+                        tasten={zellenTasten}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => positionAnhaengen(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Zeile hinzufügen
+              </Button>
+              <span className="text-[11px] text-muted-foreground">
+                Eingabetaste springt weiter, Tabulator am Ende legt eine Zeile an.
+              </span>
+            </div>
+
+            {/* Summenblock – rechtsbündig, so wie er auch auf dem Blatt steht. */}
+            <div className="flex justify-end pt-1">
+              <div className="w-[260px] space-y-1.5 text-[13px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Zwischensumme</span>
+                  <span className="tabular-nums">{euro(zwischensumme)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    Nachlass
+                    <ZahlFeld wert={nachlass} onWert={setNachlass} placeholder="0" className="h-7 w-12 text-right text-[13px]" />
+                    %
+                  </span>
+                  <span className="tabular-nums">{summen.rabatt > 0 ? `− ${euro(summen.rabatt)}` : '–'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  {steuerwahl}
+                  <span className="tabular-nums">{euro(summen.steuer)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-border pt-1.5 text-[15px] font-semibold">
+                  <span>Gesamt</span>
+                  <span className="tabular-nums">{euro(summen.brutto)}</span>
+                </div>
+              </div>
+            </div>
+          </Abschnitt>
+
+          <Abschnitt
+            titel="Texte"
+            offen={offen.texte}
+            umschalten={() => umschalten('texte')}
+            kurzfassung={feld.subject || (feld.notes ? 'Anschreiben gesetzt' : 'Ohne Anschreiben')}
+          >
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Betreff</Label>
+              <Input
+                value={feld.subject ?? ''}
+                onChange={(e) => setzeFeld('subject', e.target.value)}
+                placeholder={betreffVorgabe || 'Rechnung'}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Anschreiben</Label>
+              <textarea
+                rows={3}
+                value={feld.notes ?? ''}
+                onChange={(e) => setzeFeld('notes', e.target.value)}
+                placeholder="Vielen Dank für den Auftrag. Wie besprochen berechne ich …"
+                className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Zahlungsbedingungen</Label>
+              <Input
+                value={feld.payment_terms ?? ''}
+                onChange={(e) => setzeFeld('payment_terms', e.target.value)}
+                placeholder="Zahlbar innerhalb von 14 Tagen ohne Abzug."
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Steuerhinweis</Label>
+              <textarea
+                rows={2}
+                value={feld.legal_notice ?? ''}
+                onChange={(e) => setzeFeld('legal_notice', e.target.value)}
+                placeholder="z. B. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."
+                className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring"
+              />
+            </div>
+          </Abschnitt>
+
+          {/* Der Absender – als Hinweis, nicht als zehn Eingabefelder. */}
+          <div className="flex items-center gap-2 rounded-xl bg-muted/40 px-4 py-3 text-[13px] text-muted-foreground">
+            <Settings2 className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              Absender: {profil.profile_name || 'noch nicht hinterlegt'}
+              {profil.profile_iban ? ` · IBAN ${profil.profile_iban.slice(0, 8)}…` : ''}
+            </span>
+            <Link to="/settings" className="shrink-0 text-primary hover:underline">Einstellungen</Link>
+          </div>
+        </div>
+
+        {/* ── Teiler ── */}
+        <div
+          onMouseDown={teiler.beginnen}
+          title="Aufteilung verschieben"
+          className="w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary/40 active:bg-primary/60"
+        />
+
+        {/* ── Vorschau ── */}
+        <div className="flex min-w-0 flex-1 flex-col bg-muted/30">
+          <VorschauBlatt
+            seiten={seiten}
+            schriftart={vorlage?.gestaltung.schriftart ?? 'Helvetica'}
+            seiteIndex={aktiveSeite}
+            onSeite={setSeiteIndex}
+            zoom={zoom}
+            rand={40}
+          />
+        </div>
+      </div>
+
+      {kundenwahl}
+      {buchungsdialog}
+    </div>
+  );
+}
+
+// ─── Vorschaufläche mit Blätterleiste ────────────────────────────────────────
+
+function VorschauBlatt({
+  seiten, schriftart, seiteIndex, onSeite, zoom = null, rand,
+}: {
+  seiten: Seite[];
+  schriftart: string;
+  seiteIndex: number;
+  onSeite: (i: number) => void;
+  /** Prozent, oder null zum Einpassen. */
+  zoom?: number | null;
+  rand: number;
+}) {
+  const { ref, passend } = useBlattBreite(rand);
+  const massstab = zoom === null ? passend : (3.78 * zoom) / 100;
+  const gezeigt = seiten.length > 0 ? [seiten[Math.min(seiteIndex, seiten.length - 1)]] : [];
+
+  return (
+    <>
+      {/* Der Innenabstand ist die Hälfte des Randes, den die Einpassung
+          abzieht – so bleibt links und rechts genau so viel Luft, wie
+          gerechnet wurde, und das Blatt scrollt nicht seitwärts. */}
+      <div ref={ref} className="min-h-0 flex-1 overflow-auto" style={{ padding: rand / 2 }}>
+        <Blattvorschau seiten={gezeigt} schriftart={schriftart} massstab={massstab} />
+      </div>
+      {seiten.length > 1 && (
+        <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-background/80 py-1.5">
+          <Button variant="ghost" size="icon" className="h-7 w-7" disabled={seiteIndex === 0}
+            onClick={() => onSeite(Math.max(0, seiteIndex - 1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Badge variant="secondary" className="tabular-nums">
+            Seite {seiteIndex + 1} von {seiten.length}
+          </Badge>
+          <Button variant="ghost" size="icon" className="h-7 w-7" disabled={seiteIndex >= seiten.length - 1}
+            onClick={() => onSeite(Math.min(seiten.length - 1, seiteIndex + 1))}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}

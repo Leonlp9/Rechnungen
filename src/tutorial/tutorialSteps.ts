@@ -102,53 +102,43 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     placement: 'right',
     action: 'observe',
   },
-  // ── 10. CLICK: Template-Designer-Tab anklicken ──
+  // ── 10. CLICK: Vorlagen-Baukasten anklicken ──
   {
     id: 'nav-invoice-designer',
     route: '/invoice-designer',
     target: '[data-tutorial="nav-invoice-designer"]',
-    title: '🎨 Template Designer',
-    description: 'Gestalte das Aussehen deiner Rechnungen – Logo, Farben, Schriftart und Layout per Drag & Drop. Klicke auf den Menüpunkt.',
+    title: '🎨 Rechnungsvorlagen',
+    description: 'Hier baust du deine Rechnung aus fertigen Bausteinen zusammen und stellst Schrift, Farbe und Logo ein. Klicke auf den Menüpunkt.',
     placement: 'right',
     action: 'click',
   },
-  // ── 11. OBSERVE: Template-Liste zeigen ──
+  // ── 11. OBSERVE: Vorlagenwahl zeigen ──
   {
     id: 'designer-template-list',
     route: '/invoice-designer',
     target: '[data-tutorial="designer-template-list"]',
-    title: '📑 Template-Liste',
-    description: 'Hier siehst du alle deine Vorlagen. Du kannst Vorlagen duplizieren, umbenennen oder löschen. Die mitgelieferte Standardvorlage lässt sich jederzeit zurücksetzen.',
+    title: '📑 Deine Vorlagen',
+    description: 'Oben wählst du die Vorlage, an der du arbeitest – und legst neue an, kopierst, benennst um oder löschst sie. Mitgelieferte Vorlagen kannst du jederzeit zurücksetzen.',
     placement: 'right',
     action: 'observe',
   },
-  // ── 12. OBSERVE: Ribbon-Toolbar zeigen ──
+  // ── 12. OBSERVE: Bausteinliste zeigen ──
   {
     id: 'designer-toolbar',
     route: '/invoice-designer',
     target: '[data-tutorial="designer-toolbar"]',
-    title: '🔧 Toolbar – Elemente einfügen',
-    description: 'Über die Toolbar fügst du Elemente ein: Text, Variablen (z.B. {{name}}), Rechtecke, Bilder, die Positionstabelle und Linien. Auch Undo/Redo und Speichern findest du hier.',
-    placement: 'bottom',
+    title: '🧱 Aufbau und Aussehen',
+    description: 'Unter „Aufbau" liegen die Bausteine deiner Rechnung – Kopfzeile, Anschriftfeld, Positionen, Fußzeile. Ziehen sortiert sie, der Schalter blendet sie aus, ein Klick öffnet ihre Einstellungen. Unter „Aussehen" stellst du Akzentfarbe, Schrift, Ränder und Logo für das ganze Blatt ein.',
+    placement: 'right',
     action: 'observe',
   },
-  // ── 13. OBSERVE: Canvas zeigen ──
+  // ── 13. OBSERVE: Vorschau zeigen ──
   {
     id: 'designer-canvas',
     route: '/invoice-designer',
     target: '[data-tutorial="designer-canvas"]',
-    title: '🖼️ Die Zeichenfläche (DIN A4)',
-    description: 'Das ist die A4-Vorschau deiner Rechnung. Elemente lassen sich per Drag & Drop verschieben und an den Ecken/Kanten in der Größe verändern. Mit Ctrl+Scroll zoomst du.',
-    placement: 'left',
-    action: 'observe',
-  },
-  // ── 14. OBSERVE: Eigenschaften-Panel zeigen ──
-  {
-    id: 'designer-properties',
-    route: '/invoice-designer',
-    target: '[data-tutorial="designer-properties"]',
-    title: '⚙️ Eigenschaften-Panel',
-    description: 'Wenn du ein Element auf der Zeichenfläche auswählst, erscheinen hier alle Einstellungen: Schrift, Farbe, Größe, Position und bei Variablen der Platzhalter-Schlüssel.',
+    title: '🖼️ Die Vorschau',
+    description: 'Rechts steht deine Rechnung auf DIN A4, mit deinen echten Absenderdaten und drei Beispielpositionen. Sie ändert sich sofort mit – und sieht genauso aus wie das spätere PDF.',
     placement: 'left',
     action: 'observe',
   },

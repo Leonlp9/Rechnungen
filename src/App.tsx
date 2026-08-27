@@ -28,7 +28,6 @@ import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import { registerUpdateSetter, startDownload, openInstaller, type UpdateState } from "@/lib/updater";
 import { useAppStore, APP_THEMES } from "@/store";
-import { useTemplateStore } from "@/store/templateStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { importBackup } from "@/lib/backup";
@@ -85,10 +84,7 @@ function App() {
   const themeMode = useAppStore((s) => s.themeMode);
   const theme = useAppStore((s) => s.theme);
   const animations = useAppStore((s) => s.animations);
-  const autoUpdateBuiltins = useTemplateStore((s) => s.autoUpdateBuiltins);
 
-  // Upgrade outdated builtin templates (e.g. missing items element) on every mount
-  useEffect(() => { autoUpdateBuiltins(); }, [autoUpdateBuiltins]);
 
   // Migrate secrets from DB to OS Keychain (one-time)
   useEffect(() => { migrateSecretsToKeychain().catch(console.error); }, []);

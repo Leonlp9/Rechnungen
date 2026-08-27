@@ -53,7 +53,9 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/invoices', tint: 'indigo', label: 'Alle Rechnungen', icon: FileText, tutorialId: 'nav-invoices', group: 'Belege', hint: 'Belege suchen & filtern' },
   { to: '/scan', tint: 'green', label: 'Beleg scannen', icon: Camera, group: 'Belege', hint: 'Foto → PDF → Entwurf', mobileOnly: true },
   { to: '/write-invoice', tint: 'orange', label: 'Rechnung schreiben', icon: FilePlus2, tutorialId: 'nav-write-invoice', group: 'Belege', hint: 'Ausgangsrechnung erstellen' , fuer: 'selbststaendig'},
-  { to: '/invoice-designer', tint: 'purple', label: 'Template Designer', icon: PenSquare, tutorialId: 'nav-invoice-designer', group: 'Belege', hint: 'Rechnungsvorlagen gestalten', desktopOnly: true , fuer: 'selbststaendig'},
+  // Seit der Designer ein Baukasten mit eigener Handy-Fassung ist, gibt es
+  // keinen Grund mehr, ihn dort zu verstecken.
+  { to: '/invoice-designer', tint: 'purple', label: 'Rechnungsvorlagen', icon: PenSquare, tutorialId: 'nav-invoice-designer', group: 'Belege', hint: 'Vorlagen aus Bausteinen bauen', fuer: 'selbststaendig'},
 
   { to: '/customers', tint: 'teal', label: 'Kunden', icon: Users, tutorialId: 'nav-customers', group: 'Organisation', hint: 'Kundenstamm' , fuer: 'selbststaendig'},
   { to: '/projects', tint: 'yellow', label: 'Projekte', icon: FolderKanban, tutorialId: 'nav-projects', group: 'Organisation', hint: 'Belege nach Projekt' , fuer: 'selbststaendig'},

@@ -145,17 +145,21 @@ Der Unterschied zu den Sonderausgaben ist wichtig: Sonderausgaben wirken sich st
 - Löschen mit Bestätigungsdialog.
 - Änderungshistorie (Audit-Trail) einsehbar.
 
-### Rechnung erstellen (Rechnungsdesigner)
-- Erstellt druckfertige PDF-Rechnungen aus Templates.
-- Empfänger, Positionen, Datum, Rechnungsnummer eingeben.
-- Template auswählen → PDF generieren.
-- Kleinunternehmer-Modus: USt-Ausweis automatisch gesperrt, Pflichthinweis § 19 UStG eingeblendet.
+### Rechnung schreiben
+- Seite "Rechnung schreiben": Empfänger, Eckdaten, Positionen und Texte in getrennten Abschnitten; rechts die Vorschau des fertigen Blatts.
+- Der Absender kommt aus den Einstellungen und wird nicht jedes Mal neu eingetippt.
+- Positionen: Beschreibung, Menge, Einheit, Einzelpreis und Zeilenrabatt. Der Betrag je Zeile rechnet sich selbst, ebenso Zwischensumme, Steuer und Endsumme.
+- Am Handy liegt die Vorschau hinter einem Knopf, die Positionen stehen als Karten untereinander.
+- Ergebnis wahlweise als PDF speichern oder direkt als Beleg buchen.
+- Kleinunternehmer: kein Umsatzsteuerausweis, dafür der Pflichthinweis auf § 19 UStG.
 
-### Invoice Designer (Vorlagen-Editor)
-- Drag-&-Drop-Canvas für Rechnungsvorlagen.
-- Elemente: Text, Variable, Rechteck, Bild, Positionstabelle, Linie.
-- Variablen: sender_name, receiver_name, doc_number, doc_date, total usw.
-- KI-Analyse: Bild/PDF einer Rechnung hochladen → Template wird automatisch generiert.
+### Vorlagen gestalten (Baukasten)
+- Eine Vorlage besteht aus Bausteinen in einer Reihenfolge: Kopfzeile, Anschriftfeld, Eckdaten, Betreff, Text, Positionen, Zahlung, Fußzeile.
+- Bausteine lassen sich ziehen, ausblenden und einzeln einstellen. Wo etwas auf dem Blatt landet, rechnet die App aus – Ränder und Ausrichtung sind deshalb immer sauber.
+- Das Aussehen gilt für das ganze Dokument: Akzentfarbe, Schriftart, Schriftgröße, Seitenränder, Abstand zwischen den Bausteinen und das Logo.
+- Mitgeliefert sind drei Vorlagen: "Klar" (farbiger Tabellenkopf), "Ruhig" (zurückhaltend, viel Weißraum) und "Kompakt" (kleinere Schrift, für viele Positionen).
+- Wer eine mitgelieferte Vorlage ändert, bekommt automatisch eine eigene Kopie – das Original bleibt erhalten.
+- Vorschau und PDF entstehen aus derselben Berechnung. Was in der Vorschau steht, steht auch im PDF.
 
 ### Export
 - Excel-Export: alle Rechnungen als .xlsx Tabelle (Sheets: Alle Belege, Zusammenfassung, Nach Monat).

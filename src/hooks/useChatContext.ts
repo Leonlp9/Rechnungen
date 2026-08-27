@@ -3,7 +3,7 @@ import { useAppStore } from '@/store';
 import { berechneEuer } from '@/lib/steuer/gewinn';
 import { berechneAnlagegueter, afaJeKategorie } from '@/lib/steuer/anlagen';
 import { useChatStore } from '@/store/chatStore';
-import { useTemplateStore } from '@/store/templateStore';
+import { useVorlagenStore } from '@/store/vorlagenStore';
 import { useListsStore } from '@/store/listsStore';
 import { useGmailStore, selectActiveAccount } from '@/store/gmailStore';
 import { CATEGORY_LABELS, TYPE_LABELS } from '@/types';
@@ -133,7 +133,7 @@ export function useChatContext(): string {
   const branchenprofil = useAppStore((s) => s.branchenprofil);
   const rechtsform = useAppStore((s) => s.rechtsform);
   const { visibleInvoiceIds, useAllInvoicesForContext } = useChatStore();
-  const templates = useTemplateStore((s) => s.templates);
+  const templates = useVorlagenStore((s) => s.vorlagen);
   const lists = useListsStore((s) => s.lists);
   const gmailAccounts = useGmailStore((s) => s.accounts);
   const activeAccount = useGmailStore(selectActiveAccount);
@@ -213,7 +213,7 @@ Hinweis: Verlinke einzelne Rechnungen mit /invoices/ID, gefilterte Listen mit /i
 
 Seite: Rechnungsvorlagen-Designer
 Verfügbare Templates: ${names || '(keine)'}
-Anzahl Templates: ${templates.length}`;
+Anzahl Vorlagen: ${templates.length}`;
   }
 
   // Write Invoice
