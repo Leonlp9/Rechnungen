@@ -8,7 +8,10 @@
 // Die Maße folgen DIN 5008: Anschriftfeld links oben, damit es im Fensterbrief
 // sichtbar ist, Seitenränder bei 25 mm links und 20 mm rechts.
 
-import type { Baustein, Gestaltung, Rechnungsvorlage } from '@/types/rechnungsvorlage';
+import type {
+  Baustein, EckdatenBaustein, Gestaltung, PositionsSpalte,
+  Rechnungsvorlage, SpaltenBaustein,
+} from '@/types/rechnungsvorlage';
 
 /** Kurze, stabile Kennung – reicht hier, echte Eindeutigkeit macht die Zeit. */
 function kennung(): string {
@@ -21,6 +24,7 @@ const GRUND_GESTALTUNG: Gestaltung = {
   gedaempft: '#6b7280',
   schriftart: 'Helvetica, Arial, sans-serif',
   schriftgroesse: 10,
+  zeilenabstand: 1.35,
   randOben: 20,
   randUnten: 18,
   randLinks: 25,
@@ -74,7 +78,7 @@ function grundBausteine(titel: string, mwstSatz: number): Baustein[] {
       id: kennung(),
       typ: 'positionen',
       spalten: ['pos', 'beschreibung', 'menge', 'einzelpreis', 'betrag'],
-      stil: 'linien',
+      stilVariante: 'linien',
       mwstSatz,
       summenAusweisen: mwstSatz > 0,
       abstandOben: 4,
@@ -155,8 +159,8 @@ function ruhig(art: 'rechnung' | 'gutschrift'): Rechnungsvorlage {
       bausteinAbstand: 9,
     },
     (b) => b.map((baustein) => {
-      if (baustein.typ === 'kopf') return { ...baustein, trennlinie: false, logoSeite: 'rechts' };
-      if (baustein.typ === 'positionen') return { ...baustein, stil: 'schlicht' };
+      if (baustein.typ === 'kopf') return { ...baustein, trennlinie: false, logoSeite: 'rechts' as const };
+      if (baustein.typ === 'positionen') return { ...baustein, stilVariante: 'schlicht' as const };
       if (baustein.typ === 'fusszeile') return { ...baustein, spalten: 4 };
       return baustein;
     }),
@@ -181,12 +185,71 @@ function kompakt(art: 'rechnung' | 'gutschrift'): Rechnungsvorlage {
     },
     (b) => b.map((baustein) => {
       if (baustein.typ === 'positionen') {
-        return { ...baustein, stil: 'zebra', spalten: ['pos', 'beschreibung', 'menge', 'einheit', 'einzelpreis', 'betrag'] };
+        return { ...baustein, stilVariante: 'zebra' as const, spalten: ['pos', 'beschreibung', 'menge', 'einheit', 'einzelpreis', 'betrag'] as PositionsSpalte[] };
       }
-      if (baustein.typ === 'eckdaten') return { ...baustein, form: 'zeile' };
+      if (baustein.typ === 'eckdaten') return { ...baustein, form: 'zeile' as const };
       return baustein;
     }),
   );
+}
+
+/**
+ * „Zweispaltig" – zeigt, wozu der Spalten-Baustein da ist: Anschrift und
+ * Eckdaten stehen nicht mehr automatisch nebeneinander, sondern weil jemand
+ * sie in eine Spaltenreihe gelegt hat. Unter der Tabelle stehen Hinweis und
+ * Zahlung nebeneinander statt untereinander, was das Blatt kürzer macht.
+ *
+ * Wer eine eigene Vorlage bauen will, kommt hiermit am schnellsten voran:
+ * kopieren, Spalten verschieben, fertig.
+ */
+function zweispaltig(): Rechnungsvorlage {
+  const basis = grundBausteine('Rechnung', 0);
+  const nimm = (typ: Baustein['typ']) => basis.find((b) => b.typ === typ)!;
+
+  const kopfBaustein = nimm('kopf');
+  const anschriftBaustein = { ...nimm('anschrift'), abstandOben: 0 };
+  const eckdatenBaustein = { ...(nimm('eckdaten') as EckdatenBaustein), form: 'liste' as const };
+  const betreffBaustein = nimm('betreff');
+  const positionenBaustein = nimm('positionen');
+  const hinweisBaustein = basis.filter((b) => b.typ === 'text')[1] ?? nimm('text');
+  const zahlungBaustein = nimm('zahlung');
+  const fussBaustein = nimm('fusszeile');
+
+  const oben: SpaltenBaustein = {
+    id: kennung(),
+    typ: 'spalten',
+    zwischenraum: 8,
+    ausrichtungSenkrecht: 'oben',
+    abstandOben: 6,
+    spalten: [
+      { id: kennung(), anteil: 3, bausteine: [anschriftBaustein] },
+      { id: kennung(), anteil: 2, bausteine: [eckdatenBaustein] },
+    ],
+  };
+
+  const unten: SpaltenBaustein = {
+    id: kennung(),
+    typ: 'spalten',
+    zwischenraum: 8,
+    ausrichtungSenkrecht: 'oben',
+    abstandOben: 6,
+    spalten: [
+      { id: kennung(), anteil: 1, bausteine: [{ ...hinweisBaustein, abstandOben: 0 }] },
+      { id: kennung(), anteil: 1, bausteine: [{ ...zahlungBaustein, abstandOben: 0 }] },
+    ],
+  };
+
+  const jetzt = new Date().toISOString();
+  return {
+    id: 'mitgeliefert-zweispaltig-rechnung',
+    name: 'Zweispaltig',
+    art: 'rechnung',
+    mitgeliefert: true,
+    gestaltung: { ...GRUND_GESTALTUNG, akzent: '#7c3aed', bausteinAbstand: 6 },
+    bausteine: [kopfBaustein, oben, betreffBaustein, positionenBaustein, unten, fussBaustein],
+    erstelltAm: jetzt,
+    geaendertAm: jetzt,
+  };
 }
 
 /** Alle mitgelieferten Vorlagen. */
@@ -195,6 +258,7 @@ export function mitgelieferteVorlagen(): Rechnungsvorlage[] {
     klar('rechnung'),
     ruhig('rechnung'),
     kompakt('rechnung'),
+    zweispaltig(),
     klar('gutschrift'),
   ];
 }
@@ -249,7 +313,7 @@ export function neuerBaustein(typ: Baustein['typ']): Baustein {
       return {
         id, typ,
         spalten: ['pos', 'beschreibung', 'menge', 'einzelpreis', 'betrag'],
-        stil: 'linien',
+        stilVariante: 'linien',
         mwstSatz: 0,
         summenAusweisen: false,
       };
@@ -257,6 +321,30 @@ export function neuerBaustein(typ: Baustein['typ']): Baustein {
       return { id, typ, qrCode: true, bankverbindung: true };
     case 'fusszeile':
       return { id, typ, spalten: 3, trennlinie: true };
+    case 'linie':
+      return { id, typ, dicke: 0.3, farbe: '', breite: 1 };
+    case 'bild':
+      return { id, typ, quelle: '', hoehe: 20 };
+    case 'liste':
+      return {
+        id, typ,
+        zeilen: [{ id: kennung(), beschriftung: 'Beschriftung', wert: 'Wert' }],
+        beschriftungsAnteil: 0.4,
+      };
+    case 'unterschrift':
+      return { id, typ, beschriftung: 'Ort, Datum, Unterschrift', linienBreite: 70, freiraum: 14 };
+    case 'seitenumbruch':
+      return { id, typ };
+    case 'spalten':
+      return {
+        id, typ,
+        zwischenraum: 6,
+        ausrichtungSenkrecht: 'oben',
+        spalten: [
+          { id: kennung(), anteil: 1, bausteine: [] },
+          { id: kennung(), anteil: 1, bausteine: [] },
+        ],
+      };
     case 'abstand':
       return { id, typ, hoehe: 10 };
   }

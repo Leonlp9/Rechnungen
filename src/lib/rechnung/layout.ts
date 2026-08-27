@@ -4,15 +4,30 @@
 // können: Beide zeichnen exakt dieselbe Liste von Kästen. Der Zeilenumbruch
 // passiert hier, nicht im Zeichner – wer die Vorschau sieht, sieht das PDF.
 //
+// Der Aufbau ist bewusst rekursiv: `zeichneListe` bekommt einen Bereich (linker
+// Rand und Breite) und arbeitet eine Bausteinliste von oben nach unten ab. Der
+// Spalten-Baustein ruft dieselbe Funktion für jede seiner Spalten mit einem
+// schmaleren Bereich auf. Deshalb kann in einer Spalte alles stehen, was auch
+// auf der Seite stehen kann.
+//
 // Alles in Millimetern, Ursprung links oben.
 
 import type {
+  Baustein,
+  BausteinStil,
   EckdatenBaustein,
+  EckdatenFeld,
+  FussFeld,
   Gestaltung,
   PositionsSpalte,
   Rechnungsvorlage,
 } from '@/types/rechnungsvorlage';
-import { A4_BREITE, A4_HOEHE, ECKDATEN_LABELS, SPALTEN_LABELS } from '@/types/rechnungsvorlage';
+import {
+  A4_BREITE,
+  A4_HOEHE,
+  ECKDATEN_LABELS,
+  SPALTEN_LABELS,
+} from '@/types/rechnungsvorlage';
 import type { LineItem } from '@/types/template';
 
 // ─── Ausgabe ─────────────────────────────────────────────────────────────────
@@ -76,12 +91,6 @@ export interface Seite {
   kaesten: Kasten[];
 }
 
-export interface LayoutErgebnis {
-  seiten: Seite[];
-  /** Netto, Steuer und Endsumme – die Oberfläche zeigt sie auch außerhalb des Blatts. */
-  summen: Summen;
-}
-
 export interface Summen {
   netto: number;
   steuer: number;
@@ -89,13 +98,17 @@ export interface Summen {
   rabatt: number;
 }
 
+export interface LayoutErgebnis {
+  seiten: Seite[];
+  summen: Summen;
+}
+
 // ─── Textmaß ─────────────────────────────────────────────────────────────────
 //
 // Zeichenbreiten von Helvetica in Tausendstel der Schriftgröße. Damit lässt
-// sich ohne Zeichenfläche und ohne jsPDF messen. Die Werte sind die des
-// Originalfonts; für Times und Courier weicht das leicht ab, aber da beide
-// Zeichner dieselbe Schätzung benutzen, bleibt die Vorschau deckungsgleich
-// mit dem PDF – und darauf kommt es an.
+// sich ohne Zeichenfläche und ohne jsPDF messen. Für Times und Courier weicht
+// das leicht ab – aber da beide Zeichner dieselbe Schätzung benutzen, bleibt
+// die Vorschau deckungsgleich mit dem PDF, und darauf kommt es an.
 
 const HELVETICA: Record<string, number> = {
   ' ': 278, '!': 278, '"': 355, '#': 556, $: 556, '%': 889, '&': 667, "'": 191,
@@ -120,15 +133,12 @@ export const PT_ZU_MM = 25.4 / 72;
 export function textBreite(text: string, groesseInPt: number, fett = false): number {
   let einheiten = 0;
   for (const zeichen of text) einheiten += HELVETICA[zeichen] ?? 556;
-  // Fettschrift trägt etwas auf; der Faktor ist gemessen, nicht geraten.
-  const faktor = fett ? 1.06 : 1;
-  return (einheiten / 1000) * groesseInPt * PT_ZU_MM * faktor;
+  return (einheiten / 1000) * groesseInPt * PT_ZU_MM * (fett ? 1.06 : 1);
 }
 
 /**
- * Bricht Text auf eine Breite um. Bricht an Leerzeichen; ein einzelnes Wort,
- * das länger ist als die Zeile, wird hart getrennt, damit nichts über den Rand
- * läuft.
+ * Bricht Text auf eine Breite um. Bricht an Leerzeichen; ein Wort, das länger
+ * ist als die Zeile, wird hart getrennt, damit nichts über den Rand läuft.
  */
 export function umbrechen(text: string, breite: number, groesse: number, fett = false): string[] {
   const zeilen: string[] = [];
@@ -138,7 +148,6 @@ export function umbrechen(text: string, breite: number, groesse: number, fett = 
     for (const wort of absatz.split(' ')) {
       const versuch = zeile ? `${zeile} ${wort}` : wort;
       if (textBreite(versuch, groesse, fett) <= breite || zeile === '') {
-        // Ein einzelnes zu langes Wort hart trennen.
         if (zeile === '' && textBreite(wort, groesse, fett) > breite) {
           let rest = wort;
           while (textBreite(rest, groesse, fett) > breite && rest.length > 1) {
@@ -169,9 +178,6 @@ const euro = (v: number) =>
 const zahl = (v: number) =>
   v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-/** Zeilenhöhe zu einer Schriftgröße. */
-const zh = (groesse: number) => groesse * PT_ZU_MM * 1.35;
-
 /** Ersetzt {{platzhalter}} durch Werte. */
 export function fuelle(text: string, werte: Record<string, string>): string {
   return String(text ?? '').replace(/\{\{(\w+)\}\}/g, (_, k) => werte[k] ?? '');
@@ -180,516 +186,15 @@ export function fuelle(text: string, werte: Record<string, string>): string {
 /** Betrag einer Position nach Rabatt. */
 export function zeilenBetrag(p: LineItem): number {
   const roh = (p.quantity || 0) * (p.unitPrice || 0);
-  const rabatt = roh * ((p.discount || 0) / 100);
-  return Math.round((roh - rabatt) * 100) / 100;
+  return Math.round((roh - roh * ((p.discount || 0) / 100)) * 100) / 100;
 }
 
 export function berechneSummen(positionen: LineItem[], mwstSatz: number, globalerRabatt = 0): Summen {
-  const roh = positionen
-    .filter((p) => !p.isGroupHeader)
-    .reduce((s, p) => s + zeilenBetrag(p), 0);
+  const roh = positionen.filter((p) => !p.isGroupHeader).reduce((s, p) => s + zeilenBetrag(p), 0);
   const rabatt = Math.round(roh * (globalerRabatt / 100) * 100) / 100;
   const netto = Math.round((roh - rabatt) * 100) / 100;
   const steuer = Math.round(netto * (mwstSatz / 100) * 100) / 100;
   return { netto, steuer, brutto: Math.round((netto + steuer) * 100) / 100, rabatt };
-}
-
-// ─── Der Zeichenblock ────────────────────────────────────────────────────────
-
-export interface LayoutEingaben {
-  vorlage: Rechnungsvorlage;
-  /** Feldwerte: sender_name, receiver_address, doc_number … */
-  werte: Record<string, string>;
-  positionen: LineItem[];
-  /** Prozentualer Nachlass auf die Gesamtsumme. */
-  globalerRabatt?: number;
-}
-
-/** Wie breit die Spalten der Positionstabelle sind, als Anteil. */
-function spaltenBreiten(spalten: PositionsSpalte[]): number[] {
-  const gewicht: Record<PositionsSpalte, number> = {
-    pos: 0.6,
-    beschreibung: 4.4,
-    menge: 0.8,
-    einheit: 0.8,
-    einzelpreis: 1.2,
-    rabatt: 0.8,
-    betrag: 1.3,
-  };
-  const summe = spalten.reduce((s, c) => s + gewicht[c], 0);
-  return spalten.map((c) => gewicht[c] / summe);
-}
-
-const RECHTSBUENDIG: PositionsSpalte[] = ['menge', 'einzelpreis', 'rabatt', 'betrag'];
-
-/**
- * Rechnet die Vorlage in Seiten um.
- *
- * Der Ablauf ist bewusst einfach: ein Cursor wandert von oben nach unten,
- * jeder Baustein sagt, wie hoch er ist, und wenn kein Platz mehr bleibt,
- * beginnt eine neue Seite. Die Positionstabelle darf als Einzige mitten drin
- * umbrechen – sie wiederholt dann ihren Kopf.
- */
-export function layoutRechnung({
-  vorlage,
-  werte,
-  positionen,
-  globalerRabatt = 0,
-}: LayoutEingaben): LayoutErgebnis {
-  const g = vorlage.gestaltung;
-  const links = g.randLinks;
-  const rechts = A4_BREITE - g.randRechts;
-  const breite = rechts - links;
-
-  const positionsBaustein = vorlage.bausteine.find((b) => b.typ === 'positionen' && !b.aus);
-  const mwstSatz = positionsBaustein && positionsBaustein.typ === 'positionen' ? positionsBaustein.mwstSatz : 0;
-  const summen = berechneSummen(positionen, mwstSatz, globalerRabatt);
-
-  const fusszeile = vorlage.bausteine.find((b) => b.typ === 'fusszeile' && !b.aus);
-  const fussHoehe = fusszeile ? fussHoeheBerechnen(fusszeile.typ === 'fusszeile' ? fusszeile.spalten : 3, g) : 0;
-  const unten = A4_HOEHE - g.randUnten - fussHoehe;
-
-  const seiten: Seite[] = [{ kaesten: [] }];
-  let seite = 0;
-  let y = g.randOben;
-
-  const neueSeite = () => {
-    seiten.push({ kaesten: [] });
-    seite++;
-    y = g.randOben;
-  };
-  const platz = (hoehe: number) => {
-    if (y + hoehe > unten && seiten[seite].kaesten.length > 0) neueSeite();
-  };
-  const male = (k: Kasten) => seiten[seite].kaesten.push(k);
-
-  const text = (
-    inhalt: string,
-    x: number,
-    b: number,
-    opt: Partial<Omit<TextKasten, 'art' | 'x' | 'y' | 'breite' | 'zeilen'>> = {},
-  ): number => {
-    const groesse = opt.groesse ?? g.schriftgroesse;
-    const fett = opt.fett ?? false;
-    const zeilen = umbrechen(inhalt, b, groesse, fett);
-    const hoehe = zeilen.length * zh(groesse);
-    male({
-      art: 'text',
-      x,
-      y,
-      breite: b,
-      zeilen,
-      groesse,
-      farbe: opt.farbe ?? g.text,
-      fett,
-      kursiv: opt.kursiv,
-      ausrichtung: opt.ausrichtung ?? 'links',
-      zeilenhoehe: zh(groesse),
-    });
-    return hoehe;
-  };
-
-  // Eckdaten als Block stehen neben dem Anschriftfeld – sie werden dort
-  // mitgezeichnet und hier übersprungen.
-  const eckdatenBlock = vorlage.bausteine.find(
-    (b): b is EckdatenBaustein => b.typ === 'eckdaten' && !b.aus && b.form === 'block',
-  );
-  let eckdatenErledigt = false;
-
-  for (const baustein of vorlage.bausteine) {
-    if (baustein.aus) continue;
-    if (baustein.typ === 'fusszeile') continue; // kommt am Seitenfuß
-    if (baustein === eckdatenBlock && eckdatenErledigt) continue;
-
-    y += baustein.abstandOben ?? 0;
-
-    switch (baustein.typ) {
-      case 'kopf': {
-        const titelGroesse = g.schriftgroesse * 2.2;
-        const logo = g.logo;
-        const logoBreite = logo ? baustein.logoHoehe * 2.6 : 0;
-        const hoehe = Math.max(logo ? baustein.logoHoehe : 0, titelGroesse * PT_ZU_MM * 1.2);
-        platz(hoehe + 6);
-
-        if (logo) {
-          male({
-            art: 'bild',
-            x: baustein.logoSeite === 'links' ? links : rechts - logoBreite,
-            y,
-            breite: logoBreite,
-            hoehe: baustein.logoHoehe,
-            quelle: logo,
-          });
-        }
-        if (baustein.titel) {
-          const merk = y;
-          y += (hoehe - titelGroesse * PT_ZU_MM) / 2;
-          text(fuelle(baustein.titel, werte).toUpperCase(), links, breite, {
-            groesse: titelGroesse,
-            fett: true,
-            farbe: g.akzent,
-            ausrichtung: baustein.logoSeite === 'links' ? 'rechts' : 'links',
-          });
-          y = merk;
-        }
-        y += hoehe + 3;
-        if (baustein.trennlinie) {
-          male({ art: 'linie', x1: links, y1: y, x2: rechts, y2: y, farbe: g.akzent, dicke: 0.8 });
-          y += 3;
-        }
-        break;
-      }
-
-      case 'anschrift': {
-        // Das Anschriftfeld ist so breit, dass es ins Sichtfenster passt.
-        const feldBreite = Math.min(85, breite * 0.5);
-        const startY = y;
-
-        if (baustein.absenderzeile) {
-          const zeile = [werte.sender_name, werte.sender_address].filter(Boolean).join(' · ');
-          if (zeile) {
-            y += text(zeile, links, feldBreite, { groesse: g.schriftgroesse * 0.72, farbe: g.gedaempft });
-            male({ art: 'linie', x1: links, y1: y + 0.5, x2: links + feldBreite, y2: y + 0.5, farbe: g.gedaempft, dicke: 0.2 });
-            y += 3;
-          }
-        }
-        const empfaenger = [werte.receiver_name, werte.receiver_address].filter(Boolean).join('\n');
-        y += text(empfaenger || 'Empfänger', links, feldBreite, {});
-
-        // Eckdaten rechts daneben, auf gleicher Höhe.
-        if (eckdatenBlock) {
-          const merk = y;
-          y = startY;
-          const blockBreite = Math.min(62, breite * 0.42);
-          const x = rechts - blockBreite;
-          for (const feld of eckdatenBlock.felder) {
-            const wert = werte[feld];
-            if (!wert) continue;
-            const beschriftung = ECKDATEN_LABELS[feld];
-            const zeilenhoehe = zh(g.schriftgroesse * 0.85);
-            male({
-              art: 'text',
-              x,
-              y,
-              breite: blockBreite * 0.55,
-              zeilen: [beschriftung],
-              groesse: g.schriftgroesse * 0.85,
-              farbe: g.gedaempft,
-              fett: false,
-              ausrichtung: 'links',
-              zeilenhoehe,
-            });
-            male({
-              art: 'text',
-              x: x + blockBreite * 0.55,
-              y,
-              breite: blockBreite * 0.45,
-              zeilen: [wert],
-              groesse: g.schriftgroesse * 0.85,
-              farbe: g.text,
-              fett: true,
-              ausrichtung: 'rechts',
-              zeilenhoehe,
-            });
-            y += zeilenhoehe;
-          }
-          eckdatenErledigt = true;
-          y = Math.max(merk, y);
-        }
-        break;
-      }
-
-      case 'eckdaten': {
-        // Nur noch die Zeilenform – die Blockform hängt am Anschriftfeld.
-        if (baustein.form === 'block') break;
-        const sichtbar = baustein.felder.filter((f) => werte[f]);
-        if (sichtbar.length === 0) break;
-        const spaltenBreite = breite / sichtbar.length;
-        platz(zh(g.schriftgroesse) * 2);
-        sichtbar.forEach((feld, i) => {
-          const x = links + i * spaltenBreite;
-          male({
-            art: 'text', x, y, breite: spaltenBreite,
-            zeilen: [ECKDATEN_LABELS[feld]],
-            groesse: g.schriftgroesse * 0.78, farbe: g.gedaempft, fett: false,
-            ausrichtung: 'links', zeilenhoehe: zh(g.schriftgroesse * 0.78),
-          });
-          male({
-            art: 'text', x, y: y + zh(g.schriftgroesse * 0.78), breite: spaltenBreite,
-            zeilen: [werte[feld]],
-            groesse: g.schriftgroesse, farbe: g.text, fett: true,
-            ausrichtung: 'links', zeilenhoehe: zh(g.schriftgroesse),
-          });
-        });
-        y += zh(g.schriftgroesse * 0.78) + zh(g.schriftgroesse);
-        break;
-      }
-
-      case 'betreff': {
-        const inhalt = fuelle(baustein.inhalt, werte);
-        if (!inhalt.trim()) break;
-        platz(zh(g.schriftgroesse * 1.15) * 2);
-        y += text(inhalt, links, breite, { groesse: g.schriftgroesse * 1.15, fett: true });
-        break;
-      }
-
-      case 'text': {
-        const inhalt = baustein.quelle === 'feld'
-          ? (werte[baustein.inhalt] ?? '')
-          : fuelle(baustein.inhalt, werte);
-        if (!inhalt.trim()) break;
-        const groesse = baustein.groesse === 'klein' ? g.schriftgroesse * 0.82 : g.schriftgroesse;
-        platz(zh(groesse) * 2);
-        y += text(inhalt, links, breite, {
-          groesse,
-          fett: baustein.betont,
-          farbe: baustein.groesse === 'klein' ? g.gedaempft : g.text,
-        });
-        break;
-      }
-
-      case 'positionen': {
-        const spalten = baustein.spalten;
-        const anteile = spaltenBreiten(spalten);
-        const kopfHoehe = zh(g.schriftgroesse) * 1.5;
-        const zeilenHoehe = zh(g.schriftgroesse) * 1.45;
-
-        const kopfMalen = () => {
-          if (baustein.stil === 'linien') {
-            male({ art: 'flaeche', x: links, y, breite, hoehe: kopfHoehe, farbe: g.akzent });
-          }
-          let x = links;
-          spalten.forEach((sp, i) => {
-            const b = breite * anteile[i];
-            male({
-              art: 'text',
-              x: x + 1.5,
-              y: y + (kopfHoehe - zh(g.schriftgroesse * 0.85)) / 2,
-              breite: b - 3,
-              zeilen: [SPALTEN_LABELS[sp]],
-              groesse: g.schriftgroesse * 0.85,
-              farbe: baustein.stil === 'linien' ? '#ffffff' : g.gedaempft,
-              fett: true,
-              ausrichtung: RECHTSBUENDIG.includes(sp) ? 'rechts' : 'links',
-              zeilenhoehe: zh(g.schriftgroesse * 0.85),
-            });
-            x += b;
-          });
-          y += kopfHoehe;
-          if (baustein.stil !== 'linien') {
-            male({ art: 'linie', x1: links, y1: y, x2: rechts, y2: y, farbe: g.gedaempft, dicke: 0.3 });
-            y += 1;
-          }
-        };
-
-        platz(kopfHoehe + zeilenHoehe * 2);
-        kopfMalen();
-
-        let nummer = 0;
-        positionen.forEach((p, index) => {
-          if (p.isGroupHeader) {
-            platz(zeilenHoehe);
-            if (y === g.randOben) kopfMalen();
-            male({ art: 'flaeche', x: links, y, breite, hoehe: zeilenHoehe, farbe: '#f1f5f9' });
-            male({
-              art: 'text', x: links + 1.5, y: y + (zeilenHoehe - zh(g.schriftgroesse)) / 2,
-              breite: breite - 3, zeilen: [p.description || 'Gruppe'],
-              groesse: g.schriftgroesse, farbe: g.text, fett: true,
-              ausrichtung: 'links', zeilenhoehe: zh(g.schriftgroesse),
-            });
-            y += zeilenHoehe;
-            return;
-          }
-          nummer++;
-
-          // Die Beschreibung bestimmt, wie hoch die Zeile wird.
-          const beschreibungIndex = spalten.indexOf('beschreibung');
-          const beschreibungBreite = beschreibungIndex >= 0 ? breite * anteile[beschreibungIndex] - 3 : breite;
-          const beschreibungZeilen = umbrechen(p.description || '', beschreibungBreite, g.schriftgroesse);
-          const hoehe = Math.max(zeilenHoehe, beschreibungZeilen.length * zh(g.schriftgroesse) + 2);
-
-          if (y + hoehe > unten) { neueSeite(); kopfMalen(); }
-
-          if (baustein.stil === 'zebra' && index % 2 === 1) {
-            male({ art: 'flaeche', x: links, y, breite, hoehe, farbe: '#f8fafc' });
-          }
-
-          let x = links;
-          spalten.forEach((sp, i) => {
-            const b = breite * anteile[i];
-            const wert =
-              sp === 'pos' ? String(nummer)
-                : sp === 'beschreibung' ? (p.description || '')
-                  : sp === 'menge' ? zahl(p.quantity || 0)
-                    : sp === 'einheit' ? (p.unit || '')
-                      : sp === 'einzelpreis' ? euro(p.unitPrice || 0)
-                        : sp === 'rabatt' ? (p.discount ? `${zahl(p.discount)} %` : '')
-                          : euro(zeilenBetrag(p));
-            male({
-              art: 'text',
-              x: x + 1.5,
-              y: y + 1,
-              breite: b - 3,
-              zeilen: sp === 'beschreibung' ? beschreibungZeilen : [wert],
-              groesse: g.schriftgroesse,
-              farbe: g.text,
-              fett: false,
-              ausrichtung: RECHTSBUENDIG.includes(sp) ? 'rechts' : 'links',
-              zeilenhoehe: zh(g.schriftgroesse),
-            });
-            x += b;
-          });
-          y += hoehe;
-          if (baustein.stil === 'linien') {
-            male({ art: 'linie', x1: links, y1: y, x2: rechts, y2: y, farbe: '#e2e8f0', dicke: 0.2 });
-          }
-        });
-
-        // ── Summen ──
-        const summenBreite = Math.min(72, breite * 0.48);
-        const summenX = rechts - summenBreite;
-        const zeile = (beschriftung: string, wert: string, fett = false, groesse = g.schriftgroesse) => {
-          const h = zh(groesse) * 1.25;
-          platz(h);
-          male({
-            art: 'text', x: summenX, y: y + (h - zh(groesse)) / 2, breite: summenBreite * 0.55,
-            zeilen: [beschriftung], groesse, farbe: fett ? g.text : g.gedaempft, fett,
-            ausrichtung: 'links', zeilenhoehe: zh(groesse),
-          });
-          male({
-            art: 'text', x: summenX + summenBreite * 0.55, y: y + (h - zh(groesse)) / 2, breite: summenBreite * 0.45,
-            zeilen: [wert], groesse, farbe: g.text, fett,
-            ausrichtung: 'rechts', zeilenhoehe: zh(groesse),
-          });
-          y += h;
-        };
-
-        y += 3;
-        if (summen.rabatt > 0) zeile('Nachlass', `− ${euro(summen.rabatt)}`);
-        if (baustein.summenAusweisen && baustein.mwstSatz > 0) {
-          zeile('Nettobetrag', euro(summen.netto));
-          zeile(`zzgl. ${zahl(baustein.mwstSatz)} % USt`, euro(summen.steuer));
-          male({ art: 'linie', x1: summenX, y1: y, x2: rechts, y2: y, farbe: g.gedaempft, dicke: 0.3 });
-          y += 1;
-        }
-        zeile(
-          baustein.mwstSatz > 0 ? 'Gesamtbetrag' : 'Rechnungsbetrag',
-          euro(summen.brutto),
-          true,
-          g.schriftgroesse * 1.15,
-        );
-        male({ art: 'linie', x1: summenX, y1: y, x2: rechts, y2: y, farbe: g.akzent, dicke: 0.6 });
-        y += 2;
-        break;
-      }
-
-      case 'zahlung': {
-        const zeilen: string[] = [];
-        if (baustein.bankverbindung) {
-          const bank = [
-            werte.sender_iban ? `IBAN ${werte.sender_iban}` : '',
-            werte.sender_bic ? `BIC ${werte.sender_bic}` : '',
-          ].filter(Boolean).join('   ');
-          if (bank) zeilen.push(bank);
-        }
-        if (werte.payment_terms) zeilen.push(werte.payment_terms);
-        if (zeilen.length === 0 && !baustein.qrCode) break;
-
-        const qrGroesse = 24;
-        const textBreiteHier = baustein.qrCode ? breite - qrGroesse - 5 : breite;
-        const hoehe = Math.max(
-          baustein.qrCode ? qrGroesse : 0,
-          zeilen.length * zh(g.schriftgroesse * 0.9),
-        );
-        platz(hoehe + 4);
-
-        if (baustein.qrCode && werte.sender_iban) {
-          male({
-            art: 'qr',
-            x: rechts - qrGroesse,
-            y,
-            groesse: qrGroesse,
-            daten: epcDaten(werte, summen.brutto),
-          });
-        }
-        const merk = y;
-        for (const z of zeilen) {
-          y += text(z, links, textBreiteHier, { groesse: g.schriftgroesse * 0.9 });
-        }
-        y = Math.max(y, merk + (baustein.qrCode && werte.sender_iban ? qrGroesse : 0));
-        break;
-      }
-
-      case 'abstand':
-        y += baustein.hoehe;
-        break;
-    }
-
-    y += g.bausteinAbstand;
-  }
-
-  // ── Fußzeile auf jede Seite ──
-  if (fusszeile && fusszeile.typ === 'fusszeile') {
-    const fussY = A4_HOEHE - g.randUnten - fussHoehe;
-    const felder = fussFelder(werte);
-    const proSpalte = Math.ceil(felder.length / fusszeile.spalten);
-    seiten.forEach((s, i) => {
-      if (fusszeile.trennlinie) {
-        s.kaesten.push({ art: 'linie', x1: links, y1: fussY, x2: rechts, y2: fussY, farbe: g.gedaempft, dicke: 0.2 });
-      }
-      const spaltenBreite = breite / fusszeile.spalten;
-      for (let sp = 0; sp < fusszeile.spalten; sp++) {
-        const teil = felder.slice(sp * proSpalte, (sp + 1) * proSpalte);
-        if (teil.length === 0) continue;
-        s.kaesten.push({
-          art: 'text',
-          x: links + sp * spaltenBreite,
-          y: fussY + 2,
-          breite: spaltenBreite - 2,
-          zeilen: teil,
-          groesse: g.schriftgroesse * 0.7,
-          farbe: g.gedaempft,
-          fett: false,
-          ausrichtung: 'links',
-          zeilenhoehe: zh(g.schriftgroesse * 0.7),
-        });
-      }
-      if (seiten.length > 1) {
-        s.kaesten.push({
-          art: 'text',
-          x: links,
-          y: A4_HOEHE - g.randUnten + 1,
-          breite,
-          zeilen: [`Seite ${i + 1} von ${seiten.length}`],
-          groesse: g.schriftgroesse * 0.7,
-          farbe: g.gedaempft,
-          fett: false,
-          ausrichtung: 'rechts',
-          zeilenhoehe: zh(g.schriftgroesse * 0.7),
-        });
-      }
-    });
-  }
-
-  return { seiten, summen };
-}
-
-function fussHoeheBerechnen(spalten: number, g: Gestaltung): number {
-  const zeilen = Math.ceil(8 / spalten);
-  return zeilen * zh(g.schriftgroesse * 0.7) + 4;
-}
-
-function fussFelder(werte: Record<string, string>): string[] {
-  return [
-    werte.sender_name,
-    werte.sender_address,
-    werte.sender_email,
-    werte.sender_phone,
-    werte.sender_tax_number ? `Steuernummer ${werte.sender_tax_number}` : '',
-    werte.sender_vat_id ? `USt-IdNr. ${werte.sender_vat_id}` : '',
-    werte.sender_iban ? `IBAN ${werte.sender_iban}` : '',
-    werte.sender_bic ? `BIC ${werte.sender_bic}` : '',
-  ].filter(Boolean);
 }
 
 /**
@@ -706,4 +211,839 @@ export function epcDaten(werte: Record<string, string>, betrag: number): string 
     '', '',
     `Rechnung ${werte.doc_number ?? ''}`.slice(0, 140),
   ].join('\n');
+}
+
+// ─── Der Zeichenvorgang ──────────────────────────────────────────────────────
+
+export interface LayoutEingaben {
+  vorlage: Rechnungsvorlage;
+  /** Feldwerte: sender_name, receiver_address, doc_number … */
+  werte: Record<string, string>;
+  positionen: LineItem[];
+  /** Prozentualer Nachlass auf die Gesamtsumme. */
+  globalerRabatt?: number;
+}
+
+/** Ein waagerechter Bereich, in dem Bausteine untereinander stehen. */
+interface Bereich {
+  x: number;
+  breite: number;
+}
+
+/** Alles, was beim Zeichnen mitwandert. */
+interface Lage {
+  seiten: Seite[];
+  seite: number;
+  y: number;
+  /** Unterkante, ab der eine neue Seite beginnt. */
+  unten: number;
+  g: Gestaltung;
+  werte: Record<string, string>;
+  positionen: LineItem[];
+  summen: Summen;
+  /** In einer Spalte darf nicht umgebrochen werden – sonst zerfällt die Reihe. */
+  inSpalte: boolean;
+}
+
+const RECHTSBUENDIG: PositionsSpalte[] = ['menge', 'einzelpreis', 'rabatt', 'betrag'];
+
+/** Wie breit die Spalten der Positionstabelle sind, als Anteil. */
+function spaltenBreiten(spalten: PositionsSpalte[], eigene?: number[]): number[] {
+  if (eigene && eigene.length === spalten.length) {
+    const summe = eigene.reduce((s, v) => s + Math.max(0, v), 0);
+    if (summe > 0) return eigene.map((v) => Math.max(0, v) / summe);
+  }
+  const gewicht: Record<PositionsSpalte, number> = {
+    pos: 0.6, beschreibung: 4.4, menge: 0.8, einheit: 0.8,
+    einzelpreis: 1.2, rabatt: 0.8, betrag: 1.3,
+  };
+  const summe = spalten.reduce((s, c) => s + gewicht[c], 0);
+  return spalten.map((c) => gewicht[c] / summe);
+}
+
+export function layoutRechnung({
+  vorlage,
+  werte,
+  positionen,
+  globalerRabatt = 0,
+}: LayoutEingaben): LayoutErgebnis {
+  const g = vorlage.gestaltung;
+
+  const positionsBaustein = findeBaustein(vorlage.bausteine, 'positionen');
+  const mwstSatz = positionsBaustein && positionsBaustein.typ === 'positionen' ? positionsBaustein.mwstSatz : 0;
+  const summen = berechneSummen(positionen, mwstSatz, globalerRabatt);
+
+  const fuss = findeBaustein(vorlage.bausteine, 'fusszeile');
+  const fussHoehe = fuss && fuss.typ === 'fusszeile' ? fussHoeheBerechnen(fuss, g, werte) : 0;
+
+  const lage: Lage = {
+    seiten: [{ kaesten: [] }],
+    seite: 0,
+    y: g.randOben,
+    unten: A4_HOEHE - g.randUnten - fussHoehe,
+    g,
+    werte,
+    positionen,
+    summen,
+    inSpalte: false,
+  };
+
+  const bereich: Bereich = {
+    x: g.randLinks,
+    breite: A4_BREITE - g.randLinks - g.randRechts,
+  };
+
+  // Die Eckdaten in Blockform stehen neben dem Anschriftfeld und werden dort
+  // mitgezeichnet – hier also überspringen.
+  const eckdatenBlock = vorlage.bausteine.find(
+    (b): b is EckdatenBaustein => b.typ === 'eckdaten' && !b.aus && b.form === 'block',
+  );
+
+  zeichneListe(vorlage.bausteine, bereich, lage, { eckdatenBlock, erledigt: new Set() });
+
+  if (fuss && fuss.typ === 'fusszeile') zeichneFusszeile(fuss, lage, fussHoehe);
+
+  return { seiten: lage.seiten, summen };
+}
+
+function findeBaustein(bausteine: Baustein[], typ: string): Baustein | undefined {
+  for (const b of bausteine) {
+    if (b.aus) continue;
+    if (b.typ === typ) return b;
+    if (b.typ === 'spalten') {
+      for (const s of b.spalten) {
+        const treffer = findeBaustein(s.bausteine, typ);
+        if (treffer) return treffer;
+      }
+    }
+  }
+  return undefined;
+}
+
+interface Kontext {
+  eckdatenBlock?: EckdatenBaustein;
+  erledigt: Set<string>;
+}
+
+/** Legt Bausteine untereinander in einen Bereich. Bewegt `lage.y`. */
+function zeichneListe(bausteine: Baustein[], bereich: Bereich, lage: Lage, ctx: Kontext): void {
+  for (const baustein of bausteine) {
+    if (baustein.aus) continue;
+    if (baustein.typ === 'fusszeile') continue; // sitzt am Seitenfuß
+    if (ctx.erledigt.has(baustein.id)) continue;
+    zeichneBaustein(baustein, bereich, lage, ctx);
+  }
+}
+
+/** Der Bereich, den ein Baustein nach seinem Stil tatsächlich einnimmt. */
+function stilBereich(stil: BausteinStil | undefined, bereich: Bereich): Bereich {
+  const anteil = stil?.breite && stil.breite > 0 && stil.breite <= 1 ? stil.breite : 1;
+  const breite = bereich.breite * anteil;
+  if (anteil >= 1) return bereich;
+  const aus = stil?.ausrichtung ?? 'links';
+  const x = aus === 'rechts' ? bereich.x + bereich.breite - breite
+    : aus === 'mitte' ? bereich.x + (bereich.breite - breite) / 2
+      : bereich.x;
+  return { x, breite };
+}
+
+function zeichneBaustein(baustein: Baustein, aussen: Bereich, lage: Lage, ctx: Kontext): void {
+  const g = lage.g;
+  const stil = baustein.stil;
+  const male = (k: Kasten) => lage.seiten[lage.seite].kaesten.push(k);
+
+  lage.y += stil?.abstandOben ?? baustein.abstandOben ?? 0;
+
+  const bereich = stilBereich(stil, aussen);
+  const innen = stil?.innenabstand ?? 0;
+  const inhalt: Bereich = { x: bereich.x + innen, breite: Math.max(1, bereich.breite - innen * 2) };
+  const startY = lage.y;
+  lage.y += innen;
+
+  // Ab hier zeichnet jeder Fall in `inhalt` und lässt `lage.y` unten stehen.
+  switch (baustein.typ) {
+    case 'seitenumbruch':
+      if (lage.seiten[lage.seite].kaesten.length > 0) neueSeite(lage);
+      return;
+
+    case 'abstand':
+      lage.y += baustein.hoehe;
+      break;
+
+    case 'linie': {
+      const b = inhalt.breite * (baustein.breite && baustein.breite > 0 ? Math.min(1, baustein.breite) : 1);
+      const aus = stil?.ausrichtung ?? 'links';
+      const x = aus === 'rechts' ? inhalt.x + inhalt.breite - b
+        : aus === 'mitte' ? inhalt.x + (inhalt.breite - b) / 2
+          : inhalt.x;
+      platz(lage, baustein.dicke + 1);
+      male({ art: 'linie', x1: x, y1: lage.y, x2: x + b, y2: lage.y, farbe: baustein.farbe || g.gedaempft, dicke: baustein.dicke });
+      lage.y += baustein.dicke;
+      break;
+    }
+
+    case 'bild': {
+      const quelle = baustein.quelle || g.logo;
+      if (!quelle) break;
+      const verhaeltnis = g.logoVerhaeltnis && g.logoVerhaeltnis > 0 ? g.logoVerhaeltnis : 2.6;
+      const b = baustein.breiteMm && baustein.breiteMm > 0 ? baustein.breiteMm : baustein.hoehe * verhaeltnis;
+      const aus = stil?.ausrichtung ?? 'links';
+      const x = aus === 'rechts' ? inhalt.x + inhalt.breite - b
+        : aus === 'mitte' ? inhalt.x + (inhalt.breite - b) / 2
+          : inhalt.x;
+      platz(lage, baustein.hoehe);
+      male({ art: 'bild', x, y: lage.y, breite: Math.min(b, inhalt.breite), hoehe: baustein.hoehe, quelle });
+      lage.y += baustein.hoehe;
+      break;
+    }
+
+    case 'unterschrift': {
+      platz(lage, baustein.freiraum + 6);
+      lage.y += baustein.freiraum;
+      const b = Math.min(baustein.linienBreite, inhalt.breite);
+      const aus = stil?.ausrichtung ?? 'links';
+      const x = aus === 'rechts' ? inhalt.x + inhalt.breite - b
+        : aus === 'mitte' ? inhalt.x + (inhalt.breite - b) / 2
+          : inhalt.x;
+      male({ art: 'linie', x1: x, y1: lage.y, x2: x + b, y2: lage.y, farbe: stil?.farbe || g.text, dicke: 0.3 });
+      lage.y += 1.5;
+      if (baustein.beschriftung) {
+        schreibe(lage, baustein.beschriftung, { x, breite: b }, {
+          groesse: groesse(stil, g) * 0.8,
+          farbe: g.gedaempft,
+          ausrichtung: aus,
+        });
+      }
+      break;
+    }
+
+    case 'kopf': zeichneKopf(baustein, inhalt, lage); break;
+    case 'anschrift': zeichneAnschrift(baustein, inhalt, lage, ctx); break;
+    case 'eckdaten': zeichneEckdaten(baustein, inhalt, lage); break;
+    case 'betreff': {
+      const text = fuelle(baustein.inhalt, lage.werte);
+      if (!text.trim()) break;
+      const gr = stil?.schriftgroesse ?? g.schriftgroesse * 1.15;
+      platz(lage, gr * PT_ZU_MM * 2.5);
+      schreibe(lage, text, inhalt, {
+        groesse: gr,
+        fett: stil?.fett ?? true,
+        kursiv: stil?.kursiv,
+        farbe: stil?.farbe || g.text,
+        ausrichtung: stil?.ausrichtung ?? 'links',
+      });
+      break;
+    }
+    case 'text': {
+      const text = baustein.quelle === 'feld'
+        ? (lage.werte[baustein.inhalt] ?? '')
+        : fuelle(baustein.inhalt, lage.werte);
+      if (!text.trim()) break;
+      const gr = stil?.schriftgroesse ?? (baustein.groesse === 'klein' ? g.schriftgroesse * 0.82 : g.schriftgroesse);
+      platz(lage, gr * PT_ZU_MM * 2.5);
+      schreibe(lage, text, inhalt, {
+        groesse: gr,
+        fett: stil?.fett ?? baustein.betont,
+        kursiv: stil?.kursiv,
+        farbe: stil?.farbe || (baustein.groesse === 'klein' && !stil?.farbe ? g.gedaempft : g.text),
+        ausrichtung: stil?.ausrichtung ?? 'links',
+        zeilenabstand: stil?.zeilenabstand,
+      });
+      break;
+    }
+    case 'liste': zeichneListeBaustein(baustein, inhalt, lage); break;
+    case 'positionen': zeichnePositionen(baustein, inhalt, lage); break;
+    case 'zahlung': zeichneZahlung(baustein, inhalt, lage); break;
+    case 'spalten': zeichneSpalten(baustein, inhalt, lage, ctx); break;
+  }
+
+  lage.y += innen;
+
+  // Hintergrund und Rahmen liegen hinter dem Inhalt, werden aber erst jetzt
+  // gezeichnet, weil die Höhe vorher nicht feststand. Deshalb vorn einfügen.
+  const hoehe = lage.y - startY;
+  if (hoehe > 0 && (stil?.hintergrund || (stil?.rahmenDicke && stil.rahmenSeiten?.length))) {
+    const hinten: Kasten[] = [];
+    if (stil?.hintergrund) {
+      hinten.push({ art: 'flaeche', x: bereich.x, y: startY, breite: bereich.breite, hoehe, farbe: stil.hintergrund });
+    }
+    if (stil?.rahmenDicke && stil.rahmenSeiten?.length) {
+      const f = stil.rahmenFarbe || g.gedaempft;
+      const d = stil.rahmenDicke;
+      const r = bereich.x + bereich.breite;
+      const u = startY + hoehe;
+      for (const seite of stil.rahmenSeiten) {
+        if (seite === 'oben') hinten.push({ art: 'linie', x1: bereich.x, y1: startY, x2: r, y2: startY, farbe: f, dicke: d });
+        if (seite === 'unten') hinten.push({ art: 'linie', x1: bereich.x, y1: u, x2: r, y2: u, farbe: f, dicke: d });
+        if (seite === 'links') hinten.push({ art: 'linie', x1: bereich.x, y1: startY, x2: bereich.x, y2: u, farbe: f, dicke: d });
+        if (seite === 'rechts') hinten.push({ art: 'linie', x1: r, y1: startY, x2: r, y2: u, farbe: f, dicke: d });
+      }
+    }
+    lage.seiten[lage.seite].kaesten.unshift(...hinten);
+  }
+
+  lage.y += stil?.abstandUnten ?? g.bausteinAbstand;
+}
+
+// ─── Werkzeug ────────────────────────────────────────────────────────────────
+
+function groesse(stil: BausteinStil | undefined, g: Gestaltung): number {
+  return stil?.schriftgroesse ?? g.schriftgroesse;
+}
+
+function zh(g: Gestaltung, groesseInPt: number, faktor?: number): number {
+  return groesseInPt * PT_ZU_MM * (faktor ?? g.zeilenabstand ?? 1.35);
+}
+
+function neueSeite(lage: Lage): void {
+  lage.seiten.push({ kaesten: [] });
+  lage.seite++;
+  lage.y = lage.g.randOben;
+}
+
+/** Beginnt eine neue Seite, wenn die angeforderte Höhe nicht mehr passt. */
+function platz(lage: Lage, hoehe: number): void {
+  if (lage.inSpalte) return; // in einer Spalte wird nicht umgebrochen
+  if (lage.y + hoehe > lage.unten && lage.seiten[lage.seite].kaesten.length > 0) neueSeite(lage);
+}
+
+interface SchreibOpt {
+  groesse?: number;
+  farbe?: string;
+  fett?: boolean;
+  kursiv?: boolean;
+  ausrichtung?: Ausrichtung;
+  zeilenabstand?: number;
+}
+
+/** Schreibt Text in einen Bereich und schiebt `lage.y` darunter. */
+function schreibe(lage: Lage, text: string, bereich: Bereich, opt: SchreibOpt = {}): number {
+  const g = lage.g;
+  const gr = opt.groesse ?? g.schriftgroesse;
+  const fett = opt.fett ?? false;
+  const zeilen = umbrechen(text, bereich.breite, gr, fett);
+  const zeilenhoehe = zh(g, gr, opt.zeilenabstand);
+  lage.seiten[lage.seite].kaesten.push({
+    art: 'text',
+    x: bereich.x,
+    y: lage.y,
+    breite: bereich.breite,
+    zeilen,
+    groesse: gr,
+    farbe: opt.farbe || g.text,
+    fett,
+    kursiv: opt.kursiv,
+    ausrichtung: opt.ausrichtung ?? 'links',
+    zeilenhoehe,
+  });
+  const hoehe = zeilen.length * zeilenhoehe;
+  lage.y += hoehe;
+  return hoehe;
+}
+
+/** Schreibt Text an eine feste Stelle, ohne `lage.y` zu bewegen. */
+function schreibeAn(lage: Lage, text: string, x: number, y: number, breite: number, opt: SchreibOpt = {}): number {
+  const g = lage.g;
+  const gr = opt.groesse ?? g.schriftgroesse;
+  const fett = opt.fett ?? false;
+  const zeilen = umbrechen(text, breite, gr, fett);
+  const zeilenhoehe = zh(g, gr, opt.zeilenabstand);
+  lage.seiten[lage.seite].kaesten.push({
+    art: 'text', x, y, breite, zeilen, groesse: gr,
+    farbe: opt.farbe || g.text, fett, kursiv: opt.kursiv,
+    ausrichtung: opt.ausrichtung ?? 'links', zeilenhoehe,
+  });
+  return zeilen.length * zeilenhoehe;
+}
+
+// ─── Die einzelnen Bausteine ─────────────────────────────────────────────────
+
+function zeichneKopf(b: Extract<Baustein, { typ: 'kopf' }>, bereich: Bereich, lage: Lage): void {
+  const g = lage.g;
+  const titelGroesse = g.schriftgroesse * (b.titelFaktor ?? 2.2);
+  const logo = g.logo;
+  const verhaeltnis = g.logoVerhaeltnis && g.logoVerhaeltnis > 0 ? g.logoVerhaeltnis : 2.6;
+  const logoBreite = logo ? b.logoHoehe * verhaeltnis : 0;
+  const hoehe = Math.max(logo ? b.logoHoehe : 0, titelGroesse * PT_ZU_MM * 1.2);
+  platz(lage, hoehe + 6);
+
+  if (logo) {
+    lage.seiten[lage.seite].kaesten.push({
+      art: 'bild',
+      x: b.logoSeite === 'links' ? bereich.x : bereich.x + bereich.breite - logoBreite,
+      y: lage.y,
+      breite: Math.min(logoBreite, bereich.breite),
+      hoehe: b.logoHoehe,
+      quelle: logo,
+    });
+  }
+  if (b.titel) {
+    const text = fuelle(b.titel, lage.werte);
+    schreibeAn(
+      lage,
+      (b.titelGrossbuchstaben ?? true) ? text.toUpperCase() : text,
+      bereich.x,
+      lage.y + (hoehe - titelGroesse * PT_ZU_MM) / 2,
+      bereich.breite,
+      {
+        groesse: titelGroesse,
+        fett: true,
+        farbe: b.titelFarbe || g.akzent,
+        ausrichtung: b.stil?.ausrichtung ?? (b.logoSeite === 'links' ? 'rechts' : 'links'),
+      },
+    );
+  }
+  lage.y += hoehe + 3;
+  if (b.trennlinie) {
+    lage.seiten[lage.seite].kaesten.push({
+      art: 'linie', x1: bereich.x, y1: lage.y, x2: bereich.x + bereich.breite, y2: lage.y,
+      farbe: b.titelFarbe || g.akzent, dicke: b.linienDicke ?? 0.8,
+    });
+    lage.y += 3;
+  }
+}
+
+function zeichneAnschrift(
+  b: Extract<Baustein, { typ: 'anschrift' }>,
+  bereich: Bereich,
+  lage: Lage,
+  ctx: Kontext,
+): void {
+  const g = lage.g;
+  const feldBreite = Math.min(b.feldBreite ?? 85, bereich.breite);
+  const startY = lage.y;
+  const gr = groesse(b.stil, g);
+
+  if (b.vorspann) {
+    lage.y += schreibe(lage, fuelle(b.vorspann, lage.werte), { x: bereich.x, breite: feldBreite }, {
+      groesse: gr * 0.8, farbe: g.gedaempft,
+    }) * 0;
+  }
+  if (b.absenderzeile) {
+    const zeile = [lage.werte.sender_name, lage.werte.sender_address].filter(Boolean).join(' · ');
+    if (zeile) {
+      schreibe(lage, zeile, { x: bereich.x, breite: feldBreite }, { groesse: gr * 0.72, farbe: g.gedaempft });
+      lage.seiten[lage.seite].kaesten.push({
+        art: 'linie', x1: bereich.x, y1: lage.y + 0.5, x2: bereich.x + feldBreite, y2: lage.y + 0.5,
+        farbe: g.gedaempft, dicke: 0.2,
+      });
+      lage.y += 3;
+    }
+  }
+  const empfaenger = [lage.werte.receiver_name, lage.werte.receiver_address].filter(Boolean).join('\n');
+  schreibe(lage, empfaenger || 'Empfänger', { x: bereich.x, breite: feldBreite }, {
+    groesse: gr, farbe: b.stil?.farbe || g.text,
+  });
+
+  // Eckdaten in Blockform rechts daneben, auf gleicher Höhe.
+  const block = ctx.eckdatenBlock;
+  if (block && !ctx.erledigt.has(block.id)) {
+    const merk = lage.y;
+    lage.y = startY;
+    const blockBreite = Math.min(block.blockBreite ?? 62, bereich.breite * 0.5);
+    const x = bereich.x + bereich.breite - blockBreite;
+    zeichneEckdatenZeilen(block, x, blockBreite, lage);
+    ctx.erledigt.add(block.id);
+    lage.y = Math.max(merk, lage.y);
+  }
+}
+
+/** Die Beschriftung-Wert-Paare der Eckdaten, untereinander. */
+function zeichneEckdatenZeilen(b: EckdatenBaustein, x: number, breite: number, lage: Lage): void {
+  const g = lage.g;
+  const gr = groesse(b.stil, g) * 0.85;
+  const anteil = b.beschriftungsAnteil ?? 0.55;
+  const zeilenhoehe = zh(g, gr);
+
+  const eintraege: Array<[string, string]> = [];
+  for (const feld of b.felder) {
+    const wert = lage.werte[feld];
+    if (!wert) continue;
+    eintraege.push([b.beschriftungen?.[feld] ?? ECKDATEN_LABELS[feld as EckdatenFeld], wert]);
+  }
+  for (const eigen of b.eigene ?? []) {
+    const wert = fuelle(eigen.wert, lage.werte);
+    if (!wert.trim()) continue;
+    eintraege.push([eigen.beschriftung, wert]);
+  }
+
+  for (const [beschriftung, wert] of eintraege) {
+    schreibeAn(lage, beschriftung, x, lage.y, breite * anteil, { groesse: gr, farbe: g.gedaempft });
+    schreibeAn(lage, wert, x + breite * anteil, lage.y, breite * (1 - anteil), {
+      groesse: gr, fett: true, farbe: b.stil?.farbe || g.text, ausrichtung: 'rechts',
+    });
+    lage.y += zeilenhoehe;
+  }
+}
+
+function zeichneEckdaten(b: EckdatenBaustein, bereich: Bereich, lage: Lage): void {
+  if (b.form === 'block') {
+    // Ohne Anschriftfeld davor steht der Block einfach rechts oben.
+    const breite = Math.min(b.blockBreite ?? 62, bereich.breite);
+    zeichneEckdatenZeilen(b, bereich.x + bereich.breite - breite, breite, lage);
+    return;
+  }
+  if (b.form === 'liste') {
+    zeichneEckdatenZeilen(b, bereich.x, bereich.breite, lage);
+    return;
+  }
+
+  const g = lage.g;
+  const gr = groesse(b.stil, g);
+  const eintraege: Array<[string, string]> = [];
+  for (const feld of b.felder) {
+    if (!lage.werte[feld]) continue;
+    eintraege.push([b.beschriftungen?.[feld] ?? ECKDATEN_LABELS[feld as EckdatenFeld], lage.werte[feld]]);
+  }
+  for (const eigen of b.eigene ?? []) {
+    const wert = fuelle(eigen.wert, lage.werte);
+    if (wert.trim()) eintraege.push([eigen.beschriftung, wert]);
+  }
+  if (eintraege.length === 0) return;
+
+  const spaltenBreite = bereich.breite / eintraege.length;
+  platz(lage, zh(g, gr) * 2);
+  eintraege.forEach(([beschriftung, wert], i) => {
+    const x = bereich.x + i * spaltenBreite;
+    schreibeAn(lage, beschriftung, x, lage.y, spaltenBreite - 2, { groesse: gr * 0.78, farbe: g.gedaempft });
+    schreibeAn(lage, wert, x, lage.y + zh(g, gr * 0.78), spaltenBreite - 2, {
+      groesse: gr, fett: true, farbe: b.stil?.farbe || g.text,
+    });
+  });
+  lage.y += zh(g, gr * 0.78) + zh(g, gr);
+}
+
+function zeichneListeBaustein(b: Extract<Baustein, { typ: 'liste' }>, bereich: Bereich, lage: Lage): void {
+  const g = lage.g;
+  const gr = groesse(b.stil, g);
+  const anteil = b.beschriftungsAnteil ?? 0.4;
+  for (const zeile of b.zeilen) {
+    const wert = fuelle(zeile.wert, lage.werte);
+    if (!zeile.beschriftung && !wert.trim()) continue;
+    const h = zh(g, gr);
+    platz(lage, h);
+    schreibeAn(lage, zeile.beschriftung, bereich.x, lage.y, bereich.breite * anteil - 2, {
+      groesse: gr, farbe: g.gedaempft,
+    });
+    schreibeAn(lage, wert, bereich.x + bereich.breite * anteil, lage.y, bereich.breite * (1 - anteil), {
+      groesse: gr, farbe: b.stil?.farbe || g.text,
+    });
+    lage.y += h;
+    if (b.trennlinien) {
+      lage.seiten[lage.seite].kaesten.push({
+        art: 'linie', x1: bereich.x, y1: lage.y, x2: bereich.x + bereich.breite, y2: lage.y,
+        farbe: g.gedaempft, dicke: 0.15,
+      });
+      lage.y += 0.8;
+    }
+  }
+}
+
+function zeichnePositionen(b: Extract<Baustein, { typ: 'positionen' }>, bereich: Bereich, lage: Lage): void {
+  const g = lage.g;
+  const gr = groesse(b.stil, g);
+  const variante = b.stilVariante ?? 'linien';
+  const spalten = b.spalten;
+  const anteile = spaltenBreiten(spalten, b.spaltenBreiten);
+  const kopfHoehe = zh(g, gr) * 1.5;
+  const zeilenHoehe = zh(g, gr) * (b.zeilenFaktor ?? 1.45);
+  const linienFarbe = b.linienFarbe || '#e2e8f0';
+  const male = (k: Kasten) => lage.seiten[lage.seite].kaesten.push(k);
+
+  const kopfMalen = () => {
+    if (variante === 'linien' || variante === 'rahmen') {
+      male({ art: 'flaeche', x: bereich.x, y: lage.y, breite: bereich.breite, hoehe: kopfHoehe, farbe: b.kopfFarbe || g.akzent });
+    }
+    let x = bereich.x;
+    spalten.forEach((sp, i) => {
+      const sb = bereich.breite * anteile[i];
+      schreibeAn(lage, b.spaltenLabels?.[sp] ?? SPALTEN_LABELS[sp], x + 1.5, lage.y + (kopfHoehe - zh(g, gr * 0.85)) / 2, sb - 3, {
+        groesse: gr * 0.85,
+        farbe: (variante === 'linien' || variante === 'rahmen') ? (b.kopfTextFarbe || '#ffffff') : g.gedaempft,
+        fett: true,
+        ausrichtung: RECHTSBUENDIG.includes(sp) ? 'rechts' : 'links',
+      });
+      x += sb;
+    });
+    lage.y += kopfHoehe;
+    if (variante === 'schlicht' || variante === 'zebra') {
+      male({ art: 'linie', x1: bereich.x, y1: lage.y, x2: bereich.x + bereich.breite, y2: lage.y, farbe: linienFarbe, dicke: 0.3 });
+      lage.y += 1;
+    }
+  };
+
+  platz(lage, kopfHoehe + zeilenHoehe * 2);
+  kopfMalen();
+
+  let nummer = 0;
+  lage.positionen.forEach((p, index) => {
+    if (p.isGroupHeader) {
+      platz(lage, zeilenHoehe);
+      male({ art: 'flaeche', x: bereich.x, y: lage.y, breite: bereich.breite, hoehe: zeilenHoehe, farbe: '#f1f5f9' });
+      schreibeAn(lage, p.description || 'Gruppe', bereich.x + 1.5, lage.y + (zeilenHoehe - zh(g, gr)) / 2, bereich.breite - 3, {
+        groesse: gr, fett: true,
+      });
+      lage.y += zeilenHoehe;
+      return;
+    }
+    nummer++;
+
+    const bi = spalten.indexOf('beschreibung');
+    const bBreite = bi >= 0 ? bereich.breite * anteile[bi] - 3 : bereich.breite;
+    const bZeilen = umbrechen(p.description || '', bBreite, gr);
+    const hoehe = Math.max(zeilenHoehe, bZeilen.length * zh(g, gr) + 2);
+
+    if (!lage.inSpalte && lage.y + hoehe > lage.unten) { neueSeite(lage); kopfMalen(); }
+
+    if (variante === 'zebra' && index % 2 === 1) {
+      male({ art: 'flaeche', x: bereich.x, y: lage.y, breite: bereich.breite, hoehe, farbe: b.zebraFarbe || '#f8fafc' });
+    }
+
+    let x = bereich.x;
+    spalten.forEach((sp, i) => {
+      const sb = bereich.breite * anteile[i];
+      const wert =
+        sp === 'pos' ? String(nummer)
+          : sp === 'beschreibung' ? (p.description || '')
+            : sp === 'menge' ? zahl(p.quantity || 0)
+              : sp === 'einheit' ? (p.unit || '')
+                : sp === 'einzelpreis' ? euro(p.unitPrice || 0)
+                  : sp === 'rabatt' ? (p.discount ? `${zahl(p.discount)} %` : '')
+                    : euro(zeilenBetrag(p));
+      schreibeAn(lage, wert, x + 1.5, lage.y + 1, sb - 3, {
+        groesse: gr,
+        farbe: b.stil?.farbe || g.text,
+        ausrichtung: RECHTSBUENDIG.includes(sp) ? 'rechts' : 'links',
+      });
+      x += sb;
+    });
+    lage.y += hoehe;
+    if (variante === 'linien' || variante === 'rahmen') {
+      male({ art: 'linie', x1: bereich.x, y1: lage.y, x2: bereich.x + bereich.breite, y2: lage.y, farbe: linienFarbe, dicke: 0.2 });
+    }
+  });
+
+  // ── Summen ──
+  const summenBreite = Math.min(b.summenBreite ?? 72, bereich.breite);
+  const summenX = b.summenLinks ? bereich.x : bereich.x + bereich.breite - summenBreite;
+  const zeile = (beschriftung: string, wert: string, fett = false, gr2 = gr) => {
+    const h = zh(g, gr2) * 1.25;
+    platz(lage, h);
+    schreibeAn(lage, beschriftung, summenX, lage.y + (h - zh(g, gr2)) / 2, summenBreite * 0.55, {
+      groesse: gr2, farbe: fett ? g.text : g.gedaempft, fett,
+    });
+    schreibeAn(lage, wert, summenX + summenBreite * 0.55, lage.y + (h - zh(g, gr2)) / 2, summenBreite * 0.45, {
+      groesse: gr2, farbe: g.text, fett, ausrichtung: 'rechts',
+    });
+    lage.y += h;
+  };
+
+  lage.y += 3;
+  if (lage.summen.rabatt > 0) zeile('Nachlass', `− ${euro(lage.summen.rabatt)}`);
+  if (b.summenAusweisen && b.mwstSatz > 0) {
+    zeile('Nettobetrag', euro(lage.summen.netto));
+    zeile(`zzgl. ${zahl(b.mwstSatz)} % USt`, euro(lage.summen.steuer));
+    male({ art: 'linie', x1: summenX, y1: lage.y, x2: summenX + summenBreite, y2: lage.y, farbe: g.gedaempft, dicke: 0.3 });
+    lage.y += 1;
+  }
+  zeile(
+    b.summeLabel || (b.mwstSatz > 0 ? 'Gesamtbetrag' : 'Rechnungsbetrag'),
+    euro(lage.summen.brutto),
+    true,
+    gr * 1.15,
+  );
+  male({ art: 'linie', x1: summenX, y1: lage.y, x2: summenX + summenBreite, y2: lage.y, farbe: b.kopfFarbe || g.akzent, dicke: 0.6 });
+  lage.y += 2;
+}
+
+function zeichneZahlung(b: Extract<Baustein, { typ: 'zahlung' }>, bereich: Bereich, lage: Lage): void {
+  const g = lage.g;
+  const gr = groesse(b.stil, g) * 0.9;
+  const zeilen: string[] = [];
+  if (b.vorspann) zeilen.push(fuelle(b.vorspann, lage.werte));
+  if (b.bankverbindung) {
+    const bank = [
+      lage.werte.sender_iban ? `IBAN ${lage.werte.sender_iban}` : '',
+      lage.werte.sender_bic ? `BIC ${lage.werte.sender_bic}` : '',
+    ].filter(Boolean).join('   ');
+    if (bank) zeilen.push(bank);
+  }
+  if (lage.werte.payment_terms) zeilen.push(lage.werte.payment_terms);
+
+  const zeigtQr = b.qrCode && !!lage.werte.sender_iban;
+  if (zeilen.length === 0 && !zeigtQr) return;
+
+  const qrGroesse = b.qrGroesse ?? 24;
+  const textBreiteHier = zeigtQr ? bereich.breite - qrGroesse - 5 : bereich.breite;
+  const hoehe = Math.max(zeigtQr ? qrGroesse : 0, zeilen.length * zh(g, gr));
+  platz(lage, hoehe + 4);
+
+  if (zeigtQr) {
+    lage.seiten[lage.seite].kaesten.push({
+      art: 'qr',
+      x: b.qrLinks ? bereich.x : bereich.x + bereich.breite - qrGroesse,
+      y: lage.y,
+      groesse: qrGroesse,
+      daten: epcDaten(lage.werte, lage.summen.brutto),
+    });
+  }
+  const textX = zeigtQr && b.qrLinks ? bereich.x + qrGroesse + 5 : bereich.x;
+  const merk = lage.y;
+  for (const z of zeilen) {
+    schreibe(lage, z, { x: textX, breite: textBreiteHier }, {
+      groesse: gr, farbe: b.stil?.farbe || g.text, ausrichtung: b.stil?.ausrichtung,
+    });
+  }
+  lage.y = Math.max(lage.y, merk + (zeigtQr ? qrGroesse : 0));
+}
+
+/**
+ * Stellt Bausteine nebeneinander.
+ *
+ * Jede Spalte bekommt einen eigenen Bereich und einen eigenen Cursor, der bei
+ * derselben Höhe startet. Danach geht es unter der höchsten Spalte weiter.
+ * Innerhalb einer Spalte wird nicht auf eine neue Seite umgebrochen – sonst
+ * zerfiele die Reihe. Passt der ganze Block nicht mehr, rutscht er als Ganzes
+ * auf die nächste Seite.
+ */
+function zeichneSpalten(
+  b: Extract<Baustein, { typ: 'spalten' }>,
+  bereich: Bereich,
+  lage: Lage,
+  ctx: Kontext,
+): void {
+  const sichtbar = b.spalten.filter((s) => s.bausteine.some((x) => !x.aus));
+  if (sichtbar.length === 0) return;
+
+  const zwischen = b.zwischenraum ?? 6;
+  const gesamtGewicht = sichtbar.reduce((s, c) => s + Math.max(0.01, c.anteil), 0);
+  const nutzbar = bereich.breite - zwischen * (sichtbar.length - 1);
+
+  const startY = lage.y;
+  const enden: number[] = [];
+  let x = bereich.x;
+
+  // Erst messen: Wie hoch wird die höchste Spalte? Dafür wird jede Spalte
+  // gezeichnet und ihr Endstand gemerkt.
+  const warInSpalte = lage.inSpalte;
+  lage.inSpalte = true;
+
+  const spaltenKaesten: Kasten[][] = [];
+  for (const spalte of sichtbar) {
+    const breite = nutzbar * (Math.max(0.01, spalte.anteil) / gesamtGewicht);
+    const vorher = lage.seiten[lage.seite].kaesten.length;
+    lage.y = startY;
+    zeichneListe(spalte.bausteine, { x, breite }, lage, ctx);
+    enden.push(lage.y);
+    spaltenKaesten.push(lage.seiten[lage.seite].kaesten.slice(vorher));
+    x += breite + zwischen;
+  }
+
+  lage.inSpalte = warInSpalte;
+
+  const hoechste = Math.max(...enden, startY);
+
+  // Senkrecht ausrichten: Wer kürzer ist, rückt nach unten oder in die Mitte.
+  const senkrecht = b.ausrichtungSenkrecht ?? 'oben';
+  if (senkrecht !== 'oben') {
+    spaltenKaesten.forEach((kaesten, i) => {
+      const versatz = senkrecht === 'unten'
+        ? hoechste - enden[i]
+        : (hoechste - enden[i]) / 2;
+      if (versatz <= 0) return;
+      for (const k of kaesten) {
+        if (k.art === 'linie') { k.y1 += versatz; k.y2 += versatz; }
+        else k.y += versatz;
+      }
+    });
+  }
+
+  lage.y = hoechste;
+}
+
+// ─── Fußzeile ────────────────────────────────────────────────────────────────
+
+function fussFelder(b: Extract<Baustein, { typ: 'fusszeile' }>, werte: Record<string, string>): string[] {
+  const alle: Array<[FussFeld, string]> = [
+    ['sender_name', werte.sender_name],
+    ['sender_address', werte.sender_address],
+    ['sender_email', werte.sender_email],
+    ['sender_phone', werte.sender_phone],
+    ['sender_tax_number', werte.sender_tax_number ? `Steuernummer ${werte.sender_tax_number}` : ''],
+    ['sender_vat_id', werte.sender_vat_id ? `USt-IdNr. ${werte.sender_vat_id}` : ''],
+    ['sender_iban', werte.sender_iban ? `IBAN ${werte.sender_iban}` : ''],
+    ['sender_bic', werte.sender_bic ? `BIC ${werte.sender_bic}` : ''],
+    ['sender_finanzamt', werte.sender_finanzamt ? `Finanzamt ${werte.sender_finanzamt}` : ''],
+    ['sender_w_idnr', werte.sender_w_idnr ? `W-IdNr. ${werte.sender_w_idnr}` : ''],
+  ];
+  const erlaubt = b.felder;
+  return alle
+    .filter(([schluessel, text]) => text && (!erlaubt || erlaubt.includes(schluessel)))
+    .map(([, text]) => text);
+}
+
+function fussHoeheBerechnen(
+  b: Extract<Baustein, { typ: 'fusszeile' }>,
+  g: Gestaltung,
+  werte: Record<string, string>,
+): number {
+  const anzahl = fussFelder(b, werte).length || 1;
+  const zeilen = Math.ceil(anzahl / b.spalten);
+  const gr = groesse(b.stil, g) * 0.7;
+  return zeilen * zh(g, gr) + 4;
+}
+
+function zeichneFusszeile(
+  b: Extract<Baustein, { typ: 'fusszeile' }>,
+  lage: Lage,
+  fussHoehe: number,
+): void {
+  const g = lage.g;
+  const links = g.randLinks;
+  const rechts = A4_BREITE - g.randRechts;
+  const breite = rechts - links;
+  const fussY = A4_HOEHE - g.randUnten - fussHoehe;
+  const felder = fussFelder(b, lage.werte);
+  const proSpalte = Math.ceil(felder.length / b.spalten);
+  const gr = groesse(b.stil, g) * 0.7;
+
+  lage.seiten.forEach((s, i) => {
+    const letzte = i === lage.seiten.length - 1;
+    if (b.nurLetzteSeite && !letzte) return;
+
+    if (b.trennlinie) {
+      s.kaesten.push({ art: 'linie', x1: links, y1: fussY, x2: rechts, y2: fussY, farbe: b.stil?.rahmenFarbe || g.gedaempft, dicke: 0.2 });
+    }
+    const spaltenBreite = breite / b.spalten;
+    for (let sp = 0; sp < b.spalten; sp++) {
+      const teil = felder.slice(sp * proSpalte, (sp + 1) * proSpalte);
+      if (teil.length === 0) continue;
+      s.kaesten.push({
+        art: 'text',
+        x: links + sp * spaltenBreite,
+        y: fussY + 2,
+        breite: spaltenBreite - 2,
+        zeilen: teil,
+        groesse: gr,
+        farbe: b.stil?.farbe || g.gedaempft,
+        fett: false,
+        ausrichtung: b.stil?.ausrichtung ?? 'links',
+        zeilenhoehe: zh(g, gr),
+      });
+    }
+    if ((b.seitenzahl ?? true) && lage.seiten.length > 1) {
+      s.kaesten.push({
+        art: 'text',
+        x: links,
+        y: A4_HOEHE - g.randUnten + 1,
+        breite,
+        zeilen: [`Seite ${i + 1} von ${lage.seiten.length}`],
+        groesse: gr,
+        farbe: g.gedaempft,
+        fett: false,
+        ausrichtung: 'rechts',
+        zeilenhoehe: zh(g, gr),
+      });
+    }
+  });
 }

@@ -81,14 +81,22 @@ export function ResponsiveModal({
     );
   }
 
+  // Am Desktop bleibt die Überschrift stehen und nur der Inhalt rollt. Ohne die
+  // Deckelung wächst ein langes Formular aus dem Fenster heraus und der Rest ist
+  // schlicht nicht mehr erreichbar.
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && dismissible) onClose(); }}>
-      <DialogContent className={cn('max-w-lg', desktopClassName)}>
+      <DialogContent
+        className={cn(
+          'max-h-[85dvh] max-w-lg grid-rows-[auto_minmax(0,1fr)]',
+          desktopClassName,
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        {children}
+        <div className="-mx-1 min-h-0 overflow-y-auto overscroll-contain px-1">{children}</div>
       </DialogContent>
     </Dialog>
   );

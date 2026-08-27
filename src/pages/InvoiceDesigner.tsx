@@ -8,15 +8,19 @@
 //
 // Deshalb hier das Gegenteil. Eine Vorlage ist eine Reihenfolge von Bausteinen –
 // Kopfzeile, Anschriftfeld, Positionen, Fußzeile –, die man sortiert, ein- und
-// ausschaltet. Wo etwas landet, rechnet `layoutRechnung` aus. Das Aussehen wird
-// an einer einzigen Stelle eingestellt und gilt für das ganze Dokument. Damit
-// kann man nichts krumm hinstellen, und es sieht von sich aus ordentlich aus.
+// ausschaltet. Wo etwas landet, rechnet `layoutRechnung` aus.
+//
+// Frei ist der Baukasten trotzdem, und zwar an zwei Stellen: Jeder Baustein
+// trägt eine Feineinstellung, die die Gestaltung des Dokuments punktuell
+// übersteuert, und der Spalten-Baustein nimmt andere Bausteine auf und stellt
+// sie nebeneinander. Damit lässt sich fast jedes Blatt bauen, ohne dass man
+// dafür wieder Pixel schieben müsste.
 //
 // Die Vorschau ist die Hauptsache und bekommt den meisten Platz: Sie zeigt die
 // eigenen Absenderdaten aus den Einstellungen, damit man die eigene Rechnung
 // sieht und nicht ein Muster.
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -27,44 +31,40 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import {
-  ChevronDown, ChevronsUpDown, Copy, FilePlus2, GripVertical, ImagePlus, Minus,
-  Pencil, Plus, RotateCcw, Trash2, ZoomIn,
+  ChevronsUpDown, Copy, FilePlus2, ImagePlus, Minus, Pencil, Plus, RotateCcw, Trash2, ZoomIn,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Segmented } from '@/components/ui/segmented';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
-import { FormGroup, FormRow, FormFullRow } from '@/components/ui/form-list';
+import { FormFullRow, FormGroup } from '@/components/ui/form-list';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Blattvorschau } from '@/components/rechnung/Blattvorschau';
+
+import {
+  Farbzeile, Feldgruppe, Feldzeile, HandyKontext, Marke, Reglerzeile, Vollzeile,
+} from '@/components/rechnung/designer/Bedienelemente';
+import { BausteinEinstellungen } from '@/components/rechnung/designer/BausteinEinstellungen';
+import { Bausteinliste, type ListenAktionen } from '@/components/rechnung/designer/Bausteinliste';
 
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppStore } from '@/store';
 import { useVorlagenStore } from '@/store/vorlagenStore';
 import { layoutRechnung } from '@/lib/rechnung/layout';
 import { kopiere, leereVorlage, neuerBaustein } from '@/lib/rechnung/vorlagen';
+import { alleBausteine, bausteinSuchen, belegteTypen, listeVon, spaltenZiele } from '@/lib/rechnung/baum';
 import { getSetting } from '@/lib/db';
 import { cn } from '@/lib/utils';
 
-import type {
-  Baustein, BausteinTyp, EckdatenFeld, PositionsSpalte, Rechnungsvorlage,
-} from '@/types/rechnungsvorlage';
+import type { BausteinTyp, Rechnungsvorlage } from '@/types/rechnungsvorlage';
 import {
-  A4_BREITE, A4_HOEHE, BAUSTEIN_BESCHREIBUNG, BAUSTEIN_LABELS,
-  ECKDATEN_LABELS, NUR_EINMAL, SPALTEN_LABELS,
+  A4_BREITE, A4_HOEHE, BAUSTEIN_BESCHREIBUNG, BAUSTEIN_LABELS, NICHT_IN_SPALTEN, NUR_EINMAL,
 } from '@/types/rechnungsvorlage';
 import type { LineItem } from '@/types/template';
 
@@ -73,31 +73,26 @@ import type { LineItem } from '@/types/template';
 /** Pixel je Millimeter bei 96 dpi – der Maßstab, den „100 %" meint. */
 const PIXEL_JE_MM = 3.78;
 
-const AKZENT_VORSCHLAEGE = [
-  '#1d4ed8', '#0f766e', '#334155', '#b91c1c', '#c2410c',
-  '#7c3aed', '#be185d', '#15803d', '#0e7490', '#a16207',
-];
-
 const SCHRIFTEN = [
   { wert: 'Helvetica, Arial, sans-serif', label: 'Serifenlos' },
   { wert: 'Georgia, "Times New Roman", serif', label: 'Serif' },
   { wert: '"Courier New", Courier, monospace', label: 'Schreibmaschine' },
 ];
 
-/** Reihenfolge, in der Eckdaten erscheinen – unabhängig davon, wann man sie anhakt. */
-const ECKDATEN_ORDER: EckdatenFeld[] = [
-  'doc_number', 'doc_date', 'delivery_date', 'due_date', 'customer_number',
-];
-
-const SPALTEN_ORDER: PositionsSpalte[] = [
-  'pos', 'beschreibung', 'menge', 'einheit', 'einzelpreis', 'rabatt', 'betrag',
-];
-
-/** Ohne Beschreibung und Betrag ist die Tabelle keine Rechnung mehr. */
-const PFLICHTSPALTEN: PositionsSpalte[] = ['beschreibung', 'betrag'];
-
-const ALLE_TYPEN: BausteinTyp[] = [
-  'kopf', 'anschrift', 'eckdaten', 'betreff', 'text', 'positionen', 'zahlung', 'fusszeile', 'abstand',
+/**
+ * Die Auswahl „Baustein hinzufügen". Gruppiert, weil fünfzehn Einträge
+ * hintereinander niemand liest: oben, was auf der Rechnung steht, unten, was
+ * den Aufbau ordnet.
+ */
+const TYP_GRUPPEN: Array<{ titel: string; typen: BausteinTyp[] }> = [
+  {
+    titel: 'Inhalt',
+    typen: ['kopf', 'anschrift', 'eckdaten', 'betreff', 'text', 'positionen', 'zahlung', 'liste', 'fusszeile'],
+  },
+  {
+    titel: 'Aufbau und Zierrat',
+    typen: ['spalten', 'abstand', 'linie', 'bild', 'unterschrift', 'seitenumbruch'],
+  },
 ];
 
 /** Die drei Beispielleistungen der Vorschau – eine kurz, eine lang, eine pauschal. */
@@ -117,510 +112,6 @@ const PROFIL_SCHLUESSEL = [
   'profile_finanzamt', 'profile_iban', 'profile_bic',
 ];
 
-// ─── Kleine Bausteine der Oberfläche ─────────────────────────────────────────
-//
-// Einstellungen sehen am Desktop und am Handy verschieden aus, sagen aber
-// dasselbe. Statt jede Einstellung zweimal zu schreiben, entscheidet der
-// Kontext, in welcher Hülle eine Zeile erscheint: am Handy die Gruppenliste,
-// am Desktop eine kompakte Reihe.
-
-const HandyKontext = createContext(false);
-const useHandy = () => useContext(HandyKontext);
-
-function Feldgruppe({ titel, fuss, children }: { titel?: string; fuss?: string; children: React.ReactNode }) {
-  const handy = useHandy();
-  if (handy) return <FormGroup title={titel} footer={fuss}>{children}</FormGroup>;
-  return (
-    <section className="space-y-1.5">
-      {titel && (
-        <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{titel}</h3>
-      )}
-      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-        {children}
-      </div>
-      {fuss && <p className="px-1 text-[11px] leading-snug text-muted-foreground">{fuss}</p>}
-    </section>
-  );
-}
-
-function Feldzeile({ label, hinweis, children }: { label: string; hinweis?: string; children: React.ReactNode }) {
-  const handy = useHandy();
-  if (handy) return <FormRow label={label} hint={hinweis}>{children}</FormRow>;
-  return (
-    <div className="flex min-h-9 items-center gap-3 px-2.5 py-1.5">
-      <span className="min-w-0 flex-1">
-        <span className="block text-xs">{label}</span>
-        {hinweis && <span className="block text-[11px] leading-snug text-muted-foreground">{hinweis}</span>}
-      </span>
-      <div className="flex shrink-0 items-center justify-end">{children}</div>
-    </div>
-  );
-}
-
-function Vollzeile({ children }: { children: React.ReactNode }) {
-  const handy = useHandy();
-  if (handy) return <FormFullRow>{children}</FormFullRow>;
-  return <div className="px-2.5 py-2">{children}</div>;
-}
-
-/**
- * Regler mit Wertanzeige. Am Handy bekommt er eine eigene Zeile: Neben einer
- * Beschriftung wie „Zwischen Bausteinen" bliebe von der Spur nichts übrig, das
- * man noch treffen könnte.
- */
-function Reglerzeile({
-  label, hinweis, wert, min, max, schritt = 1, einheit, setzen,
-}: {
-  label: string;
-  hinweis?: string;
-  wert: number; min: number; max: number; schritt?: number; einheit: string;
-  setzen: (v: number) => void;
-}) {
-  const handy = useHandy();
-  const anzeige = `${Number.isInteger(wert) ? wert : wert.toFixed(1).replace('.', ',')} ${einheit}`;
-  const spur = (
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={schritt}
-      value={wert}
-      onChange={(e) => setzen(Number(e.target.value))}
-      aria-label={label}
-      className={cn('cursor-pointer accent-primary', handy ? 'mt-2.5 h-1.5 w-full' : 'h-1 w-28')}
-    />
-  );
-
-  if (handy) {
-    return (
-      <FormFullRow>
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[17px]">{label}</span>
-          <span className="shrink-0 text-[15px] tabular-nums text-muted-foreground">{anzeige}</span>
-        </div>
-        {hinweis && <span className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{hinweis}</span>}
-        {spur}
-      </FormFullRow>
-    );
-  }
-
-  return (
-    <Feldzeile label={label} hinweis={hinweis}>
-      <div className="flex items-center gap-2">
-        {spur}
-        <span className="w-12 text-right text-xs tabular-nums text-muted-foreground">{anzeige}</span>
-      </div>
-    </Feldzeile>
-  );
-}
-
-/** Textfeld über die volle Breite – für Betreff und Absätze. */
-function Textfeld({
-  wert, setzen, platzhalter, mehrzeilig,
-}: {
-  wert: string; setzen: (v: string) => void; platzhalter?: string; mehrzeilig?: boolean;
-}) {
-  const handy = useHandy();
-  const gemeinsam = {
-    value: wert,
-    placeholder: platzhalter,
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setzen(e.target.value),
-  };
-  const klasse = handy
-    ? 'w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground/60'
-    : 'w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-ring';
-
-  if (mehrzeilig) return <textarea rows={handy ? 4 : 3} {...gemeinsam} className={klasse} />;
-  return <input {...gemeinsam} className={klasse} />;
-}
-
-/**
- * An- und abwählbare Marke – für Eckdatenfelder und Tabellenspalten.
- *
- * Eine gesperrte Marke bleibt sichtbar angehakt. Sie blass zu zeichnen hieße,
- * „Beschreibung" und „Betrag" wie abgewählte Spalten aussehen zu lassen,
- * obwohl sie auf jeder Rechnung gedruckt werden.
- */
-function Marke({
-  label, an, gesperrt, umschalten,
-}: { label: string; an: boolean; gesperrt?: boolean; umschalten: () => void }) {
-  const handy = useHandy();
-  return (
-    <button
-      type="button"
-      disabled={gesperrt}
-      onClick={umschalten}
-      title={gesperrt ? 'Gehört auf jede Rechnung und bleibt an.' : undefined}
-      className={cn(
-        'rounded-full border transition-colors',
-        handy ? 'px-3 py-1.5 text-[15px]' : 'px-2.5 py-1 text-xs',
-        an ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border text-muted-foreground',
-        gesperrt && 'cursor-default',
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
-// ─── Einstellungen eines Bausteins ───────────────────────────────────────────
-
-function BausteinEinstellungen({
-  baustein, aendern, entfernen,
-}: {
-  baustein: Baustein;
-  aendern: (patch: Partial<Baustein>) => void;
-  entfernen?: () => void;
-}) {
-  const handy = useHandy();
-
-  const abstand = (
-    <Feldgruppe titel="Platz">
-      <Reglerzeile
-        label="Abstand darüber"
-        wert={baustein.abstandOben ?? 0}
-        min={0} max={40} einheit="mm"
-        setzen={(v) => aendern({ abstandOben: v })}
-      />
-    </Feldgruppe>
-  );
-
-  return (
-    <div className={cn(handy ? 'space-y-6' : 'space-y-3')}>
-      {baustein.typ === 'kopf' && (
-        <Feldgruppe titel="Kopfzeile" fuss={'Das Logo lädst du unter „Aussehen" hoch – es gilt für die ganze Vorlage.'}>
-          <Vollzeile>
-            <span className={cn('mb-1 block text-muted-foreground', handy ? 'text-[13px]' : 'text-[11px]')}>Titel</span>
-            <Textfeld
-              wert={baustein.titel}
-              setzen={(v) => aendern({ titel: v })}
-              platzhalter="Rechnung"
-            />
-          </Vollzeile>
-          <Feldzeile label="Logo steht">
-            <Segmented
-              value={baustein.logoSeite}
-              onChange={(v) => aendern({ logoSeite: v })}
-              options={[{ value: 'links', label: 'Links' }, { value: 'rechts', label: 'Rechts' }]}
-              className={handy ? 'w-44' : 'w-32'}
-            />
-          </Feldzeile>
-          <Reglerzeile
-            label="Logohöhe" wert={baustein.logoHoehe} min={6} max={40} einheit="mm"
-            setzen={(v) => aendern({ logoHoehe: v })}
-          />
-          <Feldzeile label="Balken darunter">
-            <Switch checked={baustein.trennlinie} onCheckedChange={(v) => aendern({ trennlinie: v })} />
-          </Feldzeile>
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'anschrift' && (
-        <Feldgruppe titel="Anschriftfeld" fuss="Die kleine Zeile über der Anschrift zeigt deinen Absender – im Fensterumschlag steht sie über dem Sichtfenster.">
-          <Feldzeile label="Absenderzeile">
-            <Switch checked={baustein.absenderzeile} onCheckedChange={(v) => aendern({ absenderzeile: v })} />
-          </Feldzeile>
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'eckdaten' && (
-        <Feldgruppe titel="Eckdaten" fuss="Als Block stehen die Angaben rechts neben der Anschrift, als Zeile darunter.">
-          <Feldzeile label="Form">
-            <Segmented
-              value={baustein.form}
-              onChange={(v) => aendern({ form: v })}
-              options={[{ value: 'block', label: 'Block' }, { value: 'zeile', label: 'Zeile' }]}
-              className={handy ? 'w-44' : 'w-32'}
-            />
-          </Feldzeile>
-          <Vollzeile>
-            <span className={cn('mb-2 block text-muted-foreground', handy ? 'text-[13px]' : 'text-[11px]')}>Angaben</span>
-            <div className="flex flex-wrap gap-1.5">
-              {ECKDATEN_ORDER.map((feld) => {
-                const an = baustein.felder.includes(feld);
-                return (
-                  <Marke
-                    key={feld}
-                    label={ECKDATEN_LABELS[feld]}
-                    an={an}
-                    umschalten={() =>
-                      aendern({
-                        felder: ECKDATEN_ORDER.filter((f) => (f === feld ? !an : baustein.felder.includes(f))),
-                      })
-                    }
-                  />
-                );
-              })}
-            </div>
-          </Vollzeile>
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'betreff' && (
-        <Feldgruppe titel="Betreff" fuss="In geschweiften Klammern stehen Platzhalter, etwa {{doc_number}} für die Rechnungsnummer.">
-          <Vollzeile>
-            <Textfeld
-              wert={baustein.inhalt}
-              setzen={(v) => aendern({ inhalt: v })}
-              platzhalter="Rechnung {{doc_number}}"
-            />
-          </Vollzeile>
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'text' && (
-        <Feldgruppe
-          titel="Text"
-          fuss={
-            baustein.quelle === 'feld'
-              ? 'Der Absatz zeigt, was beim Schreiben der Rechnung in diesem Feld steht.'
-              : 'Fester Text erscheint auf jeder Rechnung gleich.'
-          }
-        >
-          <Feldzeile label="Quelle">
-            <Segmented
-              value={baustein.quelle}
-              onChange={(v) => aendern({ quelle: v, inhalt: v === 'feld' ? 'notes' : '' })}
-              options={[{ value: 'fest', label: 'Fester Text' }, { value: 'feld', label: 'Feld' }]}
-              className={handy ? 'w-52' : 'w-40'}
-            />
-          </Feldzeile>
-          {baustein.quelle === 'feld' ? (
-            <Feldzeile label="Feld">
-              <Select value={baustein.inhalt} onValueChange={(v) => aendern({ inhalt: v })}>
-                <SelectTrigger className={handy ? 'h-9 w-44' : 'h-8 w-40 text-xs'}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="notes">Anschreiben</SelectItem>
-                  <SelectItem value="legal_notice">Steuerhinweis</SelectItem>
-                  <SelectItem value="payment_terms">Zahlungsziel</SelectItem>
-                </SelectContent>
-              </Select>
-            </Feldzeile>
-          ) : (
-            <Vollzeile>
-              <Textfeld
-                wert={baustein.inhalt}
-                setzen={(v) => aendern({ inhalt: v })}
-                platzhalter="Vielen Dank für Ihren Auftrag."
-                mehrzeilig
-              />
-            </Vollzeile>
-          )}
-          <Feldzeile label="Größe">
-            <Segmented
-              value={baustein.groesse}
-              onChange={(v) => aendern({ groesse: v })}
-              options={[{ value: 'normal', label: 'Normal' }, { value: 'klein', label: 'Klein' }]}
-              className={handy ? 'w-44' : 'w-32'}
-            />
-          </Feldzeile>
-          <Feldzeile label="Fett">
-            <Switch checked={baustein.betont} onCheckedChange={(v) => aendern({ betont: v })} />
-          </Feldzeile>
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'positionen' && (
-        <Feldgruppe titel="Positionen" fuss="Beschreibung und Betrag gehören auf jede Rechnung und lassen sich deshalb nicht abwählen.">
-          <Vollzeile>
-            <span className={cn('mb-2 block text-muted-foreground', handy ? 'text-[13px]' : 'text-[11px]')}>Spalten</span>
-            <div className="flex flex-wrap gap-1.5">
-              {SPALTEN_ORDER.map((spalte) => {
-                const an = baustein.spalten.includes(spalte);
-                const gesperrt = PFLICHTSPALTEN.includes(spalte);
-                return (
-                  <Marke
-                    key={spalte}
-                    label={SPALTEN_LABELS[spalte]}
-                    an={an}
-                    gesperrt={gesperrt}
-                    umschalten={() =>
-                      aendern({
-                        spalten: SPALTEN_ORDER.filter((s) => (s === spalte ? !an : baustein.spalten.includes(s))),
-                      })
-                    }
-                  />
-                );
-              })}
-            </div>
-          </Vollzeile>
-          <Feldzeile label="Stil">
-            <Segmented
-              value={baustein.stil}
-              onChange={(v) => aendern({ stil: v })}
-              options={[
-                { value: 'linien', label: 'Balken' },
-                { value: 'zebra', label: 'Zebra' },
-                { value: 'schlicht', label: 'Schlicht' },
-              ]}
-              className={handy ? 'w-60' : 'w-52'}
-            />
-          </Feldzeile>
-          <Feldzeile label="Umsatzsteuer">
-            <Select
-              value={String(baustein.mwstSatz)}
-              onValueChange={(v) => aendern({ mwstSatz: Number(v), summenAusweisen: Number(v) > 0 })}
-            >
-              <SelectTrigger className={handy ? 'h-9 w-44' : 'h-8 w-40 text-xs'}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Keine (§ 19 UStG)</SelectItem>
-                <SelectItem value="7">7 %</SelectItem>
-                <SelectItem value="19">19 %</SelectItem>
-              </SelectContent>
-            </Select>
-          </Feldzeile>
-          {baustein.mwstSatz > 0 && (
-            <Feldzeile label="Netto und Steuer zeigen">
-              <Switch checked={baustein.summenAusweisen} onCheckedChange={(v) => aendern({ summenAusweisen: v })} />
-            </Feldzeile>
-          )}
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'zahlung' && (
-        <Feldgruppe titel="Zahlung" fuss="Den QR-Code lesen Banking-Apps ein und füllen die Überweisung damit aus.">
-          <Feldzeile label="Bankverbindung">
-            <Switch checked={baustein.bankverbindung} onCheckedChange={(v) => aendern({ bankverbindung: v })} />
-          </Feldzeile>
-          <Feldzeile label="QR-Code">
-            <Switch checked={baustein.qrCode} onCheckedChange={(v) => aendern({ qrCode: v })} />
-          </Feldzeile>
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'fusszeile' && (
-        <Feldgruppe titel="Fußzeile" fuss="Die Fußzeile steht auf jeder Seite am unteren Rand.">
-          <Feldzeile label="Spalten">
-            <Segmented
-              value={String(baustein.spalten)}
-              onChange={(v) => aendern({ spalten: Number(v) as 2 | 3 | 4 })}
-              options={[{ value: '2', label: '2' }, { value: '3', label: '3' }, { value: '4', label: '4' }]}
-              className={handy ? 'w-36' : 'w-28'}
-            />
-          </Feldzeile>
-          <Feldzeile label="Trennlinie">
-            <Switch checked={baustein.trennlinie} onCheckedChange={(v) => aendern({ trennlinie: v })} />
-          </Feldzeile>
-        </Feldgruppe>
-      )}
-
-      {baustein.typ === 'abstand' && (
-        <Feldgruppe titel="Abstand">
-          <Reglerzeile
-            label="Höhe" wert={baustein.hoehe} min={2} max={80} einheit="mm"
-            setzen={(v) => aendern({ hoehe: v })}
-          />
-        </Feldgruppe>
-      )}
-
-      {baustein.typ !== 'abstand' && abstand}
-
-      {entfernen && (
-        <Button variant="destructive" className={handy ? 'h-[50px] w-full text-[17px]' : 'w-full'} onClick={entfernen}>
-          <Trash2 /> Baustein entfernen
-        </Button>
-      )}
-    </div>
-  );
-}
-
-// ─── Eine Zeile der Bausteinliste ────────────────────────────────────────────
-
-function BausteinZeile({
-  baustein, aktiv, waehlen, schalten, loeschen, kinder,
-}: {
-  baustein: Baustein;
-  aktiv: boolean;
-  waehlen: () => void;
-  schalten: (an: boolean) => void;
-  loeschen: () => void;
-  /** Die aufgeklappten Einstellungen – am Desktop stehen sie unter der Zeile. */
-  kinder?: React.ReactNode;
-}) {
-  const handy = useHandy();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: baustein.id });
-
-  const stil: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-    zIndex: isDragging ? 10 : undefined,
-    position: 'relative',
-  };
-
-  const aus = baustein.aus === true;
-  const label = BAUSTEIN_LABELS[baustein.typ];
-  const beschreibung = BAUSTEIN_BESCHREIBUNG[baustein.typ];
-
-  if (handy) {
-    return (
-      <div ref={setNodeRef} style={stil} data-list-row className="flex w-full items-stretch bg-card">
-        <span
-          {...attributes}
-          {...listeners}
-          className="flex shrink-0 touch-none cursor-grab items-center pl-3 pr-1 text-muted-foreground/50 active:cursor-grabbing"
-          aria-label="Baustein verschieben"
-        >
-          <GripVertical className="h-5 w-5" />
-        </span>
-        <span
-          data-row-body
-          className="ml-2 flex min-h-[56px] min-w-0 flex-1 items-center gap-3 border-b border-border py-2 pr-4"
-        >
-          <button type="button" onClick={waehlen} className="min-w-0 flex-1 text-left">
-            <span className={cn('block truncate text-[17px] leading-tight', aus && 'text-muted-foreground line-through')}>
-              {label}
-            </span>
-            <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{beschreibung}</span>
-          </button>
-          <Switch checked={!aus} onCheckedChange={(an) => schalten(an)} aria-label="Baustein anzeigen" />
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={stil}
-      className={cn(
-        'overflow-hidden rounded-lg border bg-card transition-colors',
-        aktiv ? 'border-primary/50 ring-1 ring-primary/30' : 'border-border',
-      )}
-    >
-      <div className="flex items-center gap-1.5 px-1.5 py-1.5">
-        <span
-          {...attributes}
-          {...listeners}
-          className="flex cursor-grab items-center px-0.5 text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
-          aria-label="Baustein verschieben"
-        >
-          <GripVertical className="h-4 w-4" />
-        </span>
-        <button type="button" onClick={waehlen} className="min-w-0 flex-1 py-0.5 text-left">
-          <span className={cn('block truncate text-sm font-medium', aus && 'text-muted-foreground line-through')}>
-            {label}
-          </span>
-          <span className="block truncate text-[11px] leading-snug text-muted-foreground">{beschreibung}</span>
-        </button>
-        <ChevronDown
-          className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-transform', aktiv && 'rotate-180')}
-        />
-        <Switch checked={!aus} onCheckedChange={(an) => schalten(an)} aria-label="Baustein anzeigen" />
-        <Button variant="ghost" size="icon-sm" onClick={loeschen} title="Baustein löschen">
-          <Trash2 className="text-muted-foreground" />
-        </Button>
-      </div>
-      {aktiv && kinder && <div className="border-t border-border bg-muted/30 px-2.5 py-2.5">{kinder}</div>}
-    </div>
-  );
-}
-
 // ─── Die Seite ───────────────────────────────────────────────────────────────
 
 type Reiter = 'aufbau' | 'aussehen' | 'vorschau';
@@ -634,6 +125,7 @@ export default function InvoiceDesigner() {
     vorlagen, offeneVorlage, setOffeneVorlage,
     hinzufuegen, aendern, loeschen, zuruecksetzen,
     gestaltungAendern, bausteinAendern, bausteinHinzufuegen, bausteinLoeschen, bausteinVerschieben,
+    bausteinUmhaengenIn, spalteHinzufuegen, spalteEntfernen,
   } = useVorlagenStore();
 
   const vorlage = vorlagen.find((v) => v.id === offeneVorlage) ?? vorlagen[0] ?? null;
@@ -645,11 +137,16 @@ export default function InvoiceDesigner() {
   const [neuOffen, setNeuOffen] = useState(false);
   const [neuName, setNeuName] = useState('');
   const [neuArt, setNeuArt] = useState<'rechnung' | 'gutschrift'>('rechnung');
-  const [umbenennenOffen, setUmbenennenOffen] = useState(false);
+  const [bearbeitenOffen, setBearbeitenOffen] = useState(false);
   const [neuerTitel, setNeuerTitel] = useState('');
+  const [neueArt, setNeueArt] = useState<'rechnung' | 'gutschrift'>('rechnung');
   const [loeschenOffen, setLoeschenOffen] = useState(false);
-  const [auswahlOffen, setAuswahlOffen] = useState(false);
   const [vorlagenlisteOffen, setVorlagenlisteOffen] = useState(false);
+
+  // Die Auswahl merkt sich, wohin der neue Baustein soll: `null` heißt in die
+  // Hauptliste, sonst in genau diese Spalte.
+  const [auswahlOffen, setAuswahlOffen] = useState(false);
+  const [auswahlZiel, setAuswahlZiel] = useState<string | null>(null);
 
   const logoFeld = useRef<HTMLInputElement>(null);
   const blattbereich = useRef<HTMLDivElement>(null);
@@ -780,7 +277,8 @@ export default function InvoiceDesigner() {
     if (!vorlage.mitgeliefert) return vorlage.id;
 
     // Bewusst nicht `kopiere`: Das vergibt neue Kennungen für die Bausteine,
-    // und dann zeigte das gerade offene Einstellfeld ins Leere.
+    // und dann zeigte das gerade offene Einstellfeld ins Leere. Flach kopiert
+    // reicht, weil alle Änderungen am Baum neue Äste bauen statt zu verändern.
     const jetzt = new Date().toISOString();
     const gabelung: Rechnungsvorlage = {
       ...vorlage,
@@ -810,15 +308,29 @@ export default function InvoiceDesigner() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  /**
+   * Sortiert per Ziehen um. Beide Bausteine müssen in derselben Liste liegen –
+   * über Ebenen hinweg zu ziehen ginge zwar, träfe aber am Handy nie und
+   * müsste zusätzlich prüfen, ob der Baustein überhaupt in eine Spalte darf.
+   * Dafür ist das Menü der Zeile da.
+   */
   const sortiert = (ereignis: DragEndEvent) => {
     const { active, over } = ereignis;
     if (!vorlage || !over || active.id === over.id) return;
-    const von = vorlage.bausteine.findIndex((b) => b.id === active.id);
-    const nach = vorlage.bausteine.findIndex((b) => b.id === over.id);
+    const her = listeVon(vorlage.bausteine, String(active.id));
+    const hin = listeVon(vorlage.bausteine, String(over.id));
+    if (!her || !hin || her.spalteId !== hin.spalteId) return;
+    const von = her.bausteine.findIndex((b) => b.id === active.id);
+    const nach = hin.bausteine.findIndex((b) => b.id === over.id);
     if (von < 0 || nach < 0) return;
-    mitZiel((id) => bausteinVerschieben(id, von, nach));
+    mitZiel((id) => bausteinVerschieben(id, her.spalteId, von, nach));
   };
 
+  /**
+   * Lädt das Logo und misst dabei gleich sein Seitenverhältnis. Vorher stand
+   * dafür ein fester Wert im Layout, und hohe Logos wurden in die Breite
+   * gezogen.
+   */
   const logoLaden = (datei: File | undefined) => {
     if (!datei) return;
     if (datei.size > 2_000_000) {
@@ -826,7 +338,16 @@ export default function InvoiceDesigner() {
       return;
     }
     const leser = new FileReader();
-    leser.onload = () => mitZiel((id) => gestaltungAendern(id, { logo: String(leser.result) }));
+    leser.onload = () => {
+      const daten = String(leser.result);
+      const bild = new Image();
+      const uebernehmen = (verhaeltnis?: number) =>
+        mitZiel((id) => gestaltungAendern(id, { logo: daten, logoVerhaeltnis: verhaeltnis }));
+      bild.onload = () =>
+        uebernehmen(bild.naturalHeight > 0 ? bild.naturalWidth / bild.naturalHeight : undefined);
+      bild.onerror = () => uebernehmen(undefined);
+      bild.src = daten;
+    };
     leser.onerror = () => toast.error('Das Bild konnte nicht gelesen werden');
     leser.readAsDataURL(datei);
   };
@@ -834,7 +355,7 @@ export default function InvoiceDesigner() {
   const bausteinEinfuegen = (typ: BausteinTyp) => {
     mitZiel((id) => {
       const neuer = neuerBaustein(typ);
-      bausteinHinzufuegen(id, neuer);
+      bausteinHinzufuegen(id, neuer, auswahlZiel);
       setGewaehlterBaustein(neuer.id);
     });
     setAuswahlOffen(false);
@@ -883,11 +404,11 @@ export default function InvoiceDesigner() {
   // automatische Kopie umzubenennen – wobei der Nutzer eine Meldung über
   // „Klar (Kopie)" läse, die einen Wimpernschlag später nicht mehr stimmt –
   // entsteht sie hier gleich unter dem gewünschten Namen als eigene Vorlage.
-  const umbenennen = () => {
+  const vorlageUebernehmen = () => {
     const name = neuerTitel.trim();
     if (!vorlage || !name) return;
     if (vorlage.mitgeliefert) {
-      const kopie = kopiere(vorlage, name);
+      const kopie = { ...kopiere(vorlage, name), art: neueArt };
       hinzufuegen(kopie);
       setOffeneVorlage(kopie.id);
       setGewaehlterBaustein(null);
@@ -895,9 +416,9 @@ export default function InvoiceDesigner() {
         description: `„${vorlage.name}" ist mitgeliefert und bleibt unverändert daneben stehen.`,
       });
     } else {
-      aendern(vorlage.id, { name });
+      aendern(vorlage.id, { name, art: neueArt });
     }
-    setUmbenennenOffen(false);
+    setBearbeitenOffen(false);
   };
 
   // Die Kennung steht in der Adresse, damit „Rechnung schreiben" mit genau
@@ -909,10 +430,6 @@ export default function InvoiceDesigner() {
     navigate(`/write-invoice?vorlage=${encodeURIComponent(vorlage.id)}`);
   };
 
-  // ── Bausteine, die es schon gibt ──
-  const vorhandeneTypen = new Set(vorlage?.bausteine.map((b) => b.typ) ?? []);
-  const offenerBaustein = vorlage?.bausteine.find((b) => b.id === gewaehlterBaustein) ?? null;
-
   if (!vorlage) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
@@ -923,61 +440,52 @@ export default function InvoiceDesigner() {
 
   const g = vorlage.gestaltung;
 
-  // Ein Farbfeld ist am Handy schwer zu treffen, wenn es nur so hoch ist wie
-  // eine Zeile Text – am Finger gemessen, nicht am Schriftbild.
-  const farbfeld = cn(
-    'cursor-pointer rounded border border-border bg-transparent',
-    isMobile ? 'h-9 w-16' : 'h-7 w-12',
-  );
+  // ── Was es in dieser Vorlage schon gibt ──
+  const vorhandeneTypen = belegteTypen(vorlage.bausteine);
+  const offenerBaustein = bausteinSuchen(vorlage.bausteine, gewaehlterBaustein ?? '');
+  const ziele = spaltenZiele(vorlage.bausteine);
+  const spaltenBausteine = alleBausteine(vorlage.bausteine).filter((b) => b.typ === 'spalten').length;
 
   // ── Aufbau: die Liste der Bausteine ──
+  const listenAktionen: ListenAktionen = {
+    gewaehlt: gewaehlterBaustein,
+    waehlen: setGewaehlterBaustein,
+    schalten: (id, an) => mitZiel((v) => bausteinAendern(v, id, { aus: !an })),
+    loeschen: (id) => {
+      mitZiel((v) => bausteinLoeschen(v, id));
+      if (gewaehlterBaustein === id) setGewaehlterBaustein(null);
+    },
+    umhaengen: (id, spalteId) => mitZiel((v) => bausteinUmhaengenIn(v, id, spalteId)),
+    hinzufuegen: (spalteId) => { setAuswahlZiel(spalteId); setAuswahlOffen(true); },
+    aendern: (id, patch) => mitZiel((v) => bausteinAendern(v, id, patch)),
+    spalteHinzufuegen: (spaltenId) => mitZiel((v) => spalteHinzufuegen(v, spaltenId)),
+    spalteEntfernen: (spaltenId, spalteId) => mitZiel((v) => spalteEntfernen(v, spaltenId, spalteId)),
+    ziele,
+    spaltenBausteine,
+    einstellungen: (b) => (
+      <BausteinEinstellungen
+        baustein={b}
+        g={g}
+        aendern={(patch) => mitZiel((v) => bausteinAendern(v, b.id, patch))}
+      />
+    ),
+  };
+
   const aufbau = (
     <div className="space-y-4">
       <DndContext sensors={sensoren} collisionDetection={closestCenter} onDragEnd={sortiert}>
-        <SortableContext items={vorlage.bausteine.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-          {isMobile ? (
-            <ListGroup footer="Am Griff links ziehst du einen Baustein an eine andere Stelle. Antippen öffnet seine Einstellungen.">
-              {vorlage.bausteine.map((b) => (
-                <BausteinZeile
-                  key={b.id}
-                  baustein={b}
-                  aktiv={b.id === gewaehlterBaustein}
-                  waehlen={() => setGewaehlterBaustein(b.id)}
-                  schalten={(an) => mitZiel((id) => bausteinAendern(id, b.id, { aus: !an }))}
-                  loeschen={() => mitZiel((id) => bausteinLoeschen(id, b.id))}
-                />
-              ))}
-            </ListGroup>
-          ) : (
-            <div className="space-y-1.5">
-              {vorlage.bausteine.map((b) => (
-                <BausteinZeile
-                  key={b.id}
-                  baustein={b}
-                  aktiv={b.id === gewaehlterBaustein}
-                  waehlen={() => setGewaehlterBaustein(b.id === gewaehlterBaustein ? null : b.id)}
-                  schalten={(an) => mitZiel((id) => bausteinAendern(id, b.id, { aus: !an }))}
-                  loeschen={() => {
-                    mitZiel((id) => bausteinLoeschen(id, b.id));
-                    if (gewaehlterBaustein === b.id) setGewaehlterBaustein(null);
-                  }}
-                  kinder={
-                    <BausteinEinstellungen
-                      baustein={b}
-                      aendern={(patch) => mitZiel((id) => bausteinAendern(id, b.id, patch))}
-                    />
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </SortableContext>
+        <Bausteinliste bausteine={vorlage.bausteine} spalteId={null} aktionen={listenAktionen} />
       </DndContext>
+
+      <p className={cn('px-1 leading-snug text-muted-foreground', isMobile ? 'text-[13px]' : 'text-[11px]')}>
+        Am Griff links ziehst du einen Baustein an eine andere Stelle. Über das Menü rechts wandert er in
+        eine Spalte – oder wieder heraus.
+      </p>
 
       <Button
         variant="outline"
         className={isMobile ? 'h-[50px] w-full text-[17px]' : 'w-full'}
-        onClick={() => setAuswahlOffen(true)}
+        onClick={() => { setAuswahlZiel(null); setAuswahlOffen(true); }}
       >
         <Plus /> Baustein hinzufügen
       </Button>
@@ -988,51 +496,23 @@ export default function InvoiceDesigner() {
   const aussehen = (
     <div className={isMobile ? 'space-y-6' : 'space-y-3'}>
       <Feldgruppe titel="Farben">
-        <Feldzeile label="Akzent" hinweis="Titel, Tabellenkopf und Linien">
-          <input
-            type="color"
-            value={g.akzent}
-            onChange={(e) => mitZiel((id) => gestaltungAendern(id, { akzent: e.target.value }))}
-            className={farbfeld}
-            aria-label="Akzentfarbe"
-          />
-        </Feldzeile>
-        <Vollzeile>
-          <div className="flex flex-wrap gap-1.5">
-            {AKZENT_VORSCHLAEGE.map((farbe) => (
-              <button
-                key={farbe}
-                type="button"
-                onClick={() => mitZiel((id) => gestaltungAendern(id, { akzent: farbe }))}
-                style={{ background: farbe }}
-                aria-label={`Akzentfarbe ${farbe}`}
-                className={cn(
-                  'rounded-full border-2 transition-transform',
-                  isMobile ? 'h-8 w-8' : 'h-6 w-6',
-                  g.akzent.toLowerCase() === farbe ? 'border-foreground' : 'border-transparent',
-                )}
-              />
-            ))}
-          </div>
-        </Vollzeile>
-        <Feldzeile label="Text">
-          <input
-            type="color"
-            value={g.text}
-            onChange={(e) => mitZiel((id) => gestaltungAendern(id, { text: e.target.value }))}
-            className={farbfeld}
-            aria-label="Textfarbe"
-          />
-        </Feldzeile>
-        <Feldzeile label="Gedämpft" hinweis="Beschriftungen und Fußzeile">
-          <input
-            type="color"
-            value={g.gedaempft}
-            onChange={(e) => mitZiel((id) => gestaltungAendern(id, { gedaempft: e.target.value }))}
-            className={farbfeld}
-            aria-label="Gedämpfte Farbe"
-          />
-        </Feldzeile>
+        <Farbzeile
+          label="Akzent"
+          hinweis="Titel, Tabellenkopf und Linien"
+          wert={g.akzent}
+          setzen={(v) => { if (v) mitZiel((id) => gestaltungAendern(id, { akzent: v })); }}
+        />
+        <Farbzeile
+          label="Text"
+          wert={g.text}
+          setzen={(v) => { if (v) mitZiel((id) => gestaltungAendern(id, { text: v })); }}
+        />
+        <Farbzeile
+          label="Gedämpft"
+          hinweis="Beschriftungen und Fußzeile"
+          wert={g.gedaempft}
+          setzen={(v) => { if (v) mitZiel((id) => gestaltungAendern(id, { gedaempft: v })); }}
+        />
       </Feldgruppe>
 
       <Feldgruppe titel="Schrift" fuss="Alle anderen Größen leiten sich hiervon ab – Überschriften größer, Beschriftungen kleiner.">
@@ -1054,8 +534,15 @@ export default function InvoiceDesigner() {
         <Reglerzeile
           label="Grundgröße"
           wert={g.schriftgroesse}
-          min={8} max={12} schritt={0.5} einheit="pt"
+          min={7} max={14} schritt={0.5} einheit="pt"
           setzen={(v) => mitZiel((id) => gestaltungAendern(id, { schriftgroesse: v }))}
+        />
+        <Reglerzeile
+          label="Zeilenabstand"
+          hinweis="Vielfaches der Schriftgröße"
+          wert={g.zeilenabstand ?? 1.35}
+          min={1} max={2.4} schritt={0.05} einheit="×"
+          setzen={(v) => mitZiel((id) => gestaltungAendern(id, { zeilenabstand: v }))}
         />
       </Feldgruppe>
 
@@ -1085,11 +572,11 @@ export default function InvoiceDesigner() {
         <Reglerzeile label="Rechts" wert={g.randRechts} min={5} max={45} einheit="mm" setzen={(v) => mitZiel((id) => gestaltungAendern(id, { randRechts: v }))} />
       </Feldgruppe>
 
-      <Feldgruppe titel="Abstände">
+      <Feldgruppe titel="Abstände" fuss="Gilt zwischen zwei Bausteinen, solange keiner davon etwas anderes sagt.">
         <Reglerzeile
           label="Zwischen Bausteinen"
           wert={g.bausteinAbstand}
-          min={0} max={20} einheit="mm"
+          min={0} max={25} einheit="mm"
           setzen={(v) => mitZiel((id) => gestaltungAendern(id, { bausteinAbstand: v }))}
         />
       </Feldgruppe>
@@ -1135,6 +622,13 @@ export default function InvoiceDesigner() {
             onChange={(e) => { logoLaden(e.target.files?.[0]); e.target.value = ''; }}
           />
         </Vollzeile>
+        <Reglerzeile
+          label="Seitenverhältnis"
+          hinweis="Breite geteilt durch Höhe – beim Hochladen gemessen"
+          wert={Math.round((g.logoVerhaeltnis ?? 2.6) * 100) / 100}
+          min={0.2} max={8} schritt={0.05} einheit=":1"
+          setzen={(v) => mitZiel((id) => gestaltungAendern(id, { logoVerhaeltnis: v }))}
+        />
       </Feldgruppe>
     </div>
   );
@@ -1203,13 +697,19 @@ export default function InvoiceDesigner() {
     </ListGroup>
   );
 
+  const bearbeitenOeffnen = () => {
+    setNeuerTitel(vorlage.name);
+    setNeueArt(vorlage.art);
+    setBearbeitenOffen(true);
+  };
+
   const vorlagenaktionen = (
     <ListGroup title="Diese Vorlage">
       <ListRow icon={<Plus />} tint="blue" label="Neue Vorlage" noChevron onClick={() => { setVorlagenlisteOffen(false); setNeuOffen(true); }} />
       <ListRow icon={<Copy />} tint="teal" label="Kopieren" noChevron onClick={() => { vorlageKopieren(); setVorlagenlisteOffen(false); }} />
       <ListRow
-        icon={<Pencil />} tint="gray" label="Umbenennen" noChevron
-        onClick={() => { setNeuerTitel(vorlage.name); setVorlagenlisteOffen(false); setUmbenennenOffen(true); }}
+        icon={<Pencil />} tint="gray" label="Name und Art" noChevron
+        onClick={() => { setVorlagenlisteOffen(false); bearbeitenOeffnen(); }}
       />
       {vorlage.mitgeliefert ? (
         <ListRow icon={<RotateCcw />} tint="orange" label="Auf Auslieferungsstand zurücksetzen" noChevron onClick={() => { vorlageZuruecksetzen(); setVorlagenlisteOffen(false); }} />
@@ -1236,30 +736,45 @@ export default function InvoiceDesigner() {
         open={auswahlOffen}
         onClose={() => setAuswahlOffen(false)}
         title="Baustein hinzufügen"
-        description="Der neue Baustein kommt ans Ende – ziehen kannst du ihn danach."
+        description={
+          auswahlZiel === null
+            ? 'Der neue Baustein kommt ans Ende – ziehen kannst du ihn danach.'
+            : 'Der neue Baustein kommt in die gewählte Spalte.'
+        }
         desktopClassName="max-w-md"
       >
-        <div className="space-y-1.5">
-          {ALLE_TYPEN.map((typ) => {
-            const belegt = NUR_EINMAL.includes(typ) && vorhandeneTypen.has(typ);
-            return (
-              <button
-                key={typ}
-                type="button"
-                disabled={belegt}
-                onClick={() => bausteinEinfuegen(typ)}
-                className={cn(
-                  'w-full rounded-lg border border-border bg-card px-3 py-2.5 text-left transition-colors',
-                  belegt ? 'opacity-40' : 'hover:border-primary/40 hover:bg-muted',
-                )}
-              >
-                <span className="block text-[15px] font-medium">{BAUSTEIN_LABELS[typ]}</span>
-                <span className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
-                  {belegt ? 'Kommt nur einmal vor und ist schon da.' : BAUSTEIN_BESCHREIBUNG[typ]}
-                </span>
-              </button>
-            );
-          })}
+        <div className="space-y-5">
+          {TYP_GRUPPEN.map((gruppe) => (
+            <div key={gruppe.titel} className="space-y-1.5">
+              <h3 className="px-1 text-[13px] font-medium text-muted-foreground">{gruppe.titel}</h3>
+              {gruppe.typen.map((typ) => {
+                const belegt = NUR_EINMAL.includes(typ) && vorhandeneTypen.has(typ);
+                const zuBreit = auswahlZiel !== null && NICHT_IN_SPALTEN.includes(typ);
+                const gesperrt = belegt || zuBreit;
+                return (
+                  <button
+                    key={typ}
+                    type="button"
+                    disabled={gesperrt}
+                    onClick={() => bausteinEinfuegen(typ)}
+                    className={cn(
+                      'w-full rounded-lg border border-border bg-card px-3 py-2.5 text-left transition-colors',
+                      gesperrt ? 'opacity-40' : 'hover:border-primary/40 hover:bg-muted',
+                    )}
+                  >
+                    <span className="block text-[15px] font-medium">{BAUSTEIN_LABELS[typ]}</span>
+                    <span className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+                      {zuBreit
+                        ? 'Braucht die volle Seitenbreite und passt nicht in eine Spalte.'
+                        : belegt
+                          ? 'Kommt nur einmal vor und ist schon da.'
+                          : BAUSTEIN_BESCHREIBUNG[typ]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </ResponsiveModal>
 
@@ -1293,7 +808,12 @@ export default function InvoiceDesigner() {
         </div>
       </ResponsiveModal>
 
-      <ResponsiveModal open={umbenennenOffen} onClose={() => setUmbenennenOffen(false)} title="Vorlage umbenennen">
+      <ResponsiveModal
+        open={bearbeitenOffen}
+        onClose={() => setBearbeitenOffen(false)}
+        title="Name und Art"
+        description="Die Art entscheidet, ob die Vorschau eine Rechnung oder eine Gutschrift zeigt."
+      >
         <div className="space-y-4">
           <FormGroup>
             <FormFullRow>
@@ -1301,12 +821,19 @@ export default function InvoiceDesigner() {
                 autoFocus
                 value={neuerTitel}
                 onChange={(e) => setNeuerTitel(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') umbenennen(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') vorlageUebernehmen(); }}
                 className="w-full bg-transparent text-[17px] outline-none"
               />
             </FormFullRow>
+            <FormFullRow>
+              <Segmented
+                value={neueArt}
+                onChange={setNeueArt}
+                options={[{ value: 'rechnung', label: 'Rechnung' }, { value: 'gutschrift', label: 'Gutschrift' }]}
+              />
+            </FormFullRow>
           </FormGroup>
-          <Button className="h-[50px] w-full text-[17px] font-semibold" onClick={umbenennen}>Übernehmen</Button>
+          <Button className="h-[50px] w-full text-[17px] font-semibold" onClick={vorlageUebernehmen}>Übernehmen</Button>
         </div>
       </ResponsiveModal>
 
@@ -1327,6 +854,7 @@ export default function InvoiceDesigner() {
         {offenerBaustein && (
           <BausteinEinstellungen
             baustein={offenerBaustein}
+            g={g}
             aendern={(patch) => mitZiel((id) => bausteinAendern(id, offenerBaustein.id, patch))}
             entfernen={() => {
               mitZiel((id) => bausteinLoeschen(id, offenerBaustein.id));
@@ -1406,7 +934,7 @@ export default function InvoiceDesigner() {
             'flex flex-col overflow-hidden border-border bg-background',
             eng
               ? reiter === 'vorschau' ? 'hidden' : 'min-w-0 flex-1'
-              : 'w-[360px] shrink-0 border-r',
+              : 'w-[380px] shrink-0 border-r',
           )}
         >
           <div data-tutorial="designer-template-list" className="shrink-0 space-y-2 border-b border-border p-3">
@@ -1433,10 +961,7 @@ export default function InvoiceDesigner() {
               <Button variant="outline" size="icon-sm" onClick={vorlageKopieren} title="Vorlage kopieren">
                 <Copy />
               </Button>
-              <Button
-                variant="outline" size="icon-sm" title="Vorlage umbenennen"
-                onClick={() => { setNeuerTitel(vorlage.name); setUmbenennenOffen(true); }}
-              >
+              <Button variant="outline" size="icon-sm" title="Name und Art ändern" onClick={bearbeitenOeffnen}>
                 <Pencil />
               </Button>
               {vorlage.mitgeliefert ? (
