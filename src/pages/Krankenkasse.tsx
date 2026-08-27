@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { krankenkasse, getAllInvoices, type KKSatz } from '@/lib/db';
-import { SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
+import { krankenkasse, getAllInvoices, fahrtenbuch, type KKSatz } from '@/lib/db';
 import { useAppStore } from '@/store';
 import { fmtCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -23,19 +22,14 @@ import {
   ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Minus, Info,
 } from 'lucide-react';
 
+import { berechneEuer, type SteuerProfil } from '@/lib/steuer/gewinn';
+import { berechneAnlagegueter, afaJeKategorie } from '@/lib/steuer/anlagen';
+import { werteFuer } from '@/lib/steuer/jahreswerte';
+
 const MONTH_NAMES = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
 ];
-
-/**
- * Ausgaben-Kategorien, die den Gewinn NICHT mindern (Sonderausgaben + Privat).
- * KK-Beiträge sind Sonderausgaben → kein Betriebsausgaben-Abzug.
- */
-const NICHT_BETRIEBSAUSGABEN = new Set<string>([
-  ...SONDERAUSGABEN_CATEGORIES,
-  ...PRIVAT_CATEGORIES,
-]);
 
 /** Aktueller Monat als "YYYY-MM" */
 function getCurrentMonat(): string {
@@ -52,17 +46,35 @@ function getSatzForMonat(monat: string, saetze: KKSatz[]): KKSatz | null {
   return applicable[0] ?? null;
 }
 
-/** Berechnet den Soll-Beitrag aus Satz + explizitem Einkommen. */
+/**
+ * Beitrag aus Satz und Einkommen.
+ *
+ * Vorher war das eine reine Multiplikation, ohne Boden und ohne Decke. Ein
+ * Monat mit null Gewinn ergab null Beitrag – tatsächlich zahlt ein freiwillig
+ * versicherter Selbständiger auch dann, weil die Kasse mindestens von der
+ * Mindestbemessungsgrundlage ausgeht. Nach oben ist bei der
+ * Beitragsbemessungsgrenze Schluss.
+ */
 function calcSollFromEinkommen(
   satz: KKSatz,
   einkommen: number,
-): { kv: number; pv: number; gesamt: number } {
-  const kv = (einkommen * (satz.kv_grundbeitrag_prozent + satz.kv_zusatzbeitrag_prozent)) / 100;
-  const pv = (einkommen * satz.pv_prozent) / 100;
+  jahr: number,
+): { kv: number; pv: number; gesamt: number; bemessung: number; amBoden: boolean; anDerDecke: boolean } {
+  const w = werteFuer(jahr);
+  const roh = Math.max(0, einkommen);
+  const bemessung = Math.min(Math.max(roh, w.kvMindestbemessungMonat), w.kvBemessungsgrenzeMonat);
+  const amBoden = roh < w.kvMindestbemessungMonat;
+  const anDerDecke = roh > w.kvBemessungsgrenzeMonat;
+
+  const kv = (bemessung * (satz.kv_grundbeitrag_prozent + satz.kv_zusatzbeitrag_prozent)) / 100;
+  const pv = (bemessung * satz.pv_prozent) / 100;
   return {
     kv: Math.round(kv * 100) / 100,
     pv: Math.round(pv * 100) / 100,
     gesamt: Math.round((kv + pv) * 100) / 100,
+    bemessung: Math.round(bemessung * 100) / 100,
+    amBoden,
+    anDerDecke,
   };
 }
 
@@ -73,9 +85,9 @@ interface MonthData {
   gewinn: number;
   istPrognose: boolean;
   /** Soll auf Basis des echten Gewinns (was KK am Jahresende berechnen wird) */
-  soll: { kv: number; pv: number; gesamt: number };
+  soll: ReturnType<typeof calcSollFromEinkommen>;
   /** Vorläufiger Monatsbeitrag auf Basis des konfigurierten Prognose-Einkommens */
-  sollVorlaeufig: { kv: number; pv: number; gesamt: number };
+  sollVorlaeufig: ReturnType<typeof calcSollFromEinkommen>;
   /** Differenz: vorläufig − echt (positiv = Rückerstattung, negativ = Nachzahlung) */
   differenz: number;
 }
@@ -84,24 +96,33 @@ function buildMonthData(
   year: number,
   saetze: KKSatz[],
   monthlyGewinn: Record<string, number>,
+  jahresGewinn: number,
 ): MonthData[] {
   const currentMonat = getCurrentMonat();
+
+  // Die Kasse bemisst den Beitrag nicht am Gewinn des einzelnen Monats,
+  // sondern am Jahresergebnis des Einkommensteuerbescheids, gleichmäßig auf
+  // zwölf Monate verteilt. Ein starker März erhöht den Märzbeitrag also nicht.
+  const bemessungProMonat = jahresGewinn / 12;
 
   return Array.from({ length: 12 }, (_, i) => {
     const monat = `${year}-${String(i + 1).padStart(2, '0')}`;
     const satz = getSatzForMonat(monat, saetze);
     const istPrognose = monat > currentMonat;
 
-    const gewinn = istPrognose
+    // Was in diesem Monat tatsächlich verdient wurde – nur zur Einordnung.
+    const gewinn = monthlyGewinn[monat] ?? 0;
+    const bemessung = istPrognose && jahresGewinn === 0
       ? (satz?.bemessungsgrundlage_monat ?? 0)
-      : (monthlyGewinn[monat] ?? 0);
+      : bemessungProMonat;
 
+    const leer = { kv: 0, pv: 0, gesamt: 0, bemessung: 0, amBoden: false, anDerDecke: false };
     const soll = satz
-      ? calcSollFromEinkommen(satz, gewinn)
-      : { kv: 0, pv: 0, gesamt: 0 };
+      ? calcSollFromEinkommen(satz, bemessung, year)
+      : leer;
 
     const sollVorlaeufig = satz && !istPrognose
-      ? calcSollFromEinkommen(satz, satz.bemessungsgrundlage_monat)
+      ? calcSollFromEinkommen(satz, satz.bemessungsgrundlage_monat, year)
       : soll;
 
     return {
@@ -129,14 +150,27 @@ interface SatzFormData {
 }
 
 
-const DEFAULT_SATZ_FORM: SatzFormData = {
-  gueltig_ab: '',
-  kv_grundbeitrag_prozent: '14.0',
-  kv_zusatzbeitrag_prozent: '3.65',
-  pv_prozent: '3.6',
-  bemessungsgrundlage_monat: '2000',
-  notiz: '',
-};
+/**
+ * Vorbelegung eines neuen Satzes.
+ *
+ * Vorher standen hier feste Zahlen (14,0 / 3,65 / 3,6), die niemand mehr
+ * nachgezogen hat. Jetzt kommen sie aus der Jahrestabelle und richten sich
+ * nach dem Profil: Der Grundbeitrag hängt davon ab, ob Krankengeld versichert
+ * ist, der Pflegesatz davon, ob Kinder da sind. Der Zusatzbeitrag ist der
+ * Durchschnitt – den legt jede Kasse selbst fest und muss überschrieben werden.
+ */
+function defaultSatzForm(jahr: number): SatzFormData {
+  const w = werteFuer(jahr);
+  const st = useAppStore.getState();
+  return {
+    gueltig_ab: '',
+    kv_grundbeitrag_prozent: String(st.kvKrankengeld ? w.kvSatzAllgemein : w.kvSatzErmaessigt),
+    kv_zusatzbeitrag_prozent: String(w.kvZusatzbeitragDurchschnitt),
+    pv_prozent: String(st.kinder > 0 ? w.pvSatz : w.pvSatzKinderlos),
+    bemessungsgrundlage_monat: String(w.kvMindestbemessungMonat.toFixed(2)),
+    notiz: '',
+  };
+}
 
 // ─── Seitenkomponente ────────────────────────────────────────────────────────
 
@@ -144,12 +178,13 @@ export default function KrankenkassePage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [saetze, setSaetze] = useState<KKSatz[]>([]);
   const [monthlyGewinn, setMonthlyGewinn] = useState<Record<string, number>>({});
+  const [jahresGewinn, setJahresGewinn] = useState(0);
   const [loading, setLoading] = useState(true);
   const privacyMode = useAppStore((s) => s.privacyMode);
 
   // Satz-Dialog
   const [satzDialog, setSatzDialog] = useState<{ open: boolean; editing?: KKSatz }>({ open: false });
-  const [satzForm, setSatzForm] = useState<SatzFormData>(DEFAULT_SATZ_FORM);
+  const [satzForm, setSatzForm] = useState<SatzFormData>(() => defaultSatzForm(new Date().getFullYear()));
 
   // Lösch-Bestätigung
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id?: string }>({ open: false });
@@ -164,26 +199,57 @@ export default function KrankenkassePage() {
         getAllInvoices(),
       ]);
 
-      // Monatlicher Gewinn = Einnahmen − Betriebsausgaben (ohne Sonderausgaben/Privat)
-      const einnahmen: Record<string, number> = {};
-      const ausgaben: Record<string, number> = {};
-      for (const inv of allInvoices) {
-        if (inv.year !== year) continue;
-        const monat = `${inv.year}-${String(inv.month).padStart(2, '0')}`;
-        if (inv.type === 'einnahme') {
-          einnahmen[monat] = Math.round(((einnahmen[monat] ?? 0) + inv.netto) * 100) / 100;
-        } else if (inv.type === 'ausgabe' && !NICHT_BETRIEBSAUSGABEN.has(inv.category)) {
-          ausgaben[monat] = Math.round(((ausgaben[monat] ?? 0) + inv.netto) * 100) / 100;
-        }
-      }
+      // Der Beitrag bemisst sich am steuerlichen Gewinn aus dem
+      // Einkommensteuerbescheid. Deshalb dieselbe Rechnung wie im
+      // Steuerbericht – vorher rechnete diese Seite ihre eigene Variante ohne
+      // Abschreibung, sodass ein Anlagenkauf den Gewinn hier zu stark drückte,
+      // und beim Kleinunternehmer netto statt brutto.
+      const st = useAppStore.getState();
+      const profil: SteuerProfil = {
+        steuerregelung: st.steuerregelung,
+        kmPauschale: st.kmPauschale,
+        fahrzeugImBetriebsvermoegen: st.fahrzeugImBetriebsvermoegen,
+      };
+      const anlagen = berechneAnlagegueter(allInvoices, year, profil.steuerregelung);
+      const afaKategorien = afaJeKategorie(anlagen);
+      const afaJahr = anlagen.reduce((sum, a) => sum + a.jahresAfa, 0);
+
+      // Kilometerpauschale und Verpflegungsmehraufwand hängen an keinem Beleg
+      // und würden sonst fehlen – der Steuerbericht rechnet sie mit, und
+      // beide Seiten sollen dieselbe Zahl zeigen.
+      const fahrt = await fahrtenbuch.getJahresauswertung(year, st.kmPauschale);
+      const jahresEingaben = {
+        invoices: allInvoices,
+        jahr: year,
+        profil,
+        dienstKm: fahrt.kmDienst,
+        afaJahresbetrag: afaJahr,
+        afaJeKategorie: afaKategorien,
+        reiseTageVoll: st.reiseTageVoll,
+        reiseTageTeil: st.reiseTageTeil,
+      };
+
+      // Der Jahresgewinn ist die Bemessungsgrundlage – dieselbe Zahl, die auch
+      // im Steuerbericht steht.
+      const jahr = berechneEuer(jahresEingaben);
+
+      // Die Monatswerte dienen nur der Einordnung. Was nicht an einem Beleg
+      // hängt – Abschreibung, Kilometerpauschale, Verpflegung – wird
+      // gleichmäßig verteilt, damit kein Monat grundlos ausreißt.
+      const jahresUmlage = (afaJahr + jahr.kmPauschaleBetrag + jahr.verpflegungsmehraufwand) / 12;
+
       const gewinn: Record<string, number> = {};
-      const allMonats = new Set([...Object.keys(einnahmen), ...Object.keys(ausgaben)]);
-      for (const monat of allMonats) {
-        gewinn[monat] = Math.round(((einnahmen[monat] ?? 0) - (ausgaben[monat] ?? 0)) * 100) / 100;
+      for (let m = 1; m <= 12; m++) {
+        const monat = `${year}-${String(m).padStart(2, '0')}`;
+        const monatsBelege = allInvoices.filter((i) => i.year === year && i.month === m);
+        if (monatsBelege.length === 0 && jahresUmlage === 0) continue;
+        const teil = berechneEuer({ invoices: monatsBelege, jahr: year, profil });
+        gewinn[monat] = Math.round((teil.gewinn - jahresUmlage) * 100) / 100;
       }
 
       setSaetze(s);
       setMonthlyGewinn(gewinn);
+      setJahresGewinn(Math.max(0, jahr.gewinn));
     } catch (e) {
       toast.error('Fehler beim Laden: ' + String(e));
     } finally {
@@ -200,8 +266,8 @@ export default function KrankenkassePage() {
   // ── Berechnungen ──────────────────────────────────────────────────────────
 
   const monthData = useMemo(
-    () => buildMonthData(year, saetze, monthlyGewinn),
-    [year, saetze, monthlyGewinn],
+    () => buildMonthData(year, saetze, monthlyGewinn, jahresGewinn),
+    [year, saetze, monthlyGewinn, jahresGewinn],
   );
 
   const summary = useMemo(() => {
@@ -238,7 +304,7 @@ export default function KrankenkassePage() {
   // ── Satz CRUD ─────────────────────────────────────────────────────────────
 
   function openNewSatz() {
-    setSatzForm({ ...DEFAULT_SATZ_FORM, gueltig_ab: `${year}-01-01` });
+    setSatzForm({ ...defaultSatzForm(year), gueltig_ab: `${year}-01-01` });
     setSatzDialog({ open: true });
   }
 
@@ -348,7 +414,7 @@ export default function KrankenkassePage() {
             <CardContent>
               <p className="text-2xl font-bold tabular-nums">{fmt(summary.sollEcht)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {summary.anzahlVergangen} Monate · Gewinn × Beitragssatz
+                {summary.anzahlVergangen} Monate · Jahresgewinn ÷ 12, mindestens die Mindestbemessung, mal Beitragssatz
               </p>
             </CardContent>
           </Card>
@@ -385,7 +451,7 @@ export default function KrankenkassePage() {
                 ) : (
                   <Minus className="h-3.5 w-3.5" />
                 )}
-                {summary.differenz >= 0 ? 'Voraussichtl. Rückerstattung' : 'Voraussichtl. Nachzahlung'}
+                {summary.differenz > 0.005 ? 'Voraussichtl. Rückerstattung' : 'Voraussichtl. Nachzahlung'}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -407,14 +473,23 @@ export default function KrankenkassePage() {
         <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           <Info className="h-4 w-4 mt-0.5 shrink-0" />
           <span>
-            Der <strong className="text-foreground">Soll-Beitrag (echt)</strong> basiert auf
-            deinem monatlichen <strong className="text-foreground">Gewinn</strong> aus dem
-            Rechnungs-Manager: Einnahmen − Betriebsausgaben (ohne Sonderausgaben wie KV/PV/Spenden
-            und ohne Privatausgaben). Die Spalte{' '}
-            <strong className="text-foreground">„Vorläufig abgebucht"</strong> zeigt, was die KK
+            Der <strong className="text-foreground">Soll-Beitrag (echt)</strong> beruht auf dem
+            steuerlichen Gewinn – derselben Rechnung wie im Steuerbericht, also inklusive
+            Abschreibung und ohne Sonderausgaben. Die Beiträge zur Kranken- und Pflegeversicherung
+            mindern diesen Gewinn selbst <strong className="text-foreground">nicht</strong>; sie sind
+            Sonderausgaben und wirken erst in der Einkommensteuererklärung. Die Spalte{' '}
+            <strong className="text-foreground">„Vorläufig abgebucht"</strong> zeigt, was die Kasse
             monatlich tatsächlich einzieht (Prognose-Einkommen × Satz). Die{' '}
             <strong className="text-foreground">Differenz</strong> ist deine voraussichtliche
             Nachzahlung oder Rückerstattung am Jahresende.
+            <br /><br />
+            Für {year} rechnet die App mit einer Mindestbemessungsgrundlage von{' '}
+            <strong className="text-foreground">{fmtCurrency(werteFuer(year).kvMindestbemessungMonat, false)}</strong>{' '}
+            und einer Beitragsbemessungsgrenze von{' '}
+            <strong className="text-foreground">{fmtCurrency(werteFuer(year).kvBemessungsgrenzeMonat, false)}</strong>{' '}
+            je Monat. In schwachen Monaten zahlst du deshalb trotzdem, in starken ist bei der Grenze
+            Schluss. Verbindlich ist am Ende der Bescheid deiner Kasse, der sich am
+            Einkommensteuerbescheid orientiert.
           </span>
         </div>
       )}
@@ -444,7 +519,7 @@ export default function KrankenkassePage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-44">Monat</TableHead>
-                      <TableHead className="text-right">Gewinn / Basis</TableHead>
+                      <TableHead className="text-right">Monatsgewinn</TableHead>
                       <TableHead className="text-right font-semibold border-r border-border">
                         Soll (echt)
                       </TableHead>

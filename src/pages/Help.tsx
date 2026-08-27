@@ -25,6 +25,7 @@ import {
   FileSpreadsheet,
   ClipboardList,
   Globe,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -117,6 +118,129 @@ const ARTICLES: HelpArticle[] = [
             ist eine neue Stufe, Sonderzahlungen wie das 13. Gehalt stehen daneben.
           </p>
         </Section>
+      </div>
+    ),
+  },
+  {
+    id: 'euer',
+    title: 'Die EÜR und deine Steuererklärung',
+    icon: Receipt,
+    category: 'Steuern',
+    keywords: ['euer', 'eür', 'einnahmen', 'überschuss', 'gewinnermittlung', 'steuererklärung', 'einkommensteuer', 'anlage s', 'anlage g', 'vorsorgeaufwand', 'frist', 'abgabe', 'elster', 'zufluss', 'abfluss', 'sonderausgabe', 'selbständig'],
+    content: (
+      <div className="space-y-4">
+        <p className="text-muted-foreground">
+          Wer selbständig ist, muss dem Finanzamt einmal im Jahr sagen, was übrig geblieben ist.
+          Für die meisten reicht dafür die einfachste Form der Gewinnermittlung: die
+          Einnahmen-Überschuss-Rechnung nach <strong>§ 4 Abs. 3 EStG</strong> – Betriebseinnahmen
+          minus Betriebsausgaben, ohne Bilanz und ohne Inventur.
+        </p>
+
+        <Section title="Wer die EÜR nutzen darf">
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Freiberufler</strong> dürfen sie immer – unabhängig von Umsatz und Gewinn.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Gewerbetreibende</strong>, solange sie unter den Grenzen des § 141 AO bleiben: für Wirtschaftsjahre nach dem 31.12.2023 mehr als <strong>800.000 € Umsatz</strong> oder mehr als <strong>80.000 € Gewinn</strong>.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Die Buchführungspflicht beginnt nicht von allein: Erst wenn das Finanzamt dazu auffordert, muss ab dem folgenden Wirtschaftsjahr bilanziert werden.</span></li>
+          </ul>
+        </Section>
+
+        <Section title="Zufluss und Abfluss (§ 11 EStG)">
+          <p className="text-sm text-muted-foreground mb-2">
+            In der EÜR zählt der Tag der <strong>Zahlung</strong>, nicht das Rechnungsdatum. Eine
+            im Dezember geschriebene, im Januar bezahlte Rechnung gehört ins neue Jahr. Das ist
+            der wichtigste Unterschied zur Bilanz – und der einfachste Hebel: Wer eine Anschaffung
+            um zwei Wochen vorzieht oder eine Rechnung später stellt, verschiebt den Gewinn.
+          </p>
+          <Tip>
+            <strong>Zehn-Tage-Regel:</strong> Regelmäßig wiederkehrende Zahlungen – Miete,
+            Beiträge, die Umsatzsteuer-Vorauszahlung – werden dem Jahr zugerechnet, zu dem sie
+            wirtschaftlich gehören, wenn sie innerhalb von zehn Tagen um den Jahreswechsel
+            fließen. Die Dezember-Miete, am 3. Januar überwiesen, gehört also noch ins alte Jahr.
+          </Tip>
+        </Section>
+
+        <Section title="Die EÜR ist nur eine Anlage">
+          <p className="text-sm text-muted-foreground">
+            Es gibt keine eigene „EÜR-Erklärung". Die Anlage EÜR hängt an deiner ganz normalen,
+            <strong> privaten Einkommensteuererklärung</strong> – zusammen mit dem Gehalt eines
+            Nebenjobs, den Sonderausgaben und allem anderen. Und selbständig heißt: immer
+            erklärungspflichtig (§ 56 EStDV), auch bei einem Verlust. Gerade dann lohnt es sich,
+            weil der Verlust mit anderen Einkünften verrechnet wird.
+          </p>
+        </Section>
+
+        <Section title="Welche Formulare dazugehören">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-1.5 pr-4 font-semibold">Formular</th>
+                <th className="text-left py-1.5 font-semibold">Wofür</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border text-muted-foreground">
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Hauptvordruck ESt 1 A</td><td className="py-1.5">Der Mantel: Person, Konto, Spenden, Kirchensteuer, § 35a</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Anlage EÜR</td><td className="py-1.5">Die Gewinnermittlung selbst – Einnahmen, Ausgaben, AfA</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Anlage S oder G</td><td className="py-1.5">Trägt den Gewinn ein: S für Freiberufler, G für Gewerbe</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Anlage Vorsorgeaufwand</td><td className="py-1.5">Kranken-, Pflege- und Rentenversicherung</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Gewerbesteuererklärung</td><td className="py-1.5">Nur bei Gewerbe, und praktisch erst über 24.500 € Gewinn</td></tr>
+            </tbody>
+          </table>
+          <p className="text-sm text-muted-foreground mt-2">
+            Als Kleinunternehmer entfällt die Umsatzsteuer-Jahreserklärung seit dem
+            Besteuerungszeitraum 2024 – außer das Finanzamt fordert sie an oder du schuldest
+            Steuer nach § 13b UStG.
+          </p>
+        </Section>
+
+        <Section title="Fristen">
+          <div className="space-y-2 text-sm">
+            {[
+              ['Steuerjahr 2025', '31.07.2026 ohne Steuerberater, 01.03.2027 mit Steuerberater'],
+              ['Steuerjahr 2026', '31.07.2027 ohne Steuerberater, 28.02.2028 mit Steuerberater'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex gap-3">
+                <span className="font-medium w-36 shrink-0">{k}</span>
+                <span className="text-muted-foreground">{v}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground mt-2">
+            Fällt der Termin auf ein Wochenende oder einen Feiertag, verschiebt er sich auf den
+            nächsten Werktag. Eine Fristverlängerung ist formlos möglich, aber begründungspflichtig.
+          </p>
+        </Section>
+
+        <Section title="Betriebsausgabe oder Sonderausgabe?">
+          <p className="text-sm text-muted-foreground mb-2">
+            Beides ist absetzbar – aber an völlig verschiedenen Stellen. Das ist die häufigste
+            Verwechslung überhaupt.
+          </p>
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-1.5 pr-4 font-semibold">Art</th>
+                <th className="text-left py-1.5 pr-4 font-semibold">Wirkt auf</th>
+                <th className="text-left py-1.5 font-semibold">Beispiele</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border text-muted-foreground">
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Betriebsausgabe</td><td className="py-1.5 pr-4">den Gewinn, in der Anlage EÜR</td><td className="py-1.5">Miete, Software, Fremdleistung, Berufsgenossenschaft</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Sonderausgabe</td><td className="py-1.5 pr-4">das zu versteuernde Einkommen, eine Stufe später</td><td className="py-1.5">Kranken- und Pflegeversicherung, Altersvorsorge, Spenden</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Privat</td><td className="py-1.5 pr-4">gar nichts</td><td className="py-1.5">Netflix, private Einkäufe, Privatentnahme</td></tr>
+            </tbody>
+          </table>
+          <p className="text-sm text-muted-foreground mt-2">
+            Deshalb taucht deine Krankenversicherung im Gewinn nicht auf, obwohl sie oft der
+            größte Posten des Jahres ist – sie wirkt erst in der Anlage Vorsorgeaufwand.
+          </p>
+        </Section>
+
+        <Tip>
+          Die Anlage EÜR muss <strong>elektronisch übermittelt</strong> werden (§ 60 Abs. 4
+          EStDV) – über ELSTER oder ein Steuerprogramm. Eine formlose Gewinnermittlung auf Papier
+          gibt es seit dem Formular für 2017 nicht mehr, und zwar auch für Kleinunternehmer
+          nicht. Der Excel-Export und die Buchungs-CSV dieser App liefern die Zahlen dafür.
+        </Tip>
       </div>
     ),
   },
@@ -247,10 +371,10 @@ const ARTICLES: HelpArticle[] = [
         <Section title="Einnahmen (Typ = Einnahme)">
           <div className="space-y-3 text-sm">
             {[
-              { name: 'Umsatzerlöse (steuerpflichtig)', color: 'bg-green-500/15 text-green-700 dark:text-green-400', desc: 'Standard für Rechnungen mit 19% oder 7% MwSt. Entspricht Zeile 14 der Anlage EÜR.' },
-              { name: 'Umsatzerlöse (steuerfrei / §19 UStG)', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', desc: 'Einnahmen ohne MwSt – z.B. Kleinunternehmer, Exporte, steuerfreie Leistungen. Zeile 15 EÜR.' },
+              { name: 'Umsatzerlöse (steuerpflichtig)', color: 'bg-green-500/15 text-green-700 dark:text-green-400', desc: 'Standard für Rechnungen mit 19% oder 7% MwSt. In der Anlage EÜR die Zeile „Umsatzsteuerpflichtige Betriebseinnahmen".' },
+              { name: 'Umsatzerlöse (steuerfrei / §19 UStG)', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', desc: 'Einnahmen ohne MwSt – z.B. Kleinunternehmer, Exporte, steuerfreie Leistungen. In der Anlage EÜR die Zeile „Umsatzsteuerfreie … Betriebseinnahmen".' },
               { name: 'Reverse Charge (§ 13b UStG)', color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400', desc: 'Einnahmen von ausländischen Plattformen (Twitch, YouTube, Amazon). Steuerschuldumkehr – Netto-Rechnung mit USt-IdNr. beider Parteien.' },
-              { name: 'USt-Erstattung vom Finanzamt', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Geld, das du vom Finanzamt zurückbekommst (Umsatzsteuererklärung). Zeile 18 EÜR.' },
+              { name: 'USt-Erstattung vom Finanzamt', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Geld, das du vom Finanzamt zurückbekommst (Umsatzsteuererklärung). In der Anlage EÜR die Zeile „Vom Finanzamt erstattete Umsatzsteuer".' },
               { name: 'Privateinlage', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', desc: 'Privates Geld, das du ins Unternehmen einlegst. Kein steuerpflichtiger Gewinn, erhöht aber dein Konto.' },
               { name: 'Verkauf von Anlagevermögen', color: 'bg-violet-500/15 text-violet-700 dark:text-violet-400', desc: 'Erlös aus dem Verkauf von Firmenvermögen (alter Laptop, Möbel, Fahrzeug). Buchhalterisch anders als normale Umsätze.' },
               { name: 'Erstattungen / Auslagen', color: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400', desc: 'Rückerstattungen, Auslagenerstattungen (durchlaufender Posten). Mindert zuvor gebuchte Ausgaben.' },
@@ -271,16 +395,16 @@ const ARTICLES: HelpArticle[] = [
           <div className="space-y-3 text-sm">
             {[
               { name: 'Anlagevermögen / AfA', color: 'bg-purple-500/15 text-purple-700 dark:text-purple-400', desc: 'Wirtschaftsgüter >800€ netto mit Nutzungsdauer >1 Jahr (z.B. Laptop, Maschinen). Werden über mehrere Jahre abgeschrieben.' },
-              { name: 'GWG (Geringwertige Wirtschaftsgüter)', color: 'bg-orange-500/15 text-orange-700 dark:text-orange-400', desc: 'Anschaffungen bis 800€ netto – sofort vollständig abziehbar (Monitor, Tastatur, Bürostuhl).' },
+              { name: 'GWG (Geringwertige Wirtschaftsgüter)', color: 'bg-orange-500/15 text-orange-700 dark:text-orange-400', desc: 'Selbständig nutzbare Anschaffungen bis 800€ netto – sofort vollständig abziehbar (Bürostuhl, Werkzeug, Mikrofon). Monitor, Drucker und Tastatur sind hier ausgenommen, siehe AfA-Artikel.' },
               { name: 'Software & Abos', color: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400', desc: 'Lizenzkosten, SaaS-Abos, App-Subscriptions, Cloud-Dienste (Adobe, GitHub, Hosting).' },
               { name: 'Fremdleistungen', color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400', desc: 'Unterauftragnehmer, externe Dienstleister, Freelancer, Agenturen.' },
               { name: 'Bürobedarf & Material', color: 'bg-slate-500/15 text-slate-700 dark:text-slate-400', desc: 'Büromaterial, Druckerpatronen, Papier, Kleinmaterial.' },
-              { name: 'Reisekosten', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Fahrtkosten (0,30 €/km), Hotel, Flüge, Bahnfahrten, Verpflegungsmehraufwand (Pauschalen bei >8h Abwesenheit).' },
-              { name: 'Bewirtungskosten', color: 'bg-red-500/15 text-red-700 dark:text-red-400', desc: 'Geschäftliche Bewirtung – nur 70 % absetzbar! Angaben zu Teilnehmern und Anlass sind Pflicht. NICHT für private Restaurantbesuche.' },
+              { name: 'Reisekosten', color: 'bg-teal-500/15 text-teal-700 dark:text-teal-400', desc: 'Hotel, Flüge, Bahnfahrten und Dienstfahrten mit dem eigenen Pkw – 0,30 € je tatsächlich gefahrenem Kilometer, ohne Höchstbetrag. Verpflegungsmehraufwand: 28 € je vollem Tag, 14 € bei mehr als 8 Stunden und an An-/Abreisetagen.' },
+              { name: 'Bewirtungskosten', color: 'bg-red-500/15 text-red-700 dark:text-red-400', desc: 'Geschäftliche Bewirtung – nur 70 % mindern den Gewinn (§ 4 Abs. 5 S. 1 Nr. 2 EStG), die Vorsteuer bleibt zu 100 % abziehbar. Angaben zu Teilnehmern und Anlass sind Pflicht. NICHT für private Restaurantbesuche.' },
               { name: 'Marketing & Werbung', color: 'bg-pink-500/15 text-pink-700 dark:text-pink-400', desc: 'Online-Werbung, Drucksachen, Messen, PR-Maßnahmen.' },
               { name: 'Weiterbildung & Fachliteratur', color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400', desc: 'Kurse, Seminare, Fachbücher, Konferenztickets.' },
               { name: 'Miete & Raumkosten', color: 'bg-lime-500/15 text-lime-700 dark:text-lime-400', desc: 'Büro-, Co-Working- oder Lagermiete.' },
-              { name: 'Versicherungen (Betrieb)', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', desc: 'Betriebliche Versicherungen, Haftpflicht, Inventarversicherung.' },
+              { name: 'Versicherungen (Betrieb)', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', desc: 'Betriebliche Versicherungen: Berufshaftpflicht, Inventarversicherung und die Beiträge zur Berufsgenossenschaft. Eine Berufsunfähigkeitsversicherung gehört dagegen nicht hierher – sie ist Sonderausgabe.' },
               { name: 'Fahrzeugkosten', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-400', desc: 'KFZ-Kosten, Benzin, Leasing, Reparaturen (betrieblich).' },
               { name: 'Telefon & Internet', color: 'bg-sky-500/15 text-sky-700 dark:text-sky-400', desc: 'Mobilfunk, Festnetz, Internet für den Betrieb.' },
               { name: 'Sonstiges', color: 'bg-muted text-muted-foreground', desc: 'Betriebsausgaben, die in keine andere Ausgaben-Kategorie passen.' },
@@ -292,12 +416,18 @@ const ARTICLES: HelpArticle[] = [
             ))}
           </div>
         </Section>
-        <Section title="Sonderausgaben (Typ = Ausgabe, kein regulärer Betriebsaufwand)">
+        <Section title="Sonderausgaben (Typ = Ausgabe, aber KEIN Betriebsaufwand)">
+          <p className="text-sm text-muted-foreground mb-3">
+            Diese Kategorien mindern <strong>nicht den Gewinn</strong>, sondern erst eine Stufe
+            später das <strong>zu versteuernde Einkommen</strong> (§ 10 EStG). In der EÜR tauchen
+            sie deshalb gar nicht auf – sie gehören in die Anlage Vorsorgeaufwand deiner
+            Einkommensteuererklärung.
+          </p>
           <div className="space-y-3 text-sm">
             {[
-              { name: 'Spenden (Sonderausgabe)', color: 'bg-rose-500/15 text-rose-700 dark:text-rose-400', desc: 'Geldspenden an gemeinnützige Organisationen (type=Ausgabe). Steuerlich absetzbar als Sonderausgabe, aber KEIN Betriebsaufwand. Twitch-Subs/Gaming-Subs → Kategorie "Privat"!' },
-              { name: 'Krankenversicherung', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', desc: 'Beiträge zur gesetzlichen oder privaten Kranken- und Pflegeversicherung.' },
-              { name: 'Sozialversicherung / Altersvorsorge', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-400', desc: 'Rentenversicherung, Berufsgenossenschaft, berufsständische Versorgungswerke.' },
+              { name: 'Krankenversicherung', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', desc: 'Beiträge zur gesetzlichen oder privaten Kranken- und Pflegeversicherung. Sonderausgabe nach § 10 Abs. 1 Nr. 3 EStG – keine Betriebsausgabe, auch wenn du hauptberuflich selbständig bist.' },
+              { name: 'Sozialversicherung / Altersvorsorge', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-400', desc: 'Rentenversicherung, berufsständische Versorgungswerke, Rürup. Ebenfalls Sonderausgabe (§ 10 Abs. 1 Nr. 2 EStG). Die Berufsgenossenschaft gehört dagegen zu den betrieblichen Versicherungen.' },
+              { name: 'Spenden (Sonderausgabe)', color: 'bg-rose-500/15 text-rose-700 dark:text-rose-400', desc: 'Geldspenden an gemeinnützige Organisationen, abziehbar bis 20 % des Gesamtbetrags der Einkünfte. Twitch-Subs und Gaming-Subs sind keine Spenden → Kategorie „Privat".' },
             ].map(({ name, color, desc }) => (
               <div key={name} className="flex items-start gap-3">
                 <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${color}`}>{name}</span>
@@ -305,12 +435,18 @@ const ARTICLES: HelpArticle[] = [
               </div>
             ))}
           </div>
+          <Tip>
+            Der häufigste Irrtum: „Sonderausgabe" ist nicht dasselbe wie „privat". Die
+            Krankenversicherung wirkt sich steuerlich sehr wohl aus – nur eben nicht auf den
+            Gewinn, sondern auf das Einkommen. Eine private Ausgabe wirkt sich dagegen an
+            <strong> keiner </strong> Stelle aus.
+          </Tip>
         </Section>
-        <Section title="Privat (Typ = Ausgabe, weder Betriebsausgabe noch absetzbar)">
+        <Section title="Privat (Typ = Ausgabe, überhaupt nicht absetzbar)">
           <div className="space-y-3 text-sm">
             {[
-              { name: 'Privat (nicht absetzbar)', color: 'bg-gray-500/15 text-gray-600 dark:text-gray-400', desc: 'Rein private Ausgaben ohne Geschäftsbezug: Netflix, Spotify, Gaming-Abos, private Einkäufe. Senkt dein Saldo, aber steuerlich komplett irrelevant.' },
-              { name: 'Privatentnahme', color: 'bg-gray-500/15 text-gray-600 dark:text-gray-400', desc: 'Überweisung von Firmen- auf Privatkonto. Kein Betriebsaufwand, keine Steuerrelevanz.' },
+              { name: 'Privat (nicht absetzbar)', color: 'bg-gray-500/15 text-gray-600 dark:text-gray-400', desc: 'Rein private Ausgaben ohne Geschäftsbezug: Netflix, Spotify, Gaming-Abos, private Einkäufe. Weder Betriebsausgabe noch Sonderausgabe – senkt dein Saldo, bleibt steuerlich aber wirkungslos.' },
+              { name: 'Privatentnahme', color: 'bg-gray-500/15 text-gray-600 dark:text-gray-400', desc: 'Überweisung von Firmen- auf Privatkonto. Nur eine Umbuchung, kein Aufwand und keine Steuerrelevanz.' },
             ].map(({ name, color, desc }) => (
               <div key={name} className="flex items-start gap-3">
                 <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${color}`}>{name}</span>
@@ -807,6 +943,25 @@ const ARTICLES: HelpArticle[] = [
             </tbody>
           </table>
         </Section>
+        <Section title="Als Kleinunternehmer: § 19 schützt nicht vor § 13b">
+          <p className="text-sm text-muted-foreground mb-2">
+            Die Kleinunternehmerregelung befreit dich davon, Umsatzsteuer auf <em>deine</em>
+            Leistungen auszuweisen. Sie befreit dich nicht davon, die Steuer auf
+            <em> bezogene</em> Leistungen aus dem Ausland zu schulden. Wer Google Ads bucht,
+            eine Twitch-Gebühr zahlt oder Amazon-Werbung schaltet, wird selbst zum
+            Steuerschuldner.
+          </p>
+          <ul className="space-y-1.5 text-sm">
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Steuerschuld</strong> – 19 % auf den Rechnungsbetrag der ausländischen Plattform, an das Finanzamt abzuführen.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Voranmeldung</strong> – für den betroffenen Zeitraum ist eine Umsatzsteuer-Voranmeldung abzugeben, obwohl sonst keine fällig wäre.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Kein Vorsteuerabzug</strong> – als Kleinunternehmer darfst du die geschuldete Steuer nicht gegenrechnen. Sie bleibt echte Kosten und gehört mit in die Betriebsausgabe.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>USt-IdNr. nötig</strong> – beim Bundeszentralamt für Steuern zu beantragen und der Plattform mitzuteilen, sonst rechnet sie mit ausländischer Steuer ab.</span></li>
+          </ul>
+          <p className="text-sm text-muted-foreground mt-2">
+            Dasselbe gilt beim innergemeinschaftlichen Erwerb, also beim Warenkauf bei einem
+            Händler aus einem anderen EU-Land.
+          </p>
+        </Section>
         <Tip>Verwende die Kategorie „Reverse Charge (§ 13b UStG)" für Einnahmen von diesen Plattformen.</Tip>
       </div>
     ),
@@ -838,7 +993,7 @@ const ARTICLES: HelpArticle[] = [
             {[
               ['Unveränderbarkeit', 'Festgeschriebene Belege dürfen nicht gelöscht oder spurlos geändert werden'],
               ['Korrekturen', 'Nur über Stornobuchungen oder Korrekturbelege'],
-              ['Aufbewahrung', '8 Jahre Aufbewahrungspflicht für Rechnungen und Belege (seit BEG IV 2025)'],
+              ['Aufbewahrung', '8 Jahre für Buchungsbelege und Rechnungen (verkürzt durch das BEG IV). Bücher, Aufzeichnungen, Inventare und Jahresabschlüsse bleiben bei 10 Jahren'],
               ['Verknüpfung', 'Jeder Buchungssatz muss mit dem digitalen Beleg verknüpft sein'],
             ].map(([k, v]) => (
               <div key={k} className="flex gap-3">
@@ -854,31 +1009,32 @@ const ARTICLES: HelpArticle[] = [
   },
   {
     id: 'datev-export',
-    title: 'DATEV-Export',
+    title: 'Buchungs-CSV für den Steuerberater',
     icon: FileSpreadsheet,
     category: 'Auswertungen',
-    keywords: ['datev', 'elster', 'steuerberater', 'csv', 'buchungsstapel', 'export', 'finanzbuchhaltung'],
+    keywords: ['datev', 'elster', 'steuerberater', 'csv', 'buchungsstapel', 'export', 'finanzbuchhaltung', 'skr03'],
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground">
-          Exportiere deine Buchungen im DATEV-kompatiblen CSV-Format – ideal für den Steuerberater.
+          Exportiere deine Buchungen als CSV mit Konto, Gegenkonto und Buchungstext – die Datei ist dafür
+          gemacht, dass eine Steuerkanzlei sie einliest und zuordnet.
         </p>
-        <Section title="So funktioniert der DATEV-Export">
+        <Section title="So funktioniert der Export">
           <Steps>
             <Step n={1} title="Rechnungen filtern">
               Gehe zu „Alle Rechnungen" und wähle das gewünschte Jahr.
             </Step>
-            <Step n={2} title='DATEV-CSV exportieren'>
-              Im Export-Menü „DATEV-CSV" wählen und Speicherort festlegen.
+            <Step n={2} title='Buchungs-CSV exportieren'>
+              Im Export-Menü „Buchungen für den Steuerberater" wählen und Speicherort festlegen.
             </Step>
-            <Step n={3} title="An Steuerberater senden">
-              Die CSV-Datei kann direkt in DATEV importiert werden.
+            <Step n={3} title="An die Kanzlei geben">
+              Die Kanzlei liest die Datei ein und ordnet die Konten dem Mandanten zu.
             </Step>
           </Steps>
         </Section>
         <Section title="Enthaltene Felder">
           <ul className="space-y-1.5 text-sm">
-            {['Umsatz (Brutto)', 'Soll/Haben-Kennzeichen', 'Konto & Gegenkonto', 'Belegdatum', 'Buchungstext (Partner + Beschreibung)', 'USt-Satz', 'Kategorie'].map((item) => (
+            {['Umsatz (Brutto)', 'Soll/Haben-Kennzeichen', 'Konto & Gegenkonto', 'BU-Schlüssel', 'Belegdatum', 'Buchungstext (Partner + Beschreibung)', 'USt-Satz', 'Netto & Umsatzsteuer', 'Kategorie', 'Steuerliche Wirkung'].map((item) => (
               <li key={item} className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                 {item}
@@ -886,7 +1042,16 @@ const ARTICLES: HelpArticle[] = [
             ))}
           </ul>
         </Section>
-        <Tip>Der DATEV-Export ist ein vereinfachter Buchungsstapel. Für eine vollständige DATEV-Integration sprich mit deinem Steuerberater über das passende Format.</Tip>
+        <Section title="Welche Konten gewählt werden">
+          <p className="text-sm text-muted-foreground">
+            Die Sachkonten folgen dem SKR03 und richten sich danach, ob Umsatzsteuer ausgewiesen ist:
+            8400 bei 19 %, 8300 bei 7 %, 8200 ohne ausgewiesene Steuer (Kleinunternehmer nach § 19 UStG
+            oder steuerfreier Umsatz) und 8195, wenn der Leistungsempfänger die Steuer nach § 13b UStG
+            schuldet. Sonderausgaben wie die Krankenversicherung und private Belege laufen als
+            Privatentnahme über 1800 – sie mindern den Gewinn nicht.
+          </p>
+        </Section>
+        <Tip>Das ist kein fertiger DATEV-Buchungsstapel. Dafür fehlt der EXTF-Kopfsatz mit Berater- und Mandantennummer, Wirtschaftsjahr und Kontenrahmen – Angaben, die nur deine Kanzlei kennt. Sprich mit ihr ab, welche Konten dein Mandant tatsächlich bebucht.</Tip>
       </div>
     ),
   },
@@ -914,20 +1079,57 @@ const ARTICLES: HelpArticle[] = [
               <tr><td className="py-1.5 pr-4 font-medium text-foreground">Bis 250 €</td><td className="py-1.5">Direkter Betriebsausgabenabzug – kein Verzeichnis nötig</td></tr>
               <tr><td className="py-1.5 pr-4 font-medium text-foreground">250,01 – 800 €</td><td className="py-1.5">GWG-Sofortabschreibung (vollständig im Anschaffungsjahr)</td></tr>
               <tr><td className="py-1.5 pr-4 font-medium text-foreground">250,01 – 1.000 €</td><td className="py-1.5">Alternativ: Sammelposten über 5 Jahre</td></tr>
-              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Über 800 €</td><td className="py-1.5">Lineare AfA über Nutzungsdauer</td></tr>
+              <tr><td className="py-1.5 pr-4 font-medium text-foreground">Über 800 €</td><td className="py-1.5">Lineare AfA über Nutzungsdauer – oder degressiv, siehe unten</td></tr>
             </tbody>
           </table>
+          <Tip>
+            Die Wertgrenzen werden <strong>immer am Nettobetrag</strong> geprüft – auch als
+            Kleinunternehmer, obwohl du gar keine Vorsteuer ziehen darfst. Abgeschrieben wird
+            dann aber der <strong>Bruttobetrag</strong>, denn ohne Vorsteuerabzug gehört die
+            Umsatzsteuer zu den Anschaffungskosten (§ 9b Abs. 1 EStG). Ein Gerät für 900 €
+            brutto liegt also mit 756,30 € netto unter der GWG-Grenze und wird trotzdem mit
+            900 € abgezogen.
+          </Tip>
+        </Section>
+        <Section title="Nicht selbständig nutzbar: Monitor, Drucker, Tastatur">
+          <p className="text-sm text-muted-foreground">
+            Ein Bildschirm allein tut nichts – er ist ohne Rechner nicht nutzbar und deshalb
+            <strong> kein GWG</strong> (§ 6 Abs. 2 Satz 2 EStG). Dasselbe gilt für Drucker und
+            Tastatur. Sie können weder sofort abgeschrieben noch in einen Sammelposten gelegt
+            werden, auch wenn sie unter 800 € kosten.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Das ist trotzdem kein Nachteil: Computerhardware samt Peripherie und Software darf
+            mit einer Nutzungsdauer von <strong>einem Jahr</strong> angesetzt werden
+            (BMF-Schreiben vom 22.02.2022) – ohne monatsgenaue Zwölftelung. Der volle Betrag
+            wirkt also im Anschaffungsjahr, nur über einen anderen Weg.
+          </p>
+        </Section>
+        <Section title="Degressive AfA: 30 % vom Restbuchwert">
+          <p className="text-sm text-muted-foreground mb-2">
+            Für bewegliche Wirtschaftsgüter des Anlagevermögens, die zwischen dem
+            <strong> 01.07.2025 und dem 31.12.2027</strong> angeschafft werden, erlaubt
+            § 7 Abs. 2 EStG wieder die degressive Abschreibung: 30 % vom jeweiligen
+            Restbuchwert statt eines gleichbleibenden Betrags.
+          </p>
+          <ul className="space-y-1.5 text-sm">
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Die 30 % sind nur die Obergrenze: Erlaubt ist höchstens das <strong>Dreifache des linearen Satzes</strong>. Bei drei Jahren Nutzungsdauer wären das rechnerisch 100 %, es bleibt bei 30 %; bei Büromöbeln mit 13 Jahren sind es dagegen nur 23,1 %.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Im ersten Jahr wird monatsgenau gezwölftelt – wer im Oktober kauft, bekommt drei Zwölftel.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Der Wechsel zur linearen AfA ist erlaubt, sobald sie mehr bringt. Ohne ihn würde der Restbuchwert nie null erreichen. Der Rückweg ist nicht erlaubt.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span><strong>Software ist ausgenommen</strong> – sie ist kein bewegliches Wirtschaftsgut. Für sie bleibt es bei der Nutzungsdauer von einem Jahr.</span></li>
+            <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-primary" /><span>Lohnt sich vor allem bei langer Nutzungsdauer: Ein Fahrzeug bringt degressiv im ersten vollen Jahr 30 % statt 16,7 %.</span></li>
+          </ul>
         </Section>
         <Section title="Typische Nutzungsdauern">
           <div className="grid grid-cols-2 gap-1 text-xs">
             {[
-              ['Computer / Laptop', '3 Jahre'],
-              ['Monitor / Drucker', '3 Jahre'],
+              ['Computer / Laptop', '3 J. – oder 1 J.'],
+              ['Monitor / Drucker', '3 J. – oder 1 J.'],
+              ['Software', '1 Jahr'],
               ['Smartphone', '5 Jahre'],
               ['Büromöbel', '13 Jahre'],
               ['Kamera / Audio', '7 Jahre'],
               ['Fahrzeug', '6 Jahre'],
-              ['Digitale WG (Sonder-AfA)', '1 Jahr'],
             ].map(([item, nd]) => (
               <div key={item} className="flex justify-between rounded bg-muted px-2 py-1">
                 <span>{item}</span>
@@ -936,7 +1138,7 @@ const ARTICLES: HelpArticle[] = [
             ))}
           </div>
         </Section>
-        <Tip>Pro Jahr: Entweder GWG-Sofortabschreibung ODER Poolabschreibung – beides nebeneinander ist nicht zulässig. Digitale Wirtschaftsgüter (Software, digitale Werkzeuge) können über 1 Jahr abgeschrieben werden (de facto Sofortabzug).</Tip>
+        <Tip>Pro Jahr: Entweder GWG-Sofortabschreibung ODER Poolabschreibung – beides nebeneinander ist nicht zulässig. Die amtliche AfA-Tabelle nennt für Computer und Peripherie drei Jahre; das BMF-Schreiben vom 22.02.2022 erlaubt daneben eine Nutzungsdauer von einem Jahr, was auf einen Sofortabzug hinausläuft.</Tip>
       </div>
     ),
   },
@@ -945,7 +1147,7 @@ const ARTICLES: HelpArticle[] = [
     title: 'Verfahrensdokumentation (GoBD)',
     icon: Shield,
     category: 'Compliance',
-    keywords: ['verfahrensdokumentation', 'gobd', 'dokumentation', 'prüfer', 'finanzamt', 'betriebsprüfung', 'archivierung'],
+    keywords: ['verfahrensdokumentation', 'gobd', 'dokumentation', 'prüfer', 'finanzamt', 'betriebsprüfung', 'archivierung', 'e-rechnung', 'erechnung', 'xrechnung', 'zugferd', 'xml'],
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground">
@@ -985,6 +1187,31 @@ const ARTICLES: HelpArticle[] = [
               </div>
             ))}
           </div>
+        </Section>
+        <Section title="E-Rechnung: empfangen musst du sie schon heute">
+          <p className="text-sm text-muted-foreground mb-2">
+            Seit dem <strong>01.01.2025</strong> muss jedes inländische Unternehmen E-Rechnungen
+            annehmen können – auch Kleinunternehmer, auch ohne einen einzigen eigenen Kunden im
+            B2B. Ein E-Mail-Postfach genügt dafür; einen Anspruch auf ein PDF gibt es nicht mehr.
+          </p>
+          <div className="space-y-2 text-sm">
+            {[
+              ['Empfangen', 'Pflicht seit 01.01.2025 für alle, unabhängig von Größe und Steuerregelung'],
+              ['Versenden', 'Ab 01.01.2027 bei über 800.000 € Vorjahresumsatz, ab 01.01.2028 für alle übrigen'],
+              ['Kleinunternehmer', 'Vom Versand dauerhaft befreit – PDF und Papier bleiben erlaubt, empfangen musst du trotzdem'],
+              ['Archivierung', 'Die XML-Datei (XRechnung, ZUGFeRD) ist das Original und muss so aufbewahrt werden'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex gap-3">
+                <span className="font-medium w-36 shrink-0">{k}</span>
+                <span className="text-muted-foreground">{v}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground mt-2">
+            Ein aus dem XML erzeugtes PDF ist nur eine Ansicht. Wer es archiviert und das XML
+            wegwirft, hat den Beleg im Sinne der GoBD nicht aufbewahrt – lege deshalb beide
+            Dateien zur Buchung.
+          </p>
         </Section>
         <Tip>Erstelle ein einfaches Textdokument mit den oben genannten Punkten und bewahre es zusammen mit deinen Backups auf. Das reicht als Verfahrensdokumentation für Kleinunternehmer und Freiberufler in der Regel aus.</Tip>
       </div>

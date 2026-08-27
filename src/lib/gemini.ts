@@ -626,7 +626,7 @@ EINNAHMEN (NUR wenn type="einnahme"):
 - "sonstige_einnahmen": Alles andere.
 
 AUSGABEN (NUR wenn type="ausgabe"):
-- "wk_pendeln": Fahrkarten, Monatskarte, Tankbelege für den Arbeitsweg.
+- "wk_pendeln": Fahrkarten und Monatskarten für den Arbeitsweg. Für Fahrten mit dem eigenen Auto gilt allein die Entfernungspauschale – Tank- und Reparaturbelege des Arbeitswegs sind damit abgegolten und zusätzlich nicht abziehbar.
 - "wk_homeoffice": Belege rund ums Arbeiten zu Hause.
 - "wk_arbeitsmittel": Laptop, Werkzeug, Fachbuch, Arbeitskleidung, Büromaterial für den Job.
 - "wk_fortbildung": Kurse, Seminare, Prüfungsgebühren, Fachliteratur.
@@ -637,7 +637,7 @@ AUSGABEN (NUR wenn type="ausgabe"):
 - "wk_umzug": Umzug aus beruflichem Anlass.
 - "wk_sonstige": Sonstige Kosten rund um den Job (z.B. Kontoführung, Bewerbungsfotos).
 - "sa_vorsorge": Kranken-, Pflege-, Renten- oder Arbeitslosenversicherung, Rürup, Riester.
-- "sa_versicherungen": Haftpflicht, Berufsunfähigkeit, Unfall, Rechtsschutz.
+- "sa_versicherungen": Private Haftpflicht, Berufsunfähigkeit, Unfall, Risikolebensversicherung. Eine reine Rechtsschutzversicherung ist dagegen nicht abziehbar (→ "privat"); ein gesondert ausgewiesener Berufsrechtsschutz gehört zu "wk_sonstige".
 - "sa_kinderbetreuung": Kita, Hort, Tagesmutter.
 - "agb_krankheit": Arzt, Zahnarzt, Brille, Medikamente, Zuzahlungen.
 - "agb_pflege": Pflegeheim, Pflegedienst, Pflegehilfsmittel.
@@ -653,17 +653,22 @@ INFO (NUR wenn type="info"):
 
 `;
 
+// Die steuerliche Wahrheit hinter diesen Zeilen steht in `src/lib/steuer/kategorien.ts`.
+// Beide Stellen müssen dasselbe sagen: Was die KI hier falsch einsortiert, rechnet
+// die App später zwar richtig weiter, landet aber in der falschen Kategorie – und
+// jeder Scan erzeugt die Fehlbuchung neu. Wer dort eine Regel ändert, prüft hier mit.
 const BUSINESS_CATEGORY_RULES = `=== REGELN FÜR "suggested_category" ===
 Wähle die passendste Kategorie – WICHTIG: Die Kategorie MUSS zum Typ passen!
 
 EINNAHMEN (NUR wenn type="einnahme"):
 - "umsatz_pflichtig": Standard-Umsätze mit 19% oder 7% MwSt (Rechnungen, Honorare, Dienstleistungen).
 - "umsatz_steuerfrei": Einnahmen ohne MwSt (Kleinunternehmer §19 UStG, steuerfreie Leistungen).
-- "reverse_charge": Reverse Charge (§ 13b UStG) – Einnahmen von ausländischen Plattformen (z.B. Twitch, YouTube/Google Ireland, Amazon KDP). Netto-Rechnung, Steuerschuldumkehr.
-- "ust_erstattung": Geld vom Finanzamt zurück (Umsatzsteuererstattung).
-- "privateinlage": Privates Geld ins Unternehmen eingelegt (kein steuerpflichtiger Gewinn).
+- "reverse_charge": Reverse Charge (§ 13b UStG) – Einnahmen von ausländischen Plattformen (z.B. Twitch, YouTube/Google Ireland, Amazon KDP). Netto-Rechnung, Steuerschuldumkehr: Die Umsatzsteuer schuldet der Leistungsempfänger, nicht der Benutzer.
+  Umgekehrter Fall: Bezieht der Benutzer selbst eine Leistung aus dem Ausland (Google Ads, Meta, Twitch-Gebühren, Software aus den USA), schuldet ER die deutsche Umsatzsteuer nach § 13b UStG und muss dafür eine Umsatzsteuer-Voranmeldung abgeben. Das gilt AUCH für Kleinunternehmer nach § 19 UStG – § 19 schützt nicht vor § 13b, und ein Vorsteuerabzug steht ihnen dabei nicht zu. Solche Belege bleiben trotzdem type="ausgabe" und gehören in ihre Sachkategorie (z.B. "marketing" oder "software_abos").
+- "ust_erstattung": Geld vom Finanzamt zurück (Umsatzsteuererstattung). Das ist KEIN Gewinn – es kommt nur die Umsatzsteuer zurück, die vorher gezahlt wurde. Zählt auch nicht zum Umsatz für die Kleinunternehmergrenze.
+- "privateinlage": Privates Geld ins Unternehmen eingelegt. Das ist KEIN Gewinn und KEIN Umsatz, sondern nur eine Umbuchung vom privaten aufs betriebliche Konto.
 - "anlagenverkauf": Erlös aus Verkauf von Firmengeräten, Möbeln, Fahrzeugen etc.
-- "erstattungen": Rückerstattungen, Gutschriften, Auslagenerstattungen an den Benutzer (durchlaufender Posten).
+- "erstattungen": Rückerstattungen, Gutschriften, Auslagenerstattungen an den Benutzer. Das ist eine Betriebseinnahme, weil die erstattete Ausgabe vorher bereits abgezogen wurde. Ein echter durchlaufender Posten (§ 4 Abs. 3 Satz 2 EStG) liegt nur vor, wenn im Namen und für Rechnung eines anderen kassiert wurde.
 - "sponsoring": Sponsoring / Werbeleistung – Zahlungen von Sponsoren für Werbeplatzierung, Product Placement.
 - "affiliate": Affiliate / Vermittlungsprovision – Provisionen aus Affiliate-Links, Empfehlungsprogrammen.
 - "donations_tips": Donations / Tips (Streaming) – freiwillige Zuschauerzahlungen (Twitch Bits, YouTube Super Chat, Ko-fi, PayPal.me). Sind Betriebseinnahmen!
@@ -671,24 +676,27 @@ EINNAHMEN (NUR wenn type="einnahme"):
 - "sonstige_einnahmen": Alle anderen Einnahmen (Crowdfunding, sonstige Erträge).
 
 BETRIEBSAUSGABEN (NUR wenn type="ausgabe"):
-- "anlagevermoegen_afa": Anschaffungen > 800€ netto, die über Jahre abgeschrieben werden (z.B. Laptop, Maschinen, Möbel über 800€).
-- "gwg": Geringwertige Wirtschaftsgüter ≤ 800€ netto (z.B. Monitor, Tastatur, Bürostuhl, Kleingeräte).
+- "anlagevermoegen_afa": Anschaffungen über 800 € NETTO, die über die Nutzungsdauer abgeschrieben werden (z.B. Laptop, Maschinen, Möbel). Hierher gehören außerdem Monitor, Drucker, Tastatur, Dockingstation und sonstige Peripherie unabhängig vom Preis: Sie sind nicht selbständig nutzungsfähig (§ 6 Abs. 2 Satz 2 EStG) und deshalb nie GWG. Für Computerhardware samt Peripherie darf eine Nutzungsdauer von einem Jahr angesetzt werden (BMF vom 22.02.2022).
+- "gwg": Geringwertige Wirtschaftsgüter bis 800 € NETTO, die für sich allein nutzbar sind (z.B. Bürostuhl, Smartphone, Werkzeug, Kleingeräte). Die 800-€-Grenze wird IMMER am Nettobetrag gemessen – auch beim Kleinunternehmer, der den Beleg sonst mit dem Bruttobetrag bucht. Monitor, Drucker und Tastatur gehören trotz niedrigem Preis NICHT hierher (→ "anlagevermoegen_afa").
 - "software_abos": Software-Lizenzen, SaaS-Abos, Cloud-Dienste (Adobe, GitHub, Hosting, Microsoft 365).
 - "fremdleistungen": Leistungen von Dritten/Subunternehmern (Freelancer, Agentur, externer Entwickler).
 - "buerobedarf": Büromaterial, Druckerpatronen, Papier, Kleinmaterial.
-- "reisekosten": Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen, Spesen, Verpflegungsmehraufwand.
-- "bewirtungskosten": Geschäftliche Bewirtung – Restaurantbesuche mit Geschäftspartnern, nur 70 % absetzbar. NICHT für private Restaurantbesuche (→ privat)!
+- "reisekosten": Fahrtkosten, Hotel, Flüge, Bahnfahrten für berufliche Reisen, Spesen. Der Verpflegungsmehraufwand wird nur mit den Pauschbeträgen angesetzt (28 € je vollem Tag, 14 € bei mehr als 8 Stunden sowie an An- und Abreisetagen); die tatsächlichen Kosten der eigenen Verpflegung mindern den Gewinn daneben nicht.
+- "bewirtungskosten": Geschäftliche Bewirtung – Restaurantbesuche mit Geschäftspartnern. Nur 70 % mindern den Gewinn (§ 4 Abs. 5 Satz 1 Nr. 2 EStG), die Vorsteuer bleibt zu 100 % abziehbar. Teilnehmer und Anlass müssen auf dem Beleg vermerkt sein (§ 4 Abs. 7 EStG) – fehlen sie, ist der Abzug vollständig verloren. NICHT für private Restaurantbesuche (→ privat)!
 - "marketing": Werbung, Social-Media-Anzeigen, Drucksachen, Messen, PR.
 - "weiterbildung": Kurse, Seminare, Fachbücher, Online-Kurse, Konferenztickets.
 - "miete": Büromiete, Co-Working, Lagermiete, Raumkosten.
-- "versicherungen_betrieb": Betriebliche Versicherungen (Haftpflicht, Berufsunfähigkeit, Inventar).
-- "fahrzeugkosten": KFZ-Kosten, Benzin, Leasing, Reparatur für betriebliche Fahrzeuge.
+- "versicherungen_betrieb": Versicherungen für betriebliche Risiken (Betriebshaftpflicht, Inventar- und Geschäftsinhaltsversicherung, Firmenrechtsschutz) sowie Beiträge zur Berufsgenossenschaft – die gesetzliche Unfallversicherung ist Betriebsausgabe. Die Berufsunfähigkeitsversicherung gehört NICHT hierher, sie ist Sonderausgabe (→ "sozialversicherung").
+- "fahrzeugkosten": KFZ-Kosten, Benzin, Leasing, Reparatur – nur für Fahrzeuge im Betriebsvermögen. Wer stattdessen die Kilometerpauschale aus dem Fahrtenbuch ansetzt, darf diese Belege nicht zusätzlich abziehen.
 - "kommunikation": Telefon, Mobilfunk, Internet, Festnetz für den Betrieb.
 
 SONDERAUSGABEN (NUR wenn type="ausgabe"):
+Diese drei Kategorien mindern den Gewinn NICHT. Sie sind keine Betriebsausgaben,
+sondern wirken erst eine Stufe später auf das zu versteuernde Einkommen der
+privaten Einkommensteuererklärung.
 - "spenden": NUR wenn der Benutzer eine Spende ZAHLT an eine gemeinnützige Organisation. NICHT für Twitch-Subs oder Gaming!
-- "krankenkasse": Beiträge zur gesetzlichen oder privaten Krankenversicherung, Pflegeversicherung.
-- "sozialversicherung": Rentenversicherung, Altersvorsorge, Berufsgenossenschaft.
+- "krankenkasse": Beiträge zur gesetzlichen oder privaten Kranken- und Pflegeversicherung. Sonderausgabe nach § 10 Abs. 1 Nr. 3 EStG – auch beim Selbständigen keine Betriebsausgabe.
+- "sozialversicherung": Renten- und Altersvorsorgebeiträge (gesetzliche Rentenversicherung, Versorgungswerk, Rürup) sowie Beiträge zur Berufsunfähigkeitsversicherung – diese ist eine sonstige Vorsorgeaufwendung und damit Sonderausgabe, keine Betriebsausgabe. Die Berufsgenossenschaft gehört dagegen zu "versicherungen_betrieb".
 
 PRIVAT (NUR wenn type="ausgabe"):
 - "privat": Rein private Ausgaben (Twitch-Subs, Netflix, Spotify, private Einkäufe, Restaurantbesuche privat). NICHT steuerlich relevant.
@@ -703,9 +711,9 @@ SONSTIGES:
 
 WICHTIG:
 - Verträge/Vereinbarungen → type="info", suggested_category="vertraege"
-- Erhaltene Spenden/Donations → type="einnahme", suggested_category="sonstige_einnahmen"
+- Erhaltene Spenden/Donations/Tips → type="einnahme", suggested_category="donations_tips" (Betriebseinnahme, auch wenn sie freiwillig gezahlt wurden)
 - Gezahlte Spenden → type="ausgabe", suggested_category="spenden"
-- Krankenkasse/Sozialversicherung → type="ausgabe", suggested_category="krankenkasse" oder "sozialversicherung"
+- Krankenkasse/Sozialversicherung → type="ausgabe", suggested_category="krankenkasse" oder "sozialversicherung"; beides sind Sonderausgaben und mindern den Gewinn nicht
 - Beträge als Zahlen (nicht Strings). Wenn kein Betrag erkennbar → netto=0, fee=0, ust=0, brutto=0.
 - Bei Verträgen ohne konkreten Rechnungsbetrag: setze Beträge auf 0.
 `;
@@ -1010,11 +1018,16 @@ PFLICHTANGABEN nach § 14 Abs. 4 UStG:
 9. Steuerbetrag oder Hinweis auf Steuerbefreiung (§19 UStG bei Kleinunternehmer)
 10. Anzuwendender Steuersatz
 
+Beim Kleinunternehmer nach § 19 UStG entfallen die Punkte 9 und 10: Er weist
+weder Steuersatz noch Steuerbetrag aus, muss aber auf die Steuerbefreiung
+hinweisen (§ 14 Abs. 4 Satz 1 Nr. 8 UStG).
+
 Prüfe auf:
 - Fehlende Pflichtangaben (error)
 - Inkonsistenzen (z.B. Datum in Vergangenheit ohne Begründung = warning)
 - Positionen mit 0 € Preis ohne Begründung (warning)
 - Fehlender Hinweis bei Kleinunternehmer (§19 UStG) in notes (error)
+- Kleinunternehmer, der trotzdem Umsatzsteuer ausweist (error) – diese Steuer schuldet er dann nach § 14c UStG, obwohl er sie gar nicht erheben darf
 - Sehr kurze oder generische Beschreibungen (tip)
 
 Falls ein Hinweistext (notes) vorhanden ist: Formuliere ihn professioneller auf Deutsch (improvedNote).

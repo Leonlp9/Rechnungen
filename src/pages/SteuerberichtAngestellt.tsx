@@ -15,8 +15,10 @@
 //                               Handwerker: 20 % gehen direkt von der Steuer
 //                               ab, nicht bloß vom Einkommen.
 //
-// Die Werte sind die für 2026: 0,38 €/km ab dem ersten Kilometer, 6 € je
-// Homeoffice-Tag (höchstens 210), § 35a 20 % von max. 20.000 € bzw. 6.000 €.
+// Die Zahlenwerte stehen nicht mehr hier, sondern in src/lib/steuer/jahreswerte
+// – je Veranlagungszeitraum. Vorher war 0,38 €/km fest verdrahtet, obwohl der
+// Satz erst ab 2026 ab dem ersten Kilometer gilt; für 2025 rechnete die Seite
+// damit rund ein Viertel zu viel.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
@@ -36,40 +38,11 @@ import {
   AUSSERGEWOEHNLICHE_CATEGORIES,
   CATEGORY_LABELS,
 } from '@/types';
+import { werteFuer, entfernungspauschale, istFortgeschrieben } from '@/lib/steuer/jahreswerte';
+import { zumutbareBelastung } from '@/lib/steuer/tarif';
 import type { Invoice, Salary, SalaryExtra } from '@/types';
 
-/** Werte des Steuerjahres 2026. */
-const ARBEITNEHMER_PAUSCHBETRAG = 1230;
-const KM_SATZ = 0.38;
-const HOMEOFFICE_SATZ = 6;
-const HOMEOFFICE_MAX_TAGE = 210;
-const HAUSHALT_MAX = 20000;
-const HANDWERKER_MAX = 6000;
-const PARAGRAF_35A_SATZ = 0.2;
 
-/**
- * Zumutbare Belastung nach § 33 Abs. 3 EStG, Stufe für Alleinstehende ohne
- * Kinder. Sie ist gestaffelt und wird seit dem BFH-Urteil von 2017 stufenweise
- * berechnet – nur der Teil des Einkommens in der jeweiligen Stufe zählt.
- */
-function zumutbareBelastung(einkuenfte: number): number {
-  const stufen: Array<[number, number]> = [
-    [15340, 0.05],
-    [51130, 0.06],
-    [Infinity, 0.07],
-  ];
-  let rest = einkuenfte;
-  let vorher = 0;
-  let summe = 0;
-  for (const [grenze, satz] of stufen) {
-    const teil = Math.max(0, Math.min(rest, grenze - vorher));
-    summe += teil * satz;
-    rest -= teil;
-    vorher = grenze;
-    if (rest <= 0) break;
-  }
-  return summe;
-}
 
 export default function SteuerberichtAngestellt() {
   const isMobile = useIsMobile();
@@ -83,6 +56,8 @@ export default function SteuerberichtAngestellt() {
   const setPendlerTage = useAppStore((s) => s.setPendlerTage);
   const homeofficeTage = useAppStore((s) => s.homeofficeTage);
   const setHomeofficeTage = useAppStore((s) => s.setHomeofficeTage);
+  const kinder = useAppStore((s) => s.kinder);
+  const verheiratet = useAppStore((s) => s.verheiratet);
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [salaryList, setSalaryList] = useState<Salary[]>([]);
@@ -114,26 +89,72 @@ export default function SteuerberichtAngestellt() {
     [salaryList, extras, selectedYear],
   );
 
+  // Alle Beträge kommen aus der Jahrestabelle – für das Jahr, das oben
+  // gewählt ist, nicht für das laufende.
+  const w = werteFuer(selectedYear);
+  const ARBEITNEHMER_PAUSCHBETRAG = w.arbeitnehmerPauschbetrag;
+
   // ── Werbungskosten ──
-  const pendlerpauschale = pendlerKm * pendlerTage * KM_SATZ;
-  const homeofficePauschale = Math.min(homeofficeTage, HOMEOFFICE_MAX_TAGE) * HOMEOFFICE_SATZ;
+  // Die Entfernungspauschale ist gestaffelt, solange das Jahr die Staffel
+  // kennt: bis 2025 waren es 0,30 € für die ersten 20 Kilometer und erst ab
+  // dem 21. 0,38 €. Seit 2026 gilt einheitlich 0,38 € ab dem ersten.
+  const pendlerRoh = entfernungspauschale(selectedYear, pendlerKm, pendlerTage);
+  const pendlerGedeckelt = Math.min(pendlerRoh, w.entfernungHoechstbetrag);
+  const pendlerpauschale = pendlerGedeckelt;
+  const homeofficeTageWirksam = Math.min(homeofficeTage, w.homeofficeMaxTage);
+  const homeofficePauschale = homeofficeTageWirksam * w.homeofficeSatz;
   const werbungskostenBelege = summe(WERBUNGSKOSTEN_CATEGORIES);
   const werbungskosten = werbungskostenBelege + pendlerpauschale + homeofficePauschale;
   const ueberPauschbetrag = werbungskosten - ARBEITNEHMER_PAUSCHBETRAG;
 
+  // Für einen Tag gibt es entweder die Entfernungspauschale oder die
+  // Homeoffice-Pauschale, nicht beides. Gerechnet wird stur addiert – deshalb
+  // hier wenigstens der Hinweis, wenn die Tageszahlen nicht zusammenpassen.
+  const tageZusammen = pendlerTage + homeofficeTageWirksam;
+  const tageUnplausibel = tageZusammen > 230;
+
   // ── § 35a ──
   const haushaltKosten = summe(['hh_dienstleistung']);
   const handwerkerKosten = summe(['hh_handwerker']);
-  const haushaltAbzug = Math.min(haushaltKosten, HAUSHALT_MAX) * PARAGRAF_35A_SATZ;
-  const handwerkerAbzug = Math.min(handwerkerKosten, HANDWERKER_MAX) * PARAGRAF_35A_SATZ;
+  const haushaltAbzug = Math.min(haushaltKosten, w.haushaltsnahMax) * w.paragraf35aSatz;
+  const handwerkerAbzug = Math.min(handwerkerKosten, w.handwerkerMax) * w.paragraf35aSatz;
 
   // ── Sonderausgaben & außergewöhnliche Belastungen ──
-  const sonderausgaben = summe(EMPLOYEE_SONDERAUSGABEN_CATEGORIES);
+  // Kinderbetreuung wirkt nur zu 80 %, höchstens 4.800 € je Kind (seit 2025;
+  // davor zwei Drittel und 4.000 €). Vorher zählte die App den vollen Betrag.
+  const kinderbetreuungRoh = summe(['sa_kinderbetreuung']);
+  const kinderbetreuungWirksam = Math.min(
+    kinderbetreuungRoh * w.kinderbetreuungQuote,
+    w.kinderbetreuungMax * Math.max(1, kinder),
+  );
+  const sonstigeVorsorgeRoh = summe(['sa_versicherungen']);
+  const uebrigeSonderausgaben = summe(
+    EMPLOYEE_SONDERAUSGABEN_CATEGORIES.filter(
+      (c) => c !== 'sa_kinderbetreuung' && c !== 'sa_versicherungen',
+    ),
+  );
+  const sonderausgaben = uebrigeSonderausgaben + kinderbetreuungWirksam + sonstigeVorsorgeRoh;
+
   const agbKosten = summe(AUSSERGEWOEHNLICHE_CATEGORIES);
-  const grenze = zumutbareBelastung(Math.max(0, gehalt.gross - Math.max(werbungskosten, ARBEITNEHMER_PAUSCHBETRAG)));
+  // Bemessungsgrundlage ist der Gesamtbetrag der Einkünfte, also der Bruttolohn
+  // abzüglich der Werbungskosten – mindestens des Pauschbetrags.
+  const gesamtbetragEinkuenfte = Math.max(0, gehalt.gross - Math.max(werbungskosten, ARBEITNEHMER_PAUSCHBETRAG));
+  const grenze = zumutbareBelastung(gesamtbetragEinkuenfte, { kinder, zusammenveranlagt: verheiratet });
   const agbWirksam = Math.max(0, agbKosten - grenze);
 
   /** Einzelposten einer Gruppe, nach Höhe sortiert – für die Aufschlüsselung. */
+  /**
+   * Was von einem Rohbetrag tatsächlich wirkt. Nur die Kinderbetreuung wird
+   * gekürzt – ohne diesen Hinweis stünde in der Aufschlüsselung ein anderer
+   * Betrag als in der Summe darüber.
+   */
+  const wirksamerAnteil = (cat: string, roh: number): string | null => {
+    if (cat !== 'sa_kinderbetreuung') return null;
+    const wirksam = Math.min(roh * w.kinderbetreuungQuote, w.kinderbetreuungMax * Math.max(1, kinder));
+    if (Math.abs(wirksam - roh) < 0.005) return null;
+    return `${Math.round(w.kinderbetreuungQuote * 100)} % wirken, höchstens ${euro(w.kinderbetreuungMax)} je Kind – hier ${euro(wirksam)}`;
+  };
+
   const posten = (cats: readonly string[]) => {
     const map = new Map<string, number>();
     for (const beleg of jahresBelege) {
@@ -144,6 +165,11 @@ export default function SteuerberichtAngestellt() {
   };
 
   const euro = (v: number) => fmtCurrency(v, privacyMode);
+
+  /** „einzeln veranlagt, ohne Kinder" – die Angaben, mit denen gerechnet wird. */
+  const veranlagung = `${verheiratet ? 'zusammenveranlagt' : 'einzeln veranlagt'}, ${
+    kinder === 0 ? 'ohne Kinder' : kinder === 1 ? '1 Kind' : `${kinder} Kinder`
+  }`;
 
   const jahrWahl = (
     <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
@@ -179,13 +205,13 @@ export default function SteuerberichtAngestellt() {
           <ListRow label="Belege" value={euro(werbungskostenBelege)} noChevron />
           <ListRow
             label="Pendlerpauschale"
-            hint={`${pendlerKm} km × ${pendlerTage} Tage × ${KM_SATZ.toFixed(2)} €`}
+            hint={`${pendlerKm} km × ${pendlerTage} Tage${w.entfernungBis20 === w.entfernungAb21 ? ` × ${w.entfernungBis20.toFixed(2).replace('.', ',')} €` : ` · ${w.entfernungBis20.toFixed(2).replace('.', ',')} € bis km 20, dann ${w.entfernungAb21.toFixed(2).replace('.', ',')} €`}`}
             value={euro(pendlerpauschale)}
             noChevron
           />
           <ListRow
             label="Homeoffice"
-            hint={`${Math.min(homeofficeTage, HOMEOFFICE_MAX_TAGE)} Tage × ${HOMEOFFICE_SATZ} €`}
+            hint={`${homeofficeTageWirksam} Tage × ${w.homeofficeSatz} €`}
             value={euro(homeofficePauschale)}
             noChevron
           />
@@ -194,7 +220,15 @@ export default function SteuerberichtAngestellt() {
 
         <FormGroup
           title="Angaben zur Fahrt"
-          footer="Einfache Entfernung zur Arbeit und die Tage, an denen du dort warst. Homeoffice-Tage zählen getrennt – am selben Tag geht nur eines von beidem."
+          footer={`Einfache Entfernung zur Arbeit und die Tage, an denen du dort warst. Homeoffice-Tage zählen getrennt – am selben Tag geht nur eines von beidem.${
+            tageUnplausibel
+              ? ` Zusammen sind das ${tageZusammen} Tage; ein Arbeitsjahr hat etwa 220 bis 230. Prüf die Aufteilung, sonst wird doppelt gezählt.`
+              : ''
+          }${
+            pendlerRoh > pendlerGedeckelt
+              ? ` Die Entfernungspauschale ist auf ${euro(w.entfernungHoechstbetrag)} gedeckelt, wenn du kein eigenes Auto nutzt – aus ${euro(pendlerRoh)} werden dann ${euro(pendlerGedeckelt)}.`
+              : ''
+          }${istFortgeschrieben(selectedYear) ? ` Für ${selectedYear} liegen noch keine amtlichen Werte vor; gerechnet wird mit dem letzten bekannten Stand.` : ''}`}
         >
           <FormRow label="Entfernung (km)">
             <input
@@ -237,16 +271,33 @@ export default function SteuerberichtAngestellt() {
           <ListRow label="Steuerabzug" value={euro(haushaltAbzug + handwerkerAbzug)} noChevron />
         </ListGroup>
 
-        <ListGroup title="Sonderausgaben" footer="Vorsorge, Versicherungen, Kinderbetreuung und Spenden.">
+        <ListGroup
+          title="Sonderausgaben"
+          footer={`Vorsorge, Versicherungen, Kinderbetreuung und Spenden.${
+            kinderbetreuungRoh > 0
+              ? ` Von ${euro(kinderbetreuungRoh)} Kinderbetreuung wirken ${Math.round(w.kinderbetreuungQuote * 100)} %, höchstens ${euro(w.kinderbetreuungMax)} je Kind – hier ${euro(kinderbetreuungWirksam)}.`
+              : ''
+          }${
+            sonstigeVorsorgeRoh > 0
+              ? ` Haftpflicht, Unfall und Berufsunfähigkeit teilen sich einen Höchstbetrag von ${euro(w.sonstigeVorsorgeArbeitnehmer)}, der durch die Krankenversicherung meist schon ausgeschöpft ist – dann wirken sie sich nicht mehr aus.`
+              : ''
+          }`}
+        >
           {posten(EMPLOYEE_SONDERAUSGABEN_CATEGORIES).map(([cat, betrag]) => (
-            <ListRow key={cat} label={CATEGORY_LABELS[cat as never]} value={euro(betrag)} noChevron />
+            <ListRow
+              key={cat}
+              label={CATEGORY_LABELS[cat as never]}
+              hint={wirksamerAnteil(cat, betrag) ?? undefined}
+              value={euro(betrag)}
+              noChevron
+            />
           ))}
           <ListRow label="Zusammen" value={euro(sonderausgaben)} noChevron />
         </ListGroup>
 
         <ListGroup
           title="Außergewöhnliche Belastungen"
-          footer={`Wirken erst über der zumutbaren Belastung – geschätzt ${euro(grenze)} bei deinem Einkommen (Alleinstehend ohne Kinder).`}
+          footer={`Wirken erst über der zumutbaren Belastung – geschätzt ${euro(grenze)} bei deinem Einkommen (${veranlagung}).`}
         >
           <ListRow label="Gesammelt" value={euro(agbKosten)} noChevron />
           <ListRow label="Davon wirksam" value={euro(agbWirksam)} noChevron />
@@ -321,13 +372,18 @@ export default function SteuerberichtAngestellt() {
             ))}
             <div className="flex justify-between gap-3 border-b border-border/60 pb-1">
               <span className="text-muted-foreground">
-                Pendlerpauschale ({pendlerKm} km × {pendlerTage} Tage × {KM_SATZ.toFixed(2)} €)
+                Pendlerpauschale ({pendlerKm} km × {pendlerTage} Tage{w.entfernungBis20 === w.entfernungAb21 ? ` × ${w.entfernungBis20.toFixed(2).replace('.', ',')} €` : ` · ${w.entfernungBis20.toFixed(2).replace('.', ',')} € bis km 20, dann ${w.entfernungAb21.toFixed(2).replace('.', ',')} €`})
+                {pendlerRoh > pendlerGedeckelt && (
+                  <span className="block text-[11px] text-muted-foreground">
+                    aus {euro(pendlerRoh)} gedeckelt auf {euro(w.entfernungHoechstbetrag)} – der Höchstbetrag gilt, wenn du keinen eigenen Pkw nutzt
+                  </span>
+                )}
               </span>
               <span className="font-medium">{euro(pendlerpauschale)}</span>
             </div>
             <div className="flex justify-between gap-3 border-b border-border/60 pb-1">
               <span className="text-muted-foreground">
-                Homeoffice ({Math.min(homeofficeTage, HOMEOFFICE_MAX_TAGE)} × {HOMEOFFICE_SATZ} €)
+                Homeoffice ({homeofficeTageWirksam} × {w.homeofficeSatz} €)
               </span>
               <span className="font-medium">{euro(homeofficePauschale)}</span>
             </div>
@@ -383,11 +439,11 @@ export default function SteuerberichtAngestellt() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Dienstleistungen (max. {euro(HAUSHALT_MAX)})</span>
+              <span className="text-muted-foreground">Dienstleistungen (max. {euro(w.haushaltsnahMax)})</span>
               <span className="font-medium">{euro(haushaltKosten)}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Handwerker (max. {euro(HANDWERKER_MAX)})</span>
+              <span className="text-muted-foreground">Handwerker (max. {euro(w.handwerkerMax)})</span>
               <span className="font-medium">{euro(handwerkerKosten)}</span>
             </div>
             <div className="flex justify-between gap-3 border-t border-border pt-2 font-semibold">
@@ -410,7 +466,12 @@ export default function SteuerberichtAngestellt() {
           <CardContent className="space-y-2 text-sm">
             {posten(EMPLOYEE_SONDERAUSGABEN_CATEGORIES).map(([cat, betrag]) => (
               <div key={cat} className="flex justify-between gap-3">
-                <span className="text-muted-foreground">{CATEGORY_LABELS[cat as never]}</span>
+                <span className="text-muted-foreground">
+                  {CATEGORY_LABELS[cat as never]}
+                  {wirksamerAnteil(cat, betrag) && (
+                    <span className="block text-[11px]">{wirksamerAnteil(cat, betrag)}</span>
+                  )}
+                </span>
                 <span className="font-medium">{euro(betrag)}</span>
               </div>
             ))}
@@ -430,8 +491,8 @@ export default function SteuerberichtAngestellt() {
         <CardContent className="flex gap-2 pt-4 text-sm">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <span className="text-muted-foreground">
-            Anhaltspunkte, keine Steuerberatung. Die zumutbare Belastung ist für Alleinstehende ohne
-            Kinder gerechnet; mit Ehepartner oder Kindern liegt sie niedriger.
+            Anhaltspunkte, keine Steuerberatung. Die zumutbare Belastung ist nach deinen Angaben unter
+            Profil und Steuer gerechnet ({veranlagung}).
           </span>
         </CardContent>
       </Card>

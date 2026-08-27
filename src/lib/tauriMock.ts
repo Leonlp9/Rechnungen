@@ -1,7 +1,17 @@
 // Dev-only: Minimaler Tauri-Mock für den reinen Browser-Betrieb (npm run dev
-// ohne `tauri dev`). Liefert leere Daten, damit das UI/Layout im Browser
-// getestet werden kann. In der echten App (Tauri-WebView) ist er inaktiv,
-// in Produktions-Builds wird er von Vite komplett wegoptimiert.
+// ohne `tauri dev`). In der echten App (Tauri-WebView) ist er inaktiv, in
+// Produktions-Builds wird er von Vite komplett wegoptimiert.
+//
+// Liegt unter src/lib/devdaten/backup.json ein Auszug einer echten Datenbank,
+// bedient der Mock die Abfragen daraus – dann sieht man im Browser dieselben
+// Zahlen wie in der App. Der Ordner steht in .gitignore: Der Bezug ist
+// öffentlich, und die Datei enthält Anschrift, Steuernummer und alle Belege.
+// Fehlt sie, bleibt es bei einer einzelnen Demo-Buchung.
+//
+// So legt man sie an: In der App unter Einstellungen → Daten & Backup ein
+// Backup schreiben, die .rmbackup-Datei entpacken (es ist ein ZIP) und die
+// Tabellen aus rechnungen.db als JSON in diesem Format ablegen:
+//   { "invoices": [...], "fahrtenbuch": [...], "settings": [...] }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -18,12 +28,44 @@ endobj
 trailer<</Root 1 0 R/Size 6>>
 `;
 
+/**
+ * Echte Daten, falls hinterlegt. `eager: false` und der Zugriff über glob
+ * sorgen dafür, dass Vite nicht meckert, wenn die Datei gar nicht existiert.
+ */
+type DevDaten = Record<string, Array<Record<string, unknown>>>;
+const devDatenModule = import.meta.glob<{ default: DevDaten }>('./devdaten/backup.json', { eager: true });
+const devDaten: DevDaten | null =
+  Object.values(devDatenModule)[0]?.default ?? null;
+
+/**
+ * Ermittelt aus einer SQL-Abfrage die Tabelle, die gemeint ist. Der Mock
+ * versteht kein SQL – er braucht nur den Namen, um die passende Liste
+ * zurückzugeben.
+ */
+function tabelleAus(query: string): string | null {
+  const treffer = /\bFROM\s+"?([a-z_]+)"?/i.exec(query);
+  return treffer ? treffer[1] : null;
+}
+
 if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
   let callbackId = 0;
+
+  if (devDaten) {
+    const anzahl = Object.entries(devDaten)
+      .map(([t, r]) => `${t}: ${r.length}`)
+      .join(', ');
+    console.info(`[tauriMock] Browser-Modus mit echten Daten aus devdaten/backup.json (${anzahl})`);
+  }
 
   // Einstellungen im Speicher halten – sonst lassen sich Dinge wie der
   // Keyring-Fallback im Browser gar nicht ausprobieren.
   const settings = new Map<string, string>();
+
+  // Die hinterlegten Einstellungen gleich übernehmen, damit Profil und
+  // Steuerregelung stimmen.
+  for (const zeile of devDaten?.settings ?? []) {
+    if (typeof zeile.key === 'string') settings.set(zeile.key, String(zeile.value ?? ''));
+  }
 
   const invoke = async (cmd: string, _args?: unknown): Promise<any> => {
     switch (cmd) {
@@ -39,16 +81,35 @@ if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
         throw new Error(`Command ${cmd} not found`);
 
       case 'plugin:sql|select': {
-        // Eine Demo-Rechnung, damit Liste + Detailseite im Browser testbar sind
         const query = String((_args as { query?: string })?.query ?? '');
+
+        // Einstellungen liegen im Speicher, damit Änderungen im Browser halten.
+        if (query.includes('FROM settings')) {
+          const key = String((_args as { values?: unknown[] })?.values?.[0] ?? '');
+          const value = settings.get(key);
+          return value === undefined ? [] : [{ value }];
+        }
+
+        // Mit hinterlegten Daten: die passende Tabelle ausliefern. Der Mock
+        // versteht kein SQL – WHERE, ORDER BY und LIMIT ignoriert er. Für
+        // Layout und Rechenwege reicht das, weil die App fast überall die
+        // ganze Tabelle lädt und selbst filtert.
+        const tabelle = tabelleAus(query);
+        if (devDaten && tabelle && devDaten[tabelle]) {
+          if (/\bCOUNT\s*\(/i.test(query)) return [{ count: devDaten[tabelle].length }];
+          return devDaten[tabelle];
+        }
+
         if (query.includes('FROM invoices')) {
+          // Ohne hinterlegte Daten bleibt eine Demo-Buchung, damit Liste und
+          // Detailseite überhaupt etwas zeigen.
           return [
             {
               id: 'demo-1',
               date: '2026-07-01',
               year: 2026,
               month: 7,
-              category: 'software',
+              category: 'software_abos',
               description: 'Demo-Rechnung (Browser-Modus)',
               partner: 'Beispiel GmbH',
               netto: 84.03,
@@ -70,11 +131,6 @@ if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
               xrechnung_path: '',
             },
           ];
-        }
-        if (query.includes('FROM settings')) {
-          const key = String((_args as { values?: unknown[] })?.values?.[0] ?? '');
-          const value = settings.get(key);
-          return value === undefined ? [] : [{ value }];
         }
         return [];
       }
@@ -151,7 +207,9 @@ if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
     convertFileSrc: (path: string) => path,
   };
 
-  console.info('[tauriMock] Browser-Modus: Tauri-Backend wird gemockt (leere Daten).');
+  console.info(devDaten
+    ? '[tauriMock] Browser-Modus: Tauri-Backend wird gemockt, Daten aus devdaten/backup.json.'
+    : '[tauriMock] Browser-Modus: Tauri-Backend wird gemockt (leere Daten – lege src/lib/devdaten/backup.json an, um mit echten Zahlen zu arbeiten).');
 }
 
 export {};

@@ -1,5 +1,7 @@
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '@/store';
+import { berechneEuer } from '@/lib/steuer/gewinn';
+import { berechneAnlagegueter, afaJeKategorie } from '@/lib/steuer/anlagen';
 import { useChatStore } from '@/store/chatStore';
 import { useTemplateStore } from '@/store/templateStore';
 import { useListsStore } from '@/store/listsStore';
@@ -276,18 +278,37 @@ ${recentEmails || '  (Keine E-Mails geladen)'}${selectedCtx}`;
 
   // Steuerbericht
   if (pathname === '/steuerbericht' || pathname === '/tax-report') {
-    const yearly = invoices.filter((i) => i.year === selectedYear);
-    const einnahmen = yearly.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.netto, 0);
-    const ausgaben = yearly.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.netto, 0);
-    const ust = yearly.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.ust, 0);
+    // Aus derselben Rechnung wie die Seite selbst. Vorher stand hier eine
+    // eigene Summe über alle Belege netto – die KI bekam damit einen Gewinn,
+    // der Privateinlagen enthielt, die Bewirtungskürzung überging und beim
+    // Kleinunternehmer netto statt brutto rechnete.
+    const st = useAppStore.getState();
+    const profil = {
+      steuerregelung: st.steuerregelung,
+      kmPauschale: st.kmPauschale,
+      fahrzeugImBetriebsvermoegen: st.fahrzeugImBetriebsvermoegen,
+    };
+    const anlagen = berechneAnlagegueter(invoices, selectedYear, st.steuerregelung);
+    const euer = berechneEuer({
+      invoices,
+      jahr: selectedYear,
+      profil,
+      afaJahresbetrag: anlagen.reduce((sum, a) => sum + a.jahresAfa, 0),
+      afaJeKategorie: afaJeKategorie(anlagen),
+      reiseTageVoll: st.reiseTageVoll,
+      reiseTageTeil: st.reiseTageTeil,
+    });
     return `${globalCtx}
 
 Seite: Steuerbericht / Steuerauswertung
 Jahr: ${selectedYear}
-Netto-Einnahmen: ${fmtEur(einnahmen)}
-Netto-Ausgaben: ${fmtEur(ausgaben)}
-Netto-Gewinn: ${fmtEur(einnahmen - ausgaben)}
-Umsatzsteuer (Einnahmen): ${fmtEur(ust)}`;
+Betriebseinnahmen: ${fmtEur(euer.betriebseinnahmen)}
+Betriebsausgaben: ${fmtEur(euer.betriebsausgaben)} (inkl. Abschreibung ${fmtEur(euer.afaJahresbetrag)})
+Steuerlicher Gewinn (EÜR): ${fmtEur(euer.gewinn)}
+Sonderausgaben (mindern NICHT den Gewinn, sondern das zu versteuernde Einkommen): ${fmtEur(euer.sonderausgaben)}
+Steuerlich nicht absetzbar (privat): ${fmtEur(euer.privat)}
+Gesamtumsatz § 19 UStG: ${fmtEur(euer.gesamtumsatz)}
+Umsatzsteuer: ${fmtEur(euer.umsatzsteuer)} · Vorsteuer: ${fmtEur(euer.vorsteuer)} · Zahllast: ${fmtEur(euer.zahllast)}`;
   }
 
   // Kunden / Customers

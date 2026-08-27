@@ -2,11 +2,14 @@ import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
 import { getAllInvoices, fahrtenbuch } from '@/lib/db';
 import { detectPatterns, forecastCurrentMonth } from '@/lib/patternDetection';
-import { SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
-import type { Category, Invoice } from '@/types';
+import type { Invoice } from '@/types';
+import { berechneEuer, kleinunternehmerStatus, type SteuerProfil } from '@/lib/steuer/gewinn';
+import { berechneAnlagegueter, AFA_METHODE_LABELS } from '@/lib/steuer/anlagen';
+import { steuerRuecklage, begrenzeSonderausgaben } from '@/lib/steuer/tarif';
+import { istBetriebsausgabe, wirkungVon } from '@/lib/steuer/kategorien';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, berechneProRataAfa, getNutzungsdauer } from '@/lib/afa';
+import { getGwgKategorie } from '@/lib/afa';
 import type { ProRataAfaResult } from '@/lib/afa';
 
 export interface DashboardData {
@@ -27,6 +30,12 @@ export interface DashboardData {
   betriebsergebnis: number;
   betriebsergebnisNachAfa: number;
   sonderausgabenGesamt: number;
+  /** Die vollständige EÜR des Jahres – dieselbe Rechnung wie im Steuerbericht. */
+  euer: import('@/lib/steuer/gewinn').EuerErgebnis;
+  /** Empfohlene Steuerrücklage, gerechnet mit dem Tarif des § 32a EStG. */
+  ruecklage: import('@/lib/steuer/tarif').RuecklageErgebnis;
+  /** Stand der Kleinunternehmergrenze: Vorjahr und laufendes Jahr getrennt. */
+  kuStatus: import('@/lib/steuer/gewinn').KleinunternehmerStatus;
   recentCount: number;
   deltaEin: number;
   deltaAus: number;
@@ -90,6 +99,13 @@ export interface AfaItem {
   jahresAfa: number;
   nutzungsdauer: number;
   proRata: ProRataAfaResult | null;
+  /**
+   * Der Betrag, der abgeschrieben wird. Beim Kleinunternehmer ist das der
+   * Bruttobetrag – die nicht abziehbare Vorsteuer gehört zu den
+   * Anschaffungskosten (§ 9b Abs. 1 EStG). Wer hier `invoice.netto` nimmt,
+   * bekommt Restwerte, die nicht zum Kaufpreis passen.
+   */
+  bemessung: number;
 }
 
 export function useDashboardData(): DashboardData {
@@ -101,6 +117,15 @@ export function useDashboardData(): DashboardData {
   const setSelectedMonth = useAppStore((s) => s.setSelectedMonth);
   const privacyMode = useAppStore((s) => s.privacyMode);
   const kmPauschale = useAppStore((s) => s.kmPauschale);
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
+  const rechtsform = useAppStore((s) => s.rechtsform);
+  const fahrzeugImBetriebsvermoegen = useAppStore((s) => s.fahrzeugImBetriebsvermoegen);
+  const verheiratet = useAppStore((s) => s.verheiratet);
+  const kirchensteuerSatz = useAppStore((s) => s.kirchensteuerSatz);
+  const gewerbesteuerHebesatz = useAppStore((s) => s.gewerbesteuerHebesatz);
+  const reiseTageVoll = useAppStore((s) => s.reiseTageVoll);
+  const reiseTageTeil = useAppStore((s) => s.reiseTageTeil);
+  const grundfreibetragManuell = useAppStore((s) => s.grundfreibetragManuell);
   const [loading, setLoading] = useState(invoices.length === 0);
 
   // Fahrtenbuch-Daten für das gewählte Jahr
@@ -152,13 +177,15 @@ export function useDashboardData(): DashboardData {
   const ausgaben = useMemo(() => yearInvoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.brutto, 0), [yearInvoices]);
   const saldo = einnahmen - ausgaben;
 
-  const nichtBetrieblich: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
+  // Betriebsausgaben sind nur die, die den Gewinn auch wirklich mindern.
+  // Sonderausgaben (Krankenversicherung, Altersvorsorge, Spenden) tun das
+  // nicht – sie wirken erst in der Einkommensteuererklärung.
   const betriebsausgaben = useMemo(() => yearInvoices
-    .filter((i) => i.type === 'ausgabe' && !nichtBetrieblich.includes(i.category))
+    .filter((i) => i.type === 'ausgabe' && istBetriebsausgabe(i.category))
     .reduce((s, i) => s + i.brutto, 0), [yearInvoices]);
   const betriebsergebnis = einnahmen - betriebsausgaben;
   const sonderausgabenGesamt = useMemo(() => yearInvoices
-    .filter((i) => i.type === 'ausgabe' && nichtBetrieblich.includes(i.category))
+    .filter((i) => i.type === 'ausgabe' && wirkungVon(i.category) === 'sonderausgabe')
     .reduce((s, i) => s + i.brutto, 0), [yearInvoices]);
 
   const prevEinnahmen = useMemo(() => prevYearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.brutto, 0), [prevYearInvoices]);
@@ -208,82 +235,113 @@ export function useDashboardData(): DashboardData {
 
   const lastTen = yearInvoices.slice(0, 10);
 
-  // ── AfA / GWG-Daten ───────────────────────────────────────────────────────
+  // ── Wirtschaftsgüter ──────────────────────────────────────────────────────
+  // Kommt aus derselben Rechnung wie der Steuerbericht. Vorher hatte das
+  // Dashboard eine eigene: Bemessung immer netto, keine degressive AfA, und
+  // ein Monitor galt als GWG, obwohl er dafür nicht selbständig nutzbar ist.
   const afaData = useMemo((): Pick<DashboardData, 'afaInvoices' | 'gwgInvoices' | 'afaGesamtNetto' | 'gwgGesamtNetto' | 'afaJahresAbschreibung' | 'afaItems'> => {
-    // Neuanschaffungen im gewählten Jahr (für Statistikfelder)
+    const gueter = berechneAnlagegueter(invoices, selectedYear, steuerregelung);
+
     const afaInvoices = yearInvoices.filter((i) => i.category === 'anlagevermoegen_afa');
     const gwgInvoices = yearInvoices.filter((i) => i.category === 'gwg');
-    const afaGesamtNetto = afaInvoices.reduce((s, i) => s + i.netto, 0);
-    const gwgGesamtNetto = gwgInvoices.reduce((s, i) => s + i.netto, 0);
+    // „Netto" heißt hier: die steuerliche Bemessungsgrundlage. Beim
+    // Kleinunternehmer ist das der Bruttobetrag, weil die Umsatzsteuer mangels
+    // Vorsteuerabzug zu den Anschaffungskosten gehört.
+    const bemessungVon = (inv: Invoice) =>
+      gueter.find((g) => g.invoice.id === inv.id)?.bemessung ?? inv.netto;
+    const afaGesamtNetto = afaInvoices.reduce((sum, i) => sum + bemessungVon(i), 0);
+    const gwgGesamtNetto = gwgInvoices.reduce((sum, i) => sum + bemessungVon(i), 0);
 
-    // Für die Abschreibungsberechnung ALLE Jahre heranziehen (Vorjahres-Anlagen mitberücksichtigen)
-    const allAfaGwg = invoices.filter(
-      (i) => i.category === 'anlagevermoegen_afa' || i.category === 'gwg',
-    );
-    const afaItems: DashboardData['afaItems'] = allAfaGwg.map((inv) => {
-      const assetType = guessAssetType(inv.description, inv.partner);
-      const optionen = berechneAfaOptionen(inv.netto, assetType);
-      const empf = empfohlenAfaMethode(inv.netto);
-      const empfOption = optionen.find((o) => o.methode === empf);
-      const nutzungsdauer = empfOption?.nutzungsdauer ?? getNutzungsdauer(assetType);
+    const afaItems: DashboardData['afaItems'] = gueter.map((g) => ({
+      invoice: g.invoice,
+      assetType: g.assetType,
+      bemessung: g.bemessung,
+      gwkKategorie: g.selbstaendigNutzbar
+        ? getGwgKategorie(g.pruefBetrag)
+        : 'Nicht selbständig nutzbar – kein GWG',
+      empfohlen: AFA_METHODE_LABELS[g.methode],
+      jahresAfa: g.jahresAfa,
+      nutzungsdauer: g.nutzungsdauer,
+      // Die Karten zeigen daraus den Verlauf und die Formel. Der Plan liegt
+      // im Wirtschaftsgut schon fertig vor, er wird hier nur umbenannt.
+      proRata: g.nutzungsdauer > 1
+        ? {
+          afaBetragImJahr: g.jahresAfa,
+          monateImJahr: g.plan.find((j) => j.jahr === selectedYear)?.monate ?? 0,
+          volleJahresAfa: Math.round((g.bemessung / g.nutzungsdauer) * 100) / 100,
+          monatsAfa: Math.round((g.bemessung / g.nutzungsdauer / 12) * 100) / 100,
+          endeJahr: g.plan[g.plan.length - 1]?.jahr ?? new Date(g.invoice.date).getFullYear(),
+          endeMonat: g.plan[g.plan.length - 1]?.monate ?? 12,
+          restwertEndeJahr: g.restbuchwert,
+          jahresplan: g.plan.map((j) => ({
+            jahr: j.jahr,
+            monate: j.monate,
+            betrag: j.betrag,
+            restwert: j.restwert,
+          })),
+        }
+        : null,
+    }));
 
-      // Pro-rata-temporis: zeitanteilige AfA für das gewählte Jahr
-      let jahresAfa: number;
-      let proRata: ProRataAfaResult | null = null;
-      if (nutzungsdauer > 1) {
-        proRata = berechneProRataAfa(inv.netto, inv.date, nutzungsdauer, selectedYear);
-        jahresAfa = proRata.afaBetragImJahr;
-      } else {
-        // GWG / Sofortabzug: nur im Kaufjahr
-        const kaufJahr = new Date(inv.date).getFullYear();
-        jahresAfa = kaufJahr === selectedYear ? inv.netto : 0;
-      }
-
-      return {
-        invoice: inv,
-        assetType,
-        gwkKategorie: getGwgKategorie(inv.netto),
-        empfohlen: empfOption?.label ?? '',
-        jahresAfa,
-        nutzungsdauer,
-        proRata,
-      };
-    });
-
-    const afaJahresAbschreibung = afaItems.reduce((s, item) => s + item.jahresAfa, 0);
+    const afaJahresAbschreibung = Math.round(afaItems.reduce((sum, item) => sum + item.jahresAfa, 0) * 100) / 100;
 
     return { afaInvoices, gwgInvoices, afaGesamtNetto, gwgGesamtNetto, afaJahresAbschreibung, afaItems };
-  }, [invoices, yearInvoices, selectedYear]);
+  }, [invoices, yearInvoices, selectedYear, steuerregelung]);
 
-  // Steuerlicher Gewinn (EÜR) – netto-basiert (wie Steuerbericht.tsx)
-  // GWG = sofor-Betriebsausgabe (netto), nur anlagevermoegen_afa wird über AfA verteilt.
-  // Durch netto-Basis wird bei Regelbesteuerung die durchlaufende USt korrekt herausgerechnet.
-  const einnahmenNetto = useMemo(
-    () => yearInvoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.netto, 0),
-    [yearInvoices],
+  // ── Steuerlicher Gewinn ──
+  // Kommt aus derselben Funktion wie der Steuerbericht. Vorher rechnete das
+  // Dashboard hier eine eigene Variante: netto auch für Kleinunternehmer,
+  // ohne Zahlungsgebühren, mit Privateinlagen in den Einnahmen. Drei Zahlen
+  // für denselben Gewinn – und die Krankenkassenseite hatte noch eine vierte.
+  const profil: SteuerProfil = useMemo(() => ({
+    steuerregelung,
+    kmPauschale,
+    fahrzeugImBetriebsvermoegen,
+  }), [steuerregelung, kmPauschale, fahrzeugImBetriebsvermoegen]);
+
+  const afaJahresbetrag = afaData.afaJahresAbschreibung;
+
+  const euer = useMemo(
+    () => berechneEuer({
+      invoices,
+      jahr: selectedYear,
+      profil,
+      dienstKm: fahrtStats.kmDienst,
+      afaJahresbetrag,
+      reiseTageVoll,
+      reiseTageTeil,
+    }),
+    [invoices, selectedYear, profil, fahrtStats.kmDienst, afaJahresbetrag, reiseTageVoll, reiseTageTeil],
   );
-  const betriebsausgabenNettoOhneAnlage = useMemo(
-    () =>
-      yearInvoices
-        .filter(
-          (i) =>
-            i.type === 'ausgabe' &&
-            !nichtBetrieblich.includes(i.category) &&
-            i.category !== 'anlagevermoegen_afa',
-        )
-        .reduce((s, i) => s + i.netto, 0),
-    [yearInvoices],
+
+  const betriebsergebnisNachAfa = euer.gewinn;
+
+  const sonderausgabenGedeckelt = useMemo(
+    () => begrenzeSonderausgaben(euer.sonderausgabenRoh, selectedYear, {
+      selbstaendig: rechtsform !== 'angestellt',
+      gesamtbetragDerEinkuenfte: euer.gewinn,
+    }),
+    [euer.sonderausgabenRoh, euer.gewinn, selectedYear, rechtsform],
   );
-  // Nur anlagevermoegen_afa-Abschreibung (GWG bereits in betriebsausgabenNettoOhneAnlage)
-  const afaOnlyJahresAbschreibung = useMemo(
-    () =>
-      afaData.afaItems
-        .filter((item) => item.invoice.category === 'anlagevermoegen_afa')
-        .reduce((s, item) => s + item.jahresAfa, 0),
-    [afaData.afaItems],
+
+  const ruecklage = useMemo(
+    () => steuerRuecklage({
+      jahr: selectedYear,
+      gewinn: euer.gewinn,
+      sonderausgaben: sonderausgabenGedeckelt.abziehbar,
+      grundfreibetragManuell,
+      zusammenveranlagt: verheiratet,
+      kirchensteuerSatz,
+      gewerblich: rechtsform === 'gewerbetreibend',
+      gewerbesteuerHebesatz,
+    }),
+    [selectedYear, euer.gewinn, sonderausgabenGedeckelt.abziehbar, grundfreibetragManuell, verheiratet, kirchensteuerSatz, rechtsform, gewerbesteuerHebesatz],
   );
-  // km-Pauschale aus Fahrtenbuch als steuerliche Betriebsausgabe
-  const betriebsergebnisNachAfa = einnahmenNetto - betriebsausgabenNettoOhneAnlage - afaOnlyJahresAbschreibung - fahrtStats.absetzbar;
+
+  const kuStatus = useMemo(
+    () => kleinunternehmerStatus(invoices, selectedYear),
+    [invoices, selectedYear],
+  );
 
   // ── Gesamt-Kennzahlen (alle Jahre) ───────────────────────────────────────
   const gesamtData = useMemo(() => {
@@ -367,6 +425,9 @@ export function useDashboardData(): DashboardData {
     saldo,
     betriebsergebnis,
     betriebsergebnisNachAfa,
+    euer,
+    ruecklage,
+    kuStatus,
     sonderausgabenGesamt,
     recentCount,
     deltaEin,
@@ -393,13 +454,16 @@ export function useDashboardData(): DashboardData {
     fahrtKmDienst: fahrtStats.kmDienst,
     fahrtKmPrivat: fahrtStats.kmPrivat,
     fahrtKmGesamt: fahrtStats.kmGesamt,
-    fahrtAbsetzbar: fahrtStats.absetzbar,
+    // Aus der EÜR, nicht roh aus dem Fahrtenbuch: Gehört das Fahrzeug zum
+    // Betriebsvermögen, gibt es keine Kilometerpauschale, sondern die
+    // tatsächlichen Kosten.
+    fahrtAbsetzbar: euer.kmPauschaleBetrag,
     fahrtAnzahl: fahrtStats.fahrten.length,
     fahrtFahrten: fahrtStats.fahrten,
     fahrtKmDienstMonat: fahrtMonat.kmDienst,
     fahrtKmPrivatMonat: fahrtMonat.kmPrivat,
     fahrtKmGesamtMonat: fahrtMonat.kmGesamt,
-    fahrtAbsetzbarMonat: fahrtMonat.absetzbar,
+    fahrtAbsetzbarMonat: fahrzeugImBetriebsvermoegen ? 0 : fahrtMonat.absetzbar,
     fahrtAnzahlMonat: fahrtMonat.fahrten.length,
     fahrtFahrtenMonat: fahrtMonat.fahrten,
   };

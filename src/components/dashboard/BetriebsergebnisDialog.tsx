@@ -3,6 +3,9 @@ import { useDashboardContext } from './DashboardContext';
 import { fmtCurrency } from '@/lib/utils';
 import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
 import type { Category } from '@/types';
+import { istBetriebsausgabe, istBetriebseinnahme, laeuftUeberAfa } from '@/lib/steuer/kategorien';
+import { euerBetrag } from '@/lib/steuer/gewinn';
+import { useAppStore } from '@/store';
 import { Calculator, TrendingUp, TrendingDown, Info } from 'lucide-react';
 import {
   Dialog,
@@ -24,25 +27,34 @@ interface Props {
 }
 
 export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
-  const { privacyMode, yearInvoices, selectedYear, afaItems, afaJahresAbschreibung, fahrtAbsetzbar, fahrtKmDienst } = useDashboardContext();
+  const { privacyMode, yearInvoices, selectedYear, afaItems, afaJahresAbschreibung, fahrtAbsetzbar, fahrtKmDienst, euer } = useDashboardContext();
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
 
   const data = useMemo(() => {
-    const nichtBetrieblich: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
-
-    // Einnahmen nach Kategorie
-    const einnahmenInvoices = yearInvoices.filter((i) => i.type === 'einnahme');
+    // Cash zeigt jeden Geldeingang, die EÜR nur echte Betriebseinnahmen:
+    // Eine Privateinlage ist eigenes Geld und kein Gewinn, eine
+    // Umsatzsteuererstattung in der Nettorechnung ebenfalls nicht.
+    const alleEinnahmen = yearInvoices.filter((i) => i.type === 'einnahme');
+    const einnahmenInvoices = variant === 'cash'
+      ? alleEinnahmen
+      : alleEinnahmen.filter((i) => istBetriebseinnahme(i.category));
     const einnahmenGesamt = einnahmenInvoices.reduce((s, i) => s + i.brutto, 0);
-    // Netto-Einnahmen für EÜR
-    const einnahmenNettoGesamt = einnahmenInvoices.reduce((s, i) => s + i.netto, 0);
+    // Für die EÜR der Betrag, mit dem der Beleg in den Gewinn eingeht.
+    const einnahmenNettoGesamt = einnahmenInvoices.reduce(
+      (s, i) => s + euerBetrag(i, steuerregelung), 0,
+    );
 
     const einnahmenByCategory = new Map<Category, number>();
     for (const inv of einnahmenInvoices) {
       einnahmenByCategory.set(inv.category, (einnahmenByCategory.get(inv.category) ?? 0) + inv.brutto);
     }
 
-    // Betriebsausgaben nach Kategorie (ohne Sonder/Privat)
+    // Betriebsausgaben nach Kategorie. Die Frage „mindert das den Gewinn?"
+    // beantwortet allein das Steuer-Modul: Sonderausgaben, außergewöhnliche
+    // Belastungen (§ 33) und haushaltsnahe Leistungen (§ 35a) wirken erst
+    // hinter dem Gewinn und fallen hier heraus.
     const betriebsausgabenInvoices = yearInvoices.filter(
-      (i) => i.type === 'ausgabe' && !nichtBetrieblich.includes(i.category),
+      (i) => i.type === 'ausgabe' && istBetriebsausgabe(i.category),
     );
     const betriebsausgabenGesamt = betriebsausgabenInvoices.reduce((s, i) => s + i.brutto, 0);
 
@@ -73,15 +85,16 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
     const betriebsergebnisCashflow = einnahmenGesamt - betriebsausgabenGesamt;
 
     // ── Steuerlicher Gewinn (EÜR) – netto-basiert ─────────────────────────────
-    // GWG = Sofort-Betriebsausgabe (in ausgabenOhneAnlageNetto enthalten)
-    // Nur anlagevermoegen_afa wird über zeitanteilige AfA verteilt
+    // Der steuerliche Gewinn wird hier NICHT mehr selbst gerechnet. Diese
+    // Stelle hatte fünf Abweichungen von der EÜR: netto auch beim
+    // Kleinunternehmer, Privateinlagen in den Einnahmen, keine
+    // Bewirtungskürzung, keine Zahlungsgebühren und eine Kilometerpauschale,
+    // die das Fahrzeug im Betriebsvermögen nicht kannte.
     const ausgabenOhneAnlageNetto = betriebsausgabenInvoices
-      .filter((i) => i.category !== 'anlagevermoegen_afa')
-      .reduce((s, i) => s + i.netto, 0);
-    const afaOnlyAbschreibung = afaItems
-      .filter((item) => item.invoice.category === 'anlagevermoegen_afa')
-      .reduce((s, item) => s + item.jahresAfa, 0);
-    const betriebsergebnisNachAfa = einnahmenNettoGesamt - ausgabenOhneAnlageNetto - afaOnlyAbschreibung - fahrtAbsetzbar;
+      .filter((i) => !laeuftUeberAfa(i.category))
+      .reduce((s, i) => s + euerBetrag(i, steuerregelung), 0);
+    const afaOnlyAbschreibung = euer.afaJahresbetrag;
+    const betriebsergebnisNachAfa = euer.gewinn;
 
     // Für Anzeige: brutto-basierte ausgaben ohne AfA/GWG (Cash-Dialog)
     const ausgabenOhneAfaGwg = betriebsausgabenGesamt - afaVollkaufpreis - gwgVollkaufpreis;
@@ -102,7 +115,7 @@ export function BetriebsergebnisDialog({ open, onOpenChange, variant }: Props) {
       afaOnlyAbschreibung,
       betriebsergebnisNachAfa,
     };
-  }, [yearInvoices, afaItems, afaJahresAbschreibung, fahrtAbsetzbar]);
+  }, [yearInvoices, afaItems, afaJahresAbschreibung, fahrtAbsetzbar, variant, steuerregelung, euer]);
 
   const fmt = (v: number) => fmtCurrency(v, privacyMode);
 

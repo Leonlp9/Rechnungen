@@ -42,7 +42,11 @@ import { readFile } from '@tauri-apps/plugin-fs';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import { cn, fmtCurrency } from '@/lib/utils';
-import { berechneAfaOptionen, getGwgKategorie, empfohlenAfaMethode, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, berechneProRataAfa, berechnePoolAfaJahresplan, getNutzungsdauer } from '@/lib/afa';
+import { getGwgKategorie, guessAssetType, NUTZUNGSDAUER_LABELS, ASSET_TYPES, getNutzungsdauer } from '@/lib/afa';
+import {
+  abschreibungsplan, empfohleneMethode, moeglicheMethoden, istSelbstaendigNutzbar,
+  istDigitalesWirtschaftsgut, AFA_METHODE_LABELS, type AfaMethode,
+} from '@/lib/steuer/anlagen';
 import { StornoDialog } from './StornoDialog';
 import { PdfCanvasViewer } from './PdfCanvasViewer';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -867,7 +871,7 @@ export default function InvoiceDetail() {
 
             {/* AfA / GWG Hinweis – automatisch bei relevanten Kategorien */}
             {(watchedCategory === 'gwg' || watchedCategory === 'anlagevermoegen_afa') && form.watch('netto') > 0 && (
-                <AfaInfoBox netto={form.watch('netto')} category={watchedCategory} description={form.watch('description') ?? ''} partner={form.watch('partner') ?? ''} date={form.watch('date') ?? ''} />
+                <AfaInfoBox netto={form.watch('netto')} brutto={form.watch('brutto')} category={watchedCategory} description={form.watch('description') ?? ''} partner={form.watch('partner') ?? ''} date={form.watch('date') ?? ''} />
             )}
 
             <div className="space-y-1.5">
@@ -1132,36 +1136,68 @@ export default function InvoiceDetail() {
 
 // ─── AfA / GWG Hinweis-Box ─────────────────────────────────────────────────
 
-function AfaInfoBox({ netto, category, description, partner, date }: { netto: number; category: string; description: string; partner: string; date: string }) {
+function AfaInfoBox({ netto, brutto, category, description, partner, date }: { netto: number; brutto: number; category: string; description: string; partner: string; date: string }) {
   const detectedType = guessAssetType(description, partner);
   const [selectedType, setSelectedType] = useState(detectedType);
   const [selectedMethode, setSelectedMethode] = useState<string | null>(null);
   const [showPlan, setShowPlan] = useState(false);
+  const steuerregelung = useAppStore((s) => s.steuerregelung);
 
   // Vorauswahl aktualisieren wenn sich Beschreibung/Partner ändert
   useEffect(() => {
     setSelectedType(guessAssetType(description, partner));
     setSelectedMethode(null); // Methodenauswahl zurücksetzen bei neuem Typ
   }, [description, partner]);
-  const gwgLabel = getGwgKategorie(netto);
-  const empfohlen = empfohlenAfaMethode(netto);
-  const optionen = berechneAfaOptionen(netto, selectedType, false);
-  // Aktiv gewählte Option (oder empfohlene als Fallback)
-  const aktiveOption = optionen.find((o) => o.methode === (selectedMethode ?? empfohlen)) ?? optionen[optionen.length - 1];
-  const nutzungsdauer = aktiveOption?.nutzungsdauer ?? getNutzungsdauer(selectedType);
+
+  // Zwei verschiedene Beträge, und das ist kein Versehen: Die Wertgrenzen des
+  // § 6 Abs. 2 EStG werden am Nettobetrag gemessen, abgeschrieben wird beim
+  // Kleinunternehmer aber der Bruttobetrag – die nicht abziehbare Vorsteuer
+  // gehört dann zu den Anschaffungskosten (§ 9b Abs. 1 EStG).
+  const bemessung = steuerregelung === 'regelbesteuerung' ? netto : (brutto || netto);
+  const selbstaendigNutzbar = istSelbstaendigNutzbar(selectedType);
+  const gwgLabel = selbstaendigNutzbar
+    ? getGwgKategorie(netto)
+    : 'Nicht selbständig nutzbar – kein GWG (§ 6 Abs. 2 Satz 2 EStG)';
   const currentYear = new Date().getFullYear();
-  const isPool = (selectedMethode ?? empfohlen) === 'pool';
-  const proRata = nutzungsdauer > 1
-      ? (isPool
-          ? berechnePoolAfaJahresplan(netto, date, currentYear)
-          : berechneProRataAfa(netto, date, nutzungsdauer, currentYear))
-      : null;
+  const kaufJahr = date ? new Date(date).getFullYear() : currentYear;
+  const empfohlen = empfohleneMethode(netto, date || `${currentYear}-01-01`, selectedType, kaufJahr);
+  const methoden = moeglicheMethoden(netto, date || `${currentYear}-01-01`, selectedType, kaufJahr);
+  const aktiveMethode = (methoden.includes(selectedMethode as AfaMethode) ? selectedMethode : null) ?? empfohlen;
+  const nutzungsdauer = istDigitalesWirtschaftsgut(selectedType) ? 1 : getNutzungsdauer(selectedType);
+  const plan = date ? abschreibungsplan(bemessung, date, nutzungsdauer, aktiveMethode as AfaMethode) : [];
+  const proRata = plan.length > 1
+    ? {
+      afaBetragImJahr: plan.find((j) => j.jahr === currentYear)?.betrag ?? 0,
+      monateImJahr: plan.find((j) => j.jahr === currentYear)?.monate ?? 0,
+      volleJahresAfa: Math.round((bemessung / nutzungsdauer) * 100) / 100,
+      monatsAfa: Math.round((bemessung / nutzungsdauer / 12) * 100) / 100,
+      endeJahr: plan[plan.length - 1].jahr,
+      endeMonat: plan[plan.length - 1].monate,
+      restwertEndeJahr: plan.find((j) => j.jahr === currentYear)?.restwert ?? 0,
+      jahresplan: plan.map((j) => ({ jahr: j.jahr, monate: j.monate, betrag: j.betrag, restwert: j.restwert })),
+    }
+    : null;
+  const optionen = methoden.map((m) => {
+    const p = date ? abschreibungsplan(bemessung, date, nutzungsdauer, m) : [];
+    return {
+      methode: m,
+      label: AFA_METHODE_LABELS[m],
+      jahresAbschreibung: p.find((j) => j.jahr === kaufJahr)?.betrag ?? 0,
+      nutzungsdauer: m === 'pool' ? 5 : nutzungsdauer,
+      restwert: p.find((j) => j.jahr === kaufJahr)?.restwert ?? 0,
+    };
+  });
+  const aktiveOption = optionen.find((o) => o.methode === aktiveMethode);
+  // Der Sammelposten kennt keine zeitanteilige Aufteilung – dort ist die
+  // Monatsspalte sinnlos.
+  const isPool = aktiveMethode === 'pool';
 
   const fmtEur = (v: number) => v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 
-  // Warnung wenn falsche Kategorie gewählt
-  const sollGwg = netto <= 800;
-  const sollAfa = netto > 800;
+  // Warnung wenn falsche Kategorie gewählt. Peripherie ist auch unter 800 €
+  // kein GWG, deshalb hängt das nicht allein am Betrag.
+  const sollGwg = netto <= 800 && selbstaendigNutzbar;
+  const sollAfa = !sollGwg;
   const falscheKategorie = (category === 'gwg' && sollAfa) || (category === 'anlagevermoegen_afa' && sollGwg);
 
   return (

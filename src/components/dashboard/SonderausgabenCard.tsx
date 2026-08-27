@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Invoice, Category } from '@/types';
-import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, PRIVAT_CATEGORIES } from '@/types';
+import { CATEGORY_LABELS, PRIVAT_CATEGORIES } from '@/types';
+import { kategorienMitWirkung, wirkungVon } from '@/lib/steuer/kategorien';
 import { fmtCurrency } from '@/lib/utils';
 import { Heart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +21,15 @@ const ACCENT_COLORS: Record<string, string> = {
   privat: 'bg-gray-100 text-gray-600 dark:bg-gray-800/40 dark:text-gray-400',
 };
 
-const ALL_SPECIAL: Category[] = [...SONDERAUSGABEN_CATEGORIES, ...PRIVAT_CATEGORIES];
+// Aus der zentralen Tabelle, nicht aus zwei handgepflegten Listen: So sind
+// auch die Kategorien der Angestellten und die Posten nach § 33 und § 35a
+// dabei, die es früher nicht in diese Karte geschafft haben.
+const ALL_SPECIAL: Category[] = [
+  ...kategorienMitWirkung('sonderausgabe'),
+  ...kategorienMitWirkung('aussergewoehnlich'),
+  ...kategorienMitWirkung('haushaltsnah'),
+  ...PRIVAT_CATEGORIES,
+];
 
 export function SonderausgabenCard({ invoices, privacyMode, loading }: Props) {
   const { sonderRows, privatRows } = useMemo(() => {
@@ -36,7 +45,11 @@ export function SonderausgabenCard({ invoices, privacyMode, loading }: Props) {
       label: CATEGORY_LABELS[cat as Category] ?? cat,
     }));
     return {
-      sonderRows: entries.filter((r) => SONDERAUSGABEN_CATEGORIES.includes(r.cat as Category)).sort((a, b) => b.total - a.total),
+      // Alles, was privat abziehbar ist – Sonderausgaben, außergewöhnliche
+      // Belastungen und die Leistungen nach § 35a.
+      sonderRows: entries
+        .filter((r) => wirkungVon(r.cat) !== 'neutral')
+        .sort((a, b) => b.total - a.total),
       privatRows: entries.filter((r) => PRIVAT_CATEGORIES.includes(r.cat as Category)).sort((a, b) => b.total - a.total),
     };
   }, [invoices]);

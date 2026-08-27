@@ -67,11 +67,11 @@ export const CATEGORIES = [
   'sa_vorsorge',
   'sa_versicherungen',
   'sa_kinderbetreuung',
-  // ── Angestellte: Außergewöhnliche Belastungen ───────────
+  // ── Außergewöhnliche Belastungen (§ 33 EStG) ────────────
   'agb_krankheit',
   'agb_pflege',
   'agb_sonstige',
-  // ── Angestellte: Haushalt (§ 35a EStG) ──────────────────
+  // ── Haushaltsnahe Leistungen (§ 35a EStG) ───────────────
   'hh_dienstleistung',
   'hh_handwerker',
   // ── Info ────────────────────────────────────────────────
@@ -104,13 +104,26 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   marketing: 'Marketing & Werbung',
   miete: 'Miete & Raumkosten',
   reisekosten: 'Reisekosten',
-  bewirtungskosten: 'Bewirtungskosten (70 % absetzbar)',
+  // Bei der Bewirtung mindern nur 70 % den Gewinn (§ 4 Abs. 5 Satz 1 Nr. 2
+  // EStG). „Absetzbar" war hier zu unscharf, weil die Vorsteuer trotzdem zu
+  // 100 % gezogen werden darf – gekürzt wird allein der Gewinn.
+  bewirtungskosten: 'Bewirtungskosten (70 % mindern den Gewinn)',
   software_abos: 'Software & Abos',
   kommunikation: 'Telefon & Internet',
-  versicherungen_betrieb: 'Versicherungen (Betrieb)',
+  // Die Berufsgenossenschaft wird hier ausdrücklich genannt, damit ihre
+  // Beiträge nicht bei der Altersvorsorge landen: Die gesetzliche
+  // Unfallversicherung ist eine Betriebsausgabe.
+  versicherungen_betrieb: 'Versicherungen & Berufsgenossenschaft (Betrieb)',
   weiterbildung: 'Weiterbildung & Fachliteratur',
-  krankenkasse: 'Krankenversicherung',
-  sozialversicherung: 'Sozialversicherung / Altersvorsorge',
+  // Die Sonderausgaben stehen in derselben Auswahl wie die Betriebsausgaben
+  // und sehen dort aus, als würden sie den Gewinn mindern. Sie mindern aber
+  // erst eine Stufe später das zu versteuernde Einkommen (§ 10 EStG). Der
+  // Zusatz „nicht betrieblich" macht diesen Unterschied schon im Menü sichtbar.
+  krankenkasse: 'Krankenversicherung (Sonderausgabe, nicht betrieblich)',
+  // Bewusst nicht mehr „Sozialversicherung": Auch die Berufsgenossenschaft ist
+  // Sozialversicherung, gehört aber zu den Betriebsausgaben. Der alte Name hat
+  // ihre Beiträge in die falsche Zeile gezogen.
+  sozialversicherung: 'Altersvorsorge (Sonderausgabe, nicht betrieblich)',
   spenden: 'Spenden (Sonderausgabe)',
   privat: 'Privat (Kauf, nicht absetzbar)',
   privatentnahme: 'Privatentnahme (Überweisung an sich selbst)',
@@ -130,8 +143,11 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   sa_vorsorge: 'Vorsorge (Kranken-, Pflege-, Rentenversicherung)',
   sa_versicherungen: 'Weitere Versicherungen (Haftpflicht, BU, Unfall)',
   sa_kinderbetreuung: 'Kinderbetreuung',
-  agb_krankheit: 'Krankheitskosten',
-  agb_pflege: 'Pflegekosten',
+  // Diese drei stehen jetzt auch in der Ausgabenliste der Selbständigen, direkt
+  // unter den Betriebsausgaben. „Krankheitskosten" allein hätte dort so
+  // ausgesehen, als würde es den Gewinn mindern – deshalb der Zusatz.
+  agb_krankheit: 'Krankheitskosten (außergewöhnliche Belastung)',
+  agb_pflege: 'Pflegekosten (außergewöhnliche Belastung)',
   agb_sonstige: 'Sonstige außergewöhnliche Belastungen',
   hh_dienstleistung: 'Haushaltsnahe Dienstleistung (§ 35a)',
   hh_handwerker: 'Handwerkerleistung (§ 35a)',
@@ -174,6 +190,16 @@ export const EXPENSE_CATEGORIES: Category[] = [
   'krankenkasse',
   'sozialversicherung',
   'spenden',
+  // Außergewöhnliche Belastungen und haushaltsnahe Leistungen standen bisher
+  // nur Angestellten zur Verfügung. Beide hängen aber am privaten Einkommen
+  // und nicht am Betrieb: Ein Selbständiger zahlt genauso seine Krankheits-
+  // kosten und lässt genauso den Handwerker kommen. Ohne diese Zeilen konnte
+  // er die Belege nirgends erfassen und hat den Abzug schlicht verschenkt.
+  'agb_krankheit',
+  'agb_pflege',
+  'agb_sonstige',
+  'hh_dienstleistung',
+  'hh_handwerker',
   'privat',
   'privatentnahme',
   'sonstiges',
@@ -194,12 +220,15 @@ export const LEGACY_CATEGORIES: Category[] = ['einnahmen'];
 // Steuererklärung, was von der Anlage N und den Sonderausgaben abgedeckt ist –
 // und was das Finanzamt nach § 35a EStG direkt von der Steuer abzieht.
 //
-// Die Werte, die dazugehören (Stand 2026):
-//   Arbeitnehmer-Pauschbetrag   1.230 € – erst darüber lohnen sich Belege
-//   Entfernungspauschale        0,38 €/km ab dem ersten Kilometer
-//   Homeoffice-Pauschale        6 €/Tag, höchstens 210 Tage (1.260 €)
-//   § 35a Dienstleistungen      20 % von max. 20.000 € (höchstens 4.000 €)
-//   § 35a Handwerker            20 % von max. 6.000 € (höchstens 1.200 €)
+// Die Beträge dazu stehen bewusst nicht mehr hier, sondern in
+// `src/lib/steuer/jahreswerte.ts`. Arbeitnehmer-Pauschbetrag,
+// Entfernungspauschale und Homeoffice-Pauschale ändern sich jährlich, und eine
+// zweite Liste im Kommentar wäre nach dem nächsten Steueränderungsgesetz falsch.
+//
+// Nicht alles unterhalb dieser Überschrift gehört allein den Angestellten: Die
+// außergewöhnlichen Belastungen (§ 33 EStG) und die haushaltsnahen Leistungen
+// (§ 35a EStG) hängen am privaten Einkommen und stehen jedem zu. Sie stehen
+// deshalb in beiden Ausgabenlisten.
 
 export const EMPLOYEE_INCOME_CATEGORIES: Category[] = [
   'gehalt',
@@ -223,7 +252,7 @@ export const WERBUNGSKOSTEN_CATEGORIES: Category[] = [
   'wk_sonstige',
 ];
 
-/** Sonderausgaben – Vorsorge, Versicherungen, Spenden, Kirchensteuer. */
+/** Sonderausgaben – Vorsorge, weitere Versicherungen, Kinderbetreuung, Spenden. */
 export const EMPLOYEE_SONDERAUSGABEN_CATEGORIES: Category[] = [
   'sa_vorsorge',
   'sa_versicherungen',
@@ -231,14 +260,22 @@ export const EMPLOYEE_SONDERAUSGABEN_CATEGORIES: Category[] = [
   'spenden',
 ];
 
-/** Außergewöhnliche Belastungen – wirken erst über der zumutbaren Belastung. */
+/**
+ * Außergewöhnliche Belastungen – wirken erst über der zumutbaren Belastung.
+ * Gilt für Angestellte und Selbständige gleichermaßen, weil § 33 EStG am
+ * Einkommen ansetzt und nicht am Betrieb.
+ */
 export const AUSSERGEWOEHNLICHE_CATEGORIES: Category[] = [
   'agb_krankheit',
   'agb_pflege',
   'agb_sonstige',
 ];
 
-/** Haushaltsnahe Leistungen – 20 % gehen direkt von der Steuer ab (§ 35a). */
+/**
+ * Haushaltsnahe Leistungen – 20 % gehen direkt von der Steuer ab (§ 35a).
+ * Auch das ist kein Angestellten-Thema: Die Ermäßigung hängt am eigenen
+ * Haushalt, nicht an der Art der Einkünfte.
+ */
 export const HAUSHALT_CATEGORIES: Category[] = [
   'hh_dienstleistung',
   'hh_handwerker',
@@ -253,13 +290,15 @@ export const EMPLOYEE_EXPENSE_CATEGORIES: Category[] = [
   'sonstiges',
 ];
 
-/** Alles, was nur Angestellte sehen sollen. */
+/**
+ * Alles, was nur Angestellte sehen sollen. Die außergewöhnlichen Belastungen
+ * und die haushaltsnahen Leistungen gehören nicht mehr dazu – sie stehen jetzt
+ * auch in der Ausgabenliste der Selbständigen, genau wie die Spenden.
+ */
 export const EMPLOYEE_ONLY_CATEGORIES: Category[] = [
   ...EMPLOYEE_INCOME_CATEGORIES.filter((c) => c !== 'erstattungen' && c !== 'sonstige_einnahmen'),
   ...WERBUNGSKOSTEN_CATEGORIES,
   ...EMPLOYEE_SONDERAUSGABEN_CATEGORIES.filter((c) => c !== 'spenden'),
-  ...AUSSERGEWOEHNLICHE_CATEGORIES,
-  ...HAUSHALT_CATEGORIES,
 ];
 
 export function getCategoriesForType(type: InvoiceType, angestellt = false): Category[] {
@@ -358,6 +397,13 @@ export function getCategoriesForBranche(
 
 // ─── Sonder- / Privat-Kategorien ─────────────────────────────────────────────
 
+/**
+ * Die echten Sonderausgaben (§ 10 EStG). Diese Liste ist ausdrücklich nicht
+ * dasselbe wie „mindert den Gewinn nicht": Außergewöhnliche Belastungen und
+ * haushaltsnahe Leistungen stehen hier nicht drin, wirken aber ebenfalls erst
+ * hinter dem Gewinn. Wer alle nicht betrieblichen Belege sucht, fragt deshalb
+ * besser `istBetriebsausgabe` aus `src/lib/steuer/kategorien.ts`.
+ */
 export const SONDERAUSGABEN_CATEGORIES: Category[] = [
   'spenden',
   'krankenkasse',

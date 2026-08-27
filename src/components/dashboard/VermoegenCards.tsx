@@ -8,7 +8,7 @@ import { Wallet, TrendingUp, TrendingDown, PiggyBank, Calculator, ShieldCheck, P
 
 /** Vermögens-Check: Was bleibt nach Steuern & Verbindlichkeiten? */
 export function VermoegenCheckCard() {
-  const { loading, privacyMode, gesamtSaldo, afaItems, selectedYear, betriebsergebnisNachAfa } = useDashboardContext();
+  const { loading, privacyMode, gesamtSaldo, afaItems, selectedYear, betriebsergebnisNachAfa, ruecklage, euer } = useDashboardContext();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
 
   const data = useMemo(() => {
@@ -23,20 +23,19 @@ export function VermoegenCheckCard() {
     // GWG: Sofort abgeschrieben, Buchwert = 0, aber als Info
     const gwgAnschaffung = afaItems
       .filter((item) => item.nutzungsdauer <= 1)
-      .reduce((sum, item) => sum + item.invoice.netto, 0);
+      .reduce((sum, item) => sum + item.bemessung, 0);
     const gwgAnzahl = afaItems.filter((item) => item.nutzungsdauer <= 1).length;
 
-    // Steuerrücklage
-    const GRUNDFREIBETRAG = 12_348;
-    const zuVersteuern = Math.max(0, betriebsergebnisNachAfa - GRUNDFREIBETRAG);
-    const steuerruecklage = Math.round(zuVersteuern * 0.3 * 100) / 100;
+    // Die Rücklage kommt aus dem Steuermodul: echter Tarif nach § 32a EStG,
+    // Sonderausgaben abgezogen, dazu Soli, Kirchen- und Gewerbesteuer. Hier
+    // stand vorher ein fester Grundfreibetrag von 12.348 € und die alte
+    // 30-Prozent-Faustregel – genau die Rechnung, die ersetzt werden sollte.
+    const steuerruecklage = ruecklage.ruecklage;
 
-    // USt-Zahllast (nur Regelbesteuerung)
-    let ustZahllast = 0;
-    if (steuerregelung !== 'kleinunternehmer') {
-      // simplified – actual calculation is in DashboardElementNode
-      ustZahllast = 0; // We don't have yearInvoices here in gesamt context
-    }
+    // Zahllast aus der EÜR. Beim Kleinunternehmer ist sie dort ohnehin null,
+    // ein Überschuss (Vorsteuer größer als Umsatzsteuer) ist keine Schuld und
+    // gehört deshalb nicht unter die Passiva.
+    const ustZahllast = Math.max(0, euer.zahllast);
 
     // Gesamt-Aktiva
     const aktiva = cash + anlagenRestwert;
@@ -155,11 +154,11 @@ export function InvestitionsSpiegelCard() {
       .map((item) => ({
         label: item.invoice.partner || item.invoice.description,
         typ: NUTZUNGSDAUER_LABELS[item.assetType] ?? item.assetType,
-        kaufpreis: item.invoice.netto,
+        kaufpreis: item.bemessung,
         restwert: item.proRata?.restwertEndeJahr ?? 0,
-        abgeschrieben: item.invoice.netto - (item.proRata?.restwertEndeJahr ?? 0),
-        prozent: item.invoice.netto > 0
-          ? Math.round(((item.invoice.netto - (item.proRata?.restwertEndeJahr ?? 0)) / item.invoice.netto) * 100)
+        abgeschrieben: item.bemessung - (item.proRata?.restwertEndeJahr ?? 0),
+        prozent: item.bemessung > 0
+          ? Math.round(((item.bemessung - (item.proRata?.restwertEndeJahr ?? 0)) / item.bemessung) * 100)
           : 100,
         endeJahr: item.proRata?.endeJahr ?? selectedYear,
         isGwg: false,
@@ -171,7 +170,7 @@ export function InvestitionsSpiegelCard() {
       .map((item) => ({
         label: item.invoice.partner || item.invoice.description,
         typ: NUTZUNGSDAUER_LABELS[item.assetType] ?? item.assetType,
-        kaufpreis: item.invoice.netto,
+        kaufpreis: item.bemessung,
         restwert: 0,
         abgeschrieben: item.invoice.netto,
         prozent: 100,

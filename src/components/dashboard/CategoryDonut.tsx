@@ -7,7 +7,8 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import type { Invoice } from '@/types';
-import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES, type Category } from '@/types';
+import { CATEGORY_LABELS, type Category } from '@/types';
+import { istBetriebsausgabe } from '@/lib/steuer/kategorien';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClickableLegend } from './ClickableLegend';
 import { ChartCustomTooltip } from './ChartCustomTooltip';
@@ -29,7 +30,10 @@ export function CategoryDonut({ invoices, privacyMode, loading }: Props) {
     const map = new Map<string, number>();
     for (const inv of invoices) {
       if (inv.type !== 'ausgabe') continue;
-      if (SONDERAUSGABEN_CATEGORIES.includes(inv.category as Category)) continue;
+      // Nur was den Gewinn mindert, gehört in die Ausgabenverteilung.
+    // Sonderausgaben, außergewöhnliche Belastungen, § 35a und Privates
+    // wirken woanders und standen hier früher wie Betriebsausgaben daneben.
+    if (!istBetriebsausgabe(inv.category)) continue;
       map.set(inv.category, (map.get(inv.category) ?? 0) + inv.brutto);
     }
     return Array.from(map.entries())

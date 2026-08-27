@@ -76,6 +76,60 @@ function calcTaxRate(netto: number, ust: number): number {
 }
 
 /**
+ * Bestimmt Steuerkategorie (BT-118) und Befreiungsgrund (BT-120) eines Belegs.
+ *
+ * Die frühere Fassung hat jede Rechnung ohne ausgewiesene Umsatzsteuer zum
+ * Kleinunternehmer erklärt und dazu den Code „VATEX-EU-132-1-F" gesendet. Das
+ * war doppelt falsch: Diese Schreibweise gibt es in der VATEX-Liste nicht, und
+ * inhaltlich betrifft Art. 132 Abs. 1 Buchst. f MwStSystRL Leistungen
+ * selbständiger Personenzusammenschlüsse an ihre Mitglieder – mit § 19 UStG
+ * hat das nichts zu tun. Für die Kleinunternehmerregelung gibt es überhaupt
+ * keinen passenden VATEX-Code, deshalb bleibt BT-121 (TaxExemptionReasonCode)
+ * leer und der Grund steht nur als Freitext in BT-120.
+ *
+ * Ebenso wichtig ist die Unterscheidung dahinter: Eine Rechnung ohne Steuer
+ * ist nicht automatisch eine Kleinunternehmerrechnung. Bei Reverse Charge
+ * schuldet der Leistungsempfänger die Steuer – das ist keine Befreiung,
+ * sondern eine eigene Kategorie („AE"). Welcher Fall vorliegt, verrät die
+ * Kategorie des Belegs; die Steuerregelung selbst steht im Store, auf den
+ * diese Datei bewusst keinen Zugriff hat.
+ */
+function steuerKategorieFuer(
+  invoice: Invoice,
+  netto: number,
+  ust: number,
+): { code: string; grund: string } {
+  // Sobald Umsatzsteuer ausgewiesen ist, bleibt es der Regelfall „S" – egal,
+  // welche Kategorie am Beleg hängt. Ein Betrag ohne Netto ist ebenfalls kein
+  // Befreiungsfall, sondern ein unvollständiger Beleg.
+  const zeigtSteuer = Math.abs(ust) >= 0.005;
+  const hatNetto = Math.abs(netto) >= 0.005;
+  if (zeigtSteuer || !hatNetto) return { code: 'S', grund: '' };
+
+  if (invoice.category === 'reverse_charge') {
+    return {
+      code: 'AE',
+      grund: 'Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge, § 13b UStG).',
+    };
+  }
+
+  if (invoice.category === 'umsatz_steuerfrei') {
+    return {
+      code: 'E',
+      grund: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+    };
+  }
+
+  // Alles Übrige ohne Steuerausweis ist ein steuerfreier Umsatz, dessen Grund
+  // die App nicht kennt. Der Freitext sagt genau das, statt einen Grund zu
+  // erfinden, der bei einer Prüfung nicht trägt.
+  return {
+    code: 'E',
+    grund: 'Steuerfreier Umsatz – ohne Ausweis von Umsatzsteuer.',
+  };
+}
+
+/**
  * Baut eine XRechnung-konforme XML-Zeichenkette (UBL 2.1 / EN 16931).
  */
 export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): string {
@@ -103,15 +157,16 @@ export function buildXRechnungXml(invoice: Invoice, profile: XRechnungProfile): 
     ? `<cbc:CompanyID schemeID="VAT">${esc(profile.vatId)}</cbc:CompanyID>`
     : `<cbc:CompanyID schemeID="FC">${esc(profile.taxNumber)}</cbc:CompanyID>`;
 
-  // Steuerbefreiungsgrund für Kleinunternehmer (§ 19 UStG)
-  const isKleinunternehmer = invoice.ust === 0 && invoice.netto > 0;
-  const taxExemptionNote = isKleinunternehmer
-    ? `<cbc:TaxExemptionReasonCode>VATEX-EU-132-1-F</cbc:TaxExemptionReasonCode>
-            <cbc:TaxExemptionReason>Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.</cbc:TaxExemptionReason>`
+  // Steuerkategorie und Befreiungsgrund: S = Regelfall, E = steuerfrei,
+  // AE = Steuerschuldnerschaft des Leistungsempfängers. Entschieden wird nach
+  // den Beträgen der Belegwährung, weil genau diese im Dokument stehen.
+  const { code: taxCategoryCode, grund: taxExemptionReason } = steuerKategorieFuer(invoice, nettoRaw, ustRaw);
+  // BT-121 (TaxExemptionReasonCode) bleibt bewusst weg – siehe die Begründung
+  // an steuerKategorieFuer.
+  const taxExemptionNote = taxExemptionReason
+    ? `<!-- BT-120: Grund der Steuerbefreiung -->
+        <cbc:TaxExemptionReason>${esc(taxExemptionReason)}</cbc:TaxExemptionReason>`
     : '';
-
-  // Kategoriecode: S = Standard, E = befreit
-  const taxCategoryCode = isKleinunternehmer ? 'E' : 'S';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <ubl:Invoice xmlns:ubl="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"

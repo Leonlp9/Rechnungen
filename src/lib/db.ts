@@ -1011,7 +1011,11 @@ export const fahrtenbuch = {
     const privat = fahrten.filter(f => f.art === 'privat');
     const kmDienst = dienst.reduce((s, f) => s + f.km, 0);
     const kmPrivat = privat.reduce((s, f) => s + f.km, 0);
-    // Konfigurierbare km-Pauschale (Standard: 0,30 €/km; ab 2022: 0,38 €/km ab km 21)
+    // Reisekostenpauschale für Dienstfahrten: 0,30 € je tatsächlich
+    // gefahrenem Kilometer (§ 9 Abs. 1 Nr. 4a EStG), ohne Höchstbetrag.
+    // Nicht zu verwechseln mit der Entfernungspauschale für den Weg zur
+    // Arbeit – die ist gestaffelt, gedeckelt und zählt nur die einfache
+    // Strecke. Sie steht in src/lib/steuer/jahreswerte.ts.
     const absetzbar = kmDienst * kmPauschale;
     return { kmDienst, kmPrivat, kmGesamt: kmDienst + kmPrivat, absetzbar, fahrten };
   },

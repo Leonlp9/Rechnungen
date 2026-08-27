@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { getAllInvoices, fahrtenbuch } from '@/lib/db';
 import type { Invoice } from '@/types';
-import { CATEGORY_LABELS, SONDERAUSGABEN_CATEGORIES } from '@/types';
+import { CATEGORY_LABELS } from '@/types';
 import { useAppStore } from '@/store';
 import { fmtCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -11,15 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { FileText, TrendingUp, TrendingDown, Download, Calculator, PiggyBank, Receipt } from 'lucide-react';
-import { exportToDatev, exportToXlsx } from '@/lib/export';
-import {
-  berechneAfaOptionen, empfohlenAfaMethode, guessAssetType,
-  berechneProRataAfa, getNutzungsdauer, NUTZUNGSDAUER_LABELS,
-} from '@/lib/afa';
+import { exportToSteuerberaterCsv, exportToXlsx } from '@/lib/export';
+import { berechneEuer, type SteuerProfil } from '@/lib/steuer/gewinn';
+import { berechneAnlagegueter, afaJeKategorie, AFA_METHODE_LABELS } from '@/lib/steuer/anlagen';
+import { steuerRuecklage, begrenzeSonderausgaben, tarifIstGepflegt } from '@/lib/steuer/tarif';
+import { werteFuer, istFortgeschrieben } from '@/lib/steuer/jahreswerte';
+import { WIRKUNG_KURZ, WIRKUNG_ERKLAERUNG, regelFuer } from '@/lib/steuer/kategorien';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
+import { FormGroup, FormRow, FIELD } from '@/components/ui/form-list';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,53 +32,6 @@ import { ChevronDown } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
-// Betriebsausgaben-Kategorien (absetzbar), ohne AfA (die separat behandelt wird)
-const BETRIEBSAUSGABEN_CATS_OHNE_AFA = [
-  'gwg', 'buerobedarf', 'fahrzeugkosten', 'fremdleistungen',
-  'marketing', 'miete', 'reisekosten', 'bewirtungskosten', 'software_abos',
-  'kommunikation', 'versicherungen_betrieb', 'weiterbildung', 'sonstiges',
-];
-const BETRIEBSAUSGABEN_CATS = [...BETRIEBSAUSGABEN_CATS_OHNE_AFA, 'anlagevermoegen_afa'];
-
-interface AfaItem {
-  invoice: Invoice;
-  assetType: string;
-  jahresAfa: number;
-  nutzungsdauer: number;
-  methode: string;
-  kaufPreis: number;
-}
-
-function berechneAfaItems(invoices: Invoice[], year: number): AfaItem[] {
-  return invoices
-    .filter((i) => i.category === 'anlagevermoegen_afa')
-    .map((inv) => {
-      const assetType = guessAssetType(inv.description, inv.partner);
-      const optionen = berechneAfaOptionen(inv.netto, assetType);
-      const empf = empfohlenAfaMethode(inv.netto);
-      const empfOption = optionen.find((o) => o.methode === empf);
-      const nutzungsdauer = empfOption?.nutzungsdauer ?? getNutzungsdauer(assetType);
-
-      let jahresAfa: number;
-      if (nutzungsdauer <= 1) {
-        const kaufJahr = new Date(inv.date).getFullYear();
-        jahresAfa = kaufJahr === year ? inv.netto : 0;
-      } else {
-        const proRata = berechneProRataAfa(inv.netto, inv.date, nutzungsdauer, year);
-        jahresAfa = proRata.afaBetragImJahr;
-      }
-
-      return {
-        invoice: inv,
-        assetType,
-        jahresAfa,
-        nutzungsdauer,
-        methode: empfOption?.label ?? 'Lineare AfA',
-        kaufPreis: inv.netto,
-      };
-    });
-}
-
 export default function SteuerbrichtPage() {
   const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,11 +40,19 @@ export default function SteuerbrichtPage() {
   const privacyMode = useAppStore((s) => s.privacyMode);
   const isMobile = useIsMobile();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
-  const grundfreibetrag = useAppStore((s) => s.grundfreibetrag);
   const kmPauschale = useAppStore((s) => s.kmPauschale);
+  const rechtsform = useAppStore((s) => s.rechtsform);
+  const fahrzeugImBetriebsvermoegen = useAppStore((s) => s.fahrzeugImBetriebsvermoegen);
+  const verheiratet = useAppStore((s) => s.verheiratet);
+  const kirchensteuerSatz = useAppStore((s) => s.kirchensteuerSatz);
+  const gewerbesteuerHebesatz = useAppStore((s) => s.gewerbesteuerHebesatz);
+  const grundfreibetragManuell = useAppStore((s) => s.grundfreibetragManuell);
+  const reiseTageVoll = useAppStore((s) => s.reiseTageVoll);
+  const setReiseTageVoll = useAppStore((s) => s.setReiseTageVoll);
+  const reiseTageTeil = useAppStore((s) => s.reiseTageTeil);
+  const setReiseTageTeil = useAppStore((s) => s.setReiseTageTeil);
 
   // Fahrtenbuch km-Pauschale für das gewählte Jahr
-  const [fahrtAbsetzbar, setFahrtAbsetzbar] = useState(0);
   const [fahrtKmDienst, setFahrtKmDienst] = useState(0);
 
   // dataVersion: nach einem Cloud-Sync neu laden, ohne Seitenwechsel
@@ -104,7 +67,7 @@ export default function SteuerbrichtPage() {
 
   useEffect(() => {
     fahrtenbuch.getJahresauswertung(selectedYear, kmPauschale)
-      .then((d) => { setFahrtAbsetzbar(d.absetzbar); setFahrtKmDienst(d.kmDienst); })
+      .then((d) => setFahrtKmDienst(d.kmDienst))
       .catch(console.error);
   }, [selectedYear, kmPauschale, dataVersion]);
 
@@ -119,77 +82,108 @@ export default function SteuerbrichtPage() {
     return ys;
   }, [allInvoices]);
 
-  // --- EÜR-Berechnungen ---
-  const einnahmen = useMemo(() =>
-    invoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.netto, 0), [invoices]);
+  // ── Die Rechnung ──
+  // Alles kommt aus src/lib/steuer. Vorher stand die EÜR hier als eine Reihe
+  // handgepflegter Kategorienlisten, und Dashboard und Krankenkassenseite
+  // führten ihre eigenen – drei Zahlen für denselben Gewinn.
+  const profil: SteuerProfil = useMemo(() => ({
+    steuerregelung,
+    kmPauschale,
+    fahrzeugImBetriebsvermoegen,
+  }), [steuerregelung, kmPauschale, fahrzeugImBetriebsvermoegen]);
 
-  // Reguläre Betriebsausgaben (ohne Anlagevermögen/AfA)
-  const betriebsausgabenOhneAfa = useMemo(() =>
-    invoices
-      .filter((i) => i.type === 'ausgabe' && BETRIEBSAUSGABEN_CATS_OHNE_AFA.includes(i.category))
-      .reduce((s, i) => s + i.netto, 0), [invoices]);
+  // Die Abschreibung braucht alle Jahre: Ein Gerät aus 2024 wird 2026 noch
+  // abgeschrieben. Deshalb `allInvoices`, nicht die Belege des Jahres.
+  const anlagegueter = useMemo(
+    () => berechneAnlagegueter(allInvoices, selectedYear, steuerregelung),
+    [allInvoices, selectedYear, steuerregelung],
+  );
+  const afaJahresgesamt = useMemo(
+    () => Math.round(anlagegueter.reduce((sum, a) => sum + a.jahresAfa, 0) * 100) / 100,
+    [anlagegueter],
+  );
+  const afaKategorien = useMemo(() => afaJeKategorie(anlagegueter), [anlagegueter]);
 
-  // Kaufpreis Anlagevermögen (wie cash-Flow)
-  const anlagevermoegen_kaufpreis = useMemo(() =>
-    invoices
-      .filter((i) => i.type === 'ausgabe' && i.category === 'anlagevermoegen_afa')
-      .reduce((s, i) => s + i.netto, 0), [invoices]);
+  const euer = useMemo(
+    () => berechneEuer({
+      invoices: allInvoices,
+      jahr: selectedYear,
+      profil,
+      dienstKm: fahrtKmDienst,
+      afaJahresbetrag: afaJahresgesamt,
+      reiseTageVoll,
+      reiseTageTeil,
+      afaJeKategorie: afaKategorien,
+    }),
+    [allInvoices, selectedYear, profil, fahrtKmDienst, afaJahresgesamt, reiseTageVoll, reiseTageTeil, afaKategorien],
+  );
 
-  // AfA-Berechnung
-  const afaItems = useMemo(() => {
-    // Auch Vorjahres-Anlagen einbeziehen (aus allen Jahren)
-    const alleAfaInvoices = allInvoices.filter((i) => i.category === 'anlagevermoegen_afa');
-    return berechneAfaItems(alleAfaInvoices, selectedYear);
-  }, [allInvoices, selectedYear]);
+  const jahreswerte = werteFuer(selectedYear);
+  const grundfreibetrag = grundfreibetragManuell > 0 ? grundfreibetragManuell : jahreswerte.grundfreibetrag;
 
-  const afaJahresgesamt = useMemo(() => afaItems.reduce((s, a) => s + a.jahresAfa, 0), [afaItems]);
+  // Die Rücklage rechnet jetzt den Tarif des § 32a EStG statt pauschaler 30 %
+  // – und zieht die Sonderausgaben ab, die vorher gar nicht vorkamen.
+  // Die Höchstbeträge des § 10 EStG anwenden, bevor die Rücklage gerechnet
+  // wird. Roh addiert wären Spenden und sonstige Vorsorge in voller Höhe
+  // abgezogen worden, obwohl beide gedeckelt sind.
+  const sonderausgabenGedeckelt = useMemo(
+    () => begrenzeSonderausgaben(euer.sonderausgabenRoh, selectedYear, {
+      selbstaendig: true,
+      gesamtbetragDerEinkuenfte: euer.gewinn,
+    }),
+    [euer.sonderausgabenRoh, euer.gewinn, selectedYear],
+  );
 
-  // Steuerliche Betriebsausgaben: reguläre + AfA statt vollem Kaufpreis + km-Pauschale Fahrtenbuch
-  const betriebsausgabenSteuerlich = betriebsausgabenOhneAfa + afaJahresgesamt + fahrtAbsetzbar;
-  // Cash-Betriebsausgaben: reguläre + voller Kaufpreis (ohne km-Pauschale – kein echtes Cash)
-  const betriebsausgabenCash = betriebsausgabenOhneAfa + anlagevermoegen_kaufpreis;
+  const ruecklage = useMemo(
+    () => steuerRuecklage({
+      jahr: selectedYear,
+      gewinn: euer.gewinn,
+      sonderausgaben: sonderausgabenGedeckelt.abziehbar,
+      grundfreibetragManuell,
+      zusammenveranlagt: verheiratet,
+      kirchensteuerSatz,
+      gewerblich: rechtsform === 'gewerbetreibend',
+      gewerbesteuerHebesatz,
+    }),
+    [selectedYear, euer.gewinn, sonderausgabenGedeckelt.abziehbar, grundfreibetragManuell, verheiratet, kirchensteuerSatz, rechtsform, gewerbesteuerHebesatz],
+  );
 
-  const sonderausgaben = useMemo(() =>
-    invoices
-      .filter((i) => i.type === 'ausgabe' && (SONDERAUSGABEN_CATEGORIES as readonly string[]).includes(i.category))
-      .reduce((s, i) => s + i.netto, 0), [invoices]);
+  // Namen, die der Rest der Seite schon benutzt.
+  const fahrtAbsetzbar = euer.kmPauschaleBetrag;
+  const einnahmen = euer.betriebseinnahmen;
+  const betriebsausgabenSteuerlich = euer.betriebsausgaben;
+  const betriebsausgabenCash = Math.round((
+    euer.cashAusgaben - euer.sonderausgaben - euer.privat
+    - euer.aussergewoehnlicheBelastungen - euer.haushaltsnaheKosten - euer.handwerkerKosten
+  ) * 100) / 100;
+  const gewinnSteuerlich = euer.gewinn;
+  const gewinnCash = Math.round((euer.cashEinnahmen - betriebsausgabenCash) * 100) / 100;
+  const steuerruecklage = ruecklage.ruecklage;
+  const ustEinnahmen = euer.umsatzsteuer;
+  const vorsteuer = euer.vorsteuer;
+  const ustZahllast = euer.zahllast;
+  const sonderausgaben = euer.sonderausgaben;
+  const anlagevermoegen_kaufpreis = euer.anlagenZugang;
+  const einnahmenByKat = euer.einnahmenNachKategorie;
+  const ausgabenByKat = euer.ausgabenNachKategorie;
 
-  // Steuerlicher Gewinn (EÜR) = Einnahmen - steuerliche Betriebsausgaben
-  const gewinnSteuerlich = einnahmen - betriebsausgabenSteuerlich;
-  // Cash-Gewinn = Einnahmen - tatsächliche Ausgaben
-  const gewinnCash = einnahmen - betriebsausgabenCash;
-
-  const steuerruecklage = Math.max(0, (gewinnSteuerlich - grundfreibetrag) * 0.30);
-
-  const ustEinnahmen = invoices.filter((i) => i.type === 'einnahme').reduce((s, i) => s + (i.ust ?? 0), 0);
-  const vorsteuer = invoices.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + (i.ust ?? 0), 0);
-  const ustZahllast = ustEinnahmen - vorsteuer;
-
-  // Einnahmen nach Kategorie
-  const einnahmenByKat = useMemo(() => {
-    const map = new Map<string, number>();
-    invoices.filter((i) => i.type === 'einnahme')
-      .forEach((i) => map.set(i.category, (map.get(i.category) ?? 0) + i.netto));
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [invoices]);
-
-  // Ausgaben nach Kategorie (mit AfA-Hinweis)
-  const ausgabenByKat = useMemo(() => {
-    const map = new Map<string, number>();
-    invoices.filter((i) => i.type === 'ausgabe')
-      .forEach((i) => map.set(i.category, (map.get(i.category) ?? 0) + i.netto));
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [invoices]);
-
-  // Monatliche Übersicht
+  // Monatliche Übersicht – Cash, damit sie zum Kontoauszug passt.
   const monthly = useMemo(() => {
     return Array.from({ length: 12 }, (_, m) => {
       const mi = invoices.filter((i) => i.month === m + 1);
-      const ein = mi.filter((i) => i.type === 'einnahme').reduce((s, i) => s + i.netto, 0);
-      const aus = mi.filter((i) => i.type === 'ausgabe').reduce((s, i) => s + i.netto, 0);
+      const ein = mi.filter((i) => i.type === 'einnahme').reduce((sum, i) => sum + i.brutto, 0);
+      const aus = mi.filter((i) => i.type === 'ausgabe').reduce((sum, i) => sum + i.brutto, 0);
       return { label: MONTH_NAMES[m], einnahmen: ein, ausgaben: aus, saldo: ein - aus };
     });
   }, [invoices]);
+
+  // Reverse Charge trifft auch Kleinunternehmer: § 19 UStG befreit nicht von
+  // § 13b UStG. Wer solche Belege hat, muss für den Zeitraum eine
+  // Voranmeldung abgeben – ohne Vorsteuerabzug, also aus eigener Tasche.
+  const reverseCharge = useMemo(
+    () => invoices.filter((i) => i.category === 'reverse_charge'),
+    [invoices],
+  );
 
   if (loading) {
     return (
@@ -237,22 +231,48 @@ export default function SteuerbrichtPage() {
           }
         />
 
+        {euer.warnungen.length > 0 && (
+          <ListGroup title="Prüfen">
+            {euer.warnungen.map((w, i) => (
+              <ListRow key={i} label={w} noChevron />
+            ))}
+          </ListGroup>
+        )}
+
+        {steuerregelung === 'kleinunternehmer' && reverseCharge.length > 0 && (
+          <ListGroup
+            title="Umsatzsteuer trotz § 19 UStG"
+            footer="Die Kleinunternehmerregelung befreit nicht von § 13b UStG. Für die betroffenen Zeiträume ist eine Umsatzsteuer-Voranmeldung abzugeben, und die Steuer ist ohne Vorsteuerabzug selbst zu tragen."
+          >
+            <ListRow
+              label="Reverse-Charge-Belege"
+              hint={`${reverseCharge.length} Beleg${reverseCharge.length === 1 ? '' : 'e'} im Jahr ${selectedYear}`}
+              value={amount(reverseCharge.reduce((sum, i) => sum + i.brutto, 0))}
+              noChevron
+            />
+          </ListGroup>
+        )}
+
         <ListGroup
           title="Ergebnis"
-          footer="Steuerliche Basis inklusive AfA-Korrektur – die Cash-Werte darunter weichen bewusst ab."
+          footer={`Der steuerliche Gewinn ist die Zahl für die Anlage EÜR. Sonderausgaben wie die Krankenversicherung sind hier bewusst nicht abgezogen – sie mindern erst in der Einkommensteuererklärung das Einkommen.${
+            istFortgeschrieben(selectedYear) ? ` Für ${selectedYear} liegen noch keine amtlichen Werte vor; gerechnet wird mit dem letzten bekannten Stand.` : ''
+          }`}
         >
           <ListRow
             label="Betriebseinnahmen"
-            hint="Netto, ohne Umsatzsteuer"
+            hint={steuerregelung === 'kleinunternehmer' ? 'Ohne Umsatzsteuer – als Kleinunternehmer weist du keine aus' : 'Netto, ohne Umsatzsteuer'}
             value={amount(einnahmen, 'text-green-600')}
             noChevron
           />
           <ListRow
             label="Betriebsausgaben"
             hint={
-              anlagevermoegen_kaufpreis > 0 || fahrtAbsetzbar > 0
-                ? `Steuerlich · Cash ${fmtCurrency(betriebsausgabenCash, privacyMode)}`
-                : 'Steuerlich absetzbar'
+              steuerregelung === 'kleinunternehmer'
+                ? `Brutto, weil kein Vorsteuerabzug besteht${anlagevermoegen_kaufpreis > 0 ? ` · Cash ${fmtCurrency(betriebsausgabenCash, privacyMode)}` : ''}`
+                : anlagevermoegen_kaufpreis > 0 || fahrtAbsetzbar > 0
+                  ? `Steuerlich · Cash ${fmtCurrency(betriebsausgabenCash, privacyMode)}`
+                  : 'Steuerlich absetzbar'
             }
             value={amount(betriebsausgabenSteuerlich, 'text-red-600')}
             noChevron
@@ -265,10 +285,22 @@ export default function SteuerbrichtPage() {
           />
           <ListRow
             label="Steuerrücklage"
-            hint={`30 % über dem Grundfreibetrag (${fmtCurrency(grundfreibetrag, privacyMode)})`}
+            hint={
+              ruecklage.ruecklage > 0
+                ? `${ruecklage.quote.toFixed(1)} % des Gewinns · Einkommensteuer nach § 32a EStG auf ${fmtCurrency(ruecklage.zvE, privacyMode)} zu versteuerndes Einkommen`
+                : `Bei diesem Gewinn fällt nach Abzug der Sonderausgaben keine Einkommensteuer an (Grundfreibetrag ${fmtCurrency(grundfreibetrag, privacyMode)})`
+            }
             value={amount(steuerruecklage, 'text-amber-600')}
             noChevron
           />
+          {ruecklage.gewerbesteuer && ruecklage.gewerbesteuer.steuer > 0 && (
+            <ListRow
+              label="davon Gewerbesteuer"
+              hint={`${fmtCurrency(ruecklage.gewerbesteuer.steuer, privacyMode)} bei Hebesatz ${gewerbesteuerHebesatz} %, davon ${fmtCurrency(ruecklage.gewerbesteuer.anrechnung, privacyMode)} auf die Einkommensteuer angerechnet (§ 35 EStG)`}
+              value={amount(ruecklage.gewerbesteuer.verbleibt)}
+              noChevron
+            />
+          )}
         </ListGroup>
 
         {steuerregelung === 'regelbesteuerung' && (
@@ -287,44 +319,60 @@ export default function SteuerbrichtPage() {
           {einnahmenByKat.length === 0 ? (
             <ListRow label="Keine Einnahmen" noChevron />
           ) : (
-            einnahmenByKat.map(([cat, betrag]) => (
+            einnahmenByKat.map((k) => (
               <ListRow
-                key={cat}
-                label={CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
-                hint={einnahmen > 0 ? `${((betrag / einnahmen) * 100).toFixed(1)} % der Einnahmen` : undefined}
-                value={amount(betrag)}
+                key={k.category}
+                label={CATEGORY_LABELS[k.category as keyof typeof CATEGORY_LABELS] ?? k.category}
+                hint={
+                  k.steuerlich === 0
+                    ? regelFuer(k.category).hinweis ?? 'Kein steuerpflichtiger Gewinn'
+                    : einnahmen > 0 ? `${((k.betrag / einnahmen) * 100).toFixed(1)} % der Einnahmen` : undefined
+                }
+                value={k.steuerlich === 0
+                  ? <span className="text-[15px] text-muted-foreground">{fmtCurrency(k.betrag, privacyMode)}</span>
+                  : amount(k.betrag)}
                 noChevron
               />
             ))
           )}
         </ListGroup>
 
-        <ListGroup title="Ausgaben nach Kategorie" footer="Rechts steht der steuerlich absetzbare Betrag.">
+        {/* Drei Zustände statt zwei: Was den Gewinn mindert, was privat
+            abziehbar ist, und was gar nicht wirkt. Vorher standen die
+            Sonderausgaben mit vollem Betrag in derselben Spalte wie die
+            Miete – als würden sie den Gewinn genauso mindern. */}
+        <ListGroup
+          title="Ausgaben nach Kategorie"
+          footer="Rechts steht, was den Gewinn mindert. Sonderausgaben wirken erst in der Einkommensteuererklärung und stehen deshalb grau."
+        >
           {ausgabenByKat.length === 0 && fahrtAbsetzbar === 0 ? (
             <ListRow label="Keine Ausgaben" noChevron />
           ) : (
             <>
-              {ausgabenByKat.map(([cat, betrag]) => {
-                const isAfaCat = cat === 'anlagevermoegen_afa';
-                const isAbsetzbar =
-                  BETRIEBSAUSGABEN_CATS.includes(cat) ||
-                  (SONDERAUSGABEN_CATEGORIES as readonly string[]).includes(cat);
-                const steuerlichBetrag = isAfaCat ? afaJahresgesamt : betrag;
+              {ausgabenByKat.map((k) => {
+                const isAfaCat = regelFuer(k.category).ueberAfa === true;
+                const mindertGewinn = k.wirkung === 'betriebsausgabe';
+                const steuerlichBetrag = k.steuerlich;
+                const gekuerzt = mindertGewinn && !isAfaCat && Math.abs(k.steuerlich - k.betrag) > 0.005;
                 return (
                   <ListRow
-                    key={cat}
-                    label={CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
+                    key={k.category}
+                    label={CATEGORY_LABELS[k.category as keyof typeof CATEGORY_LABELS] ?? k.category}
                     hint={
                       isAfaCat
-                        ? `Kaufpreis ${fmtCurrency(betrag, privacyMode)} · AfA-korrigiert`
-                        : isAbsetzbar
-                          ? undefined
-                          : 'Nicht absetzbar'
+                        ? `Zugang ${fmtCurrency(k.betrag, privacyMode)} · rechts steht die Abschreibung ${selectedYear}`
+                        : gekuerzt
+                          ? `Gezahlt ${fmtCurrency(k.betrag, privacyMode)} · nur 70 % mindern den Gewinn`
+                          : mindertGewinn ? undefined : WIRKUNG_ERKLAERUNG[k.wirkung]
                     }
                     value={
-                      isAbsetzbar
-                        ? amount(steuerlichBetrag, isAfaCat && steuerlichBetrag !== betrag ? 'text-violet-600' : undefined)
-                        : <span className="text-[15px]">—</span>
+                      mindertGewinn
+                        ? amount(steuerlichBetrag, isAfaCat || gekuerzt ? 'text-violet-600' : undefined)
+                        : (
+                          <span className="text-[15px] text-muted-foreground">
+                            {WIRKUNG_KURZ[k.wirkung]}
+                          </span>
+                        )
                     }
                     noChevron
                   />
@@ -338,31 +386,113 @@ export default function SteuerbrichtPage() {
                   noChevron
                 />
               )}
+              {euer.zahlungsgebuehren > 0 && (
+                <ListRow
+                  label="Gebühren der Zahlungsanbieter"
+                  hint="Einbehalten, bevor das Geld ankam – trotzdem Betriebsausgabe"
+                  value={amount(euer.zahlungsgebuehren, 'text-blue-600 dark:text-blue-400')}
+                  noChevron
+                />
+              )}
+              {euer.verpflegungsmehraufwand > 0 && (
+                <ListRow
+                  label="Verpflegungsmehraufwand"
+                  hint={`${reiseTageVoll} volle Tage × ${jahreswerte.verpflegungVollerTag} € · ${reiseTageTeil} Tage × ${jahreswerte.verpflegungTeilTag} €`}
+                  value={amount(euer.verpflegungsmehraufwand, 'text-blue-600 dark:text-blue-400')}
+                  noChevron
+                />
+              )}
             </>
           )}
         </ListGroup>
 
-        {afaItems.length > 0 && (
+        <FormGroup
+          title="Reisetage"
+          footer={`Verpflegungspauschalen nach § 9 Abs. 4a EStG: ${jahreswerte.verpflegungVollerTag} € für einen vollen Tag, ${jahreswerte.verpflegungTeilTag} € für An- und Abreisetage sowie für Tage mit mehr als acht Stunden Abwesenheit. Sie gelten ohne Beleg – die Kilometer aus dem Fahrtenbuch reichen dafür nicht, weil dort keine Uhrzeiten stehen. Nach drei Monaten an derselben Stelle entfällt die Pauschale.`}
+        >
+          <FormRow label="Volle Tage (24 h)">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              className={FIELD}
+              value={reiseTageVoll || ''}
+              onChange={(e) => setReiseTageVoll(Number(e.target.value) || 0)}
+              placeholder="0"
+            />
+          </FormRow>
+          <FormRow label="An-/Abreise, über 8 h">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              className={FIELD}
+              value={reiseTageTeil || ''}
+              onChange={(e) => setReiseTageTeil(Number(e.target.value) || 0)}
+              placeholder="0"
+            />
+          </FormRow>
+        </FormGroup>
+
+        {anlagegueter.length > 0 && (
           <ListGroup
-            title={`AfA-Plan ${selectedYear}`}
-            footer={`Jahres-AfA gesamt ${fmtCurrency(afaJahresgesamt, privacyMode)}. Berücksichtigt alle noch nicht vollständig abgeschriebenen Wirtschaftsgüter.`}
+            title={`Wirtschaftsgüter ${selectedYear}`}
+            footer={`Abschreibung im Jahr zusammen ${fmtCurrency(afaJahresgesamt, privacyMode)}.${
+              steuerregelung === 'kleinunternehmer'
+                ? ' Als Kleinunternehmer wird der Bruttobetrag abgeschrieben – die Umsatzsteuer gehört zu den Anschaffungskosten.'
+                : ''
+            }`}
           >
-            {afaItems.map((item) => (
+            {anlagegueter.map((a) => (
               <ListRow
-                key={item.invoice.id}
-                label={item.invoice.description || item.invoice.partner || 'Wirtschaftsgut'}
-                hint={`${NUTZUNGSDAUER_LABELS[item.assetType] ?? item.assetType} · ${item.nutzungsdauer} Jahre · ${item.methode}`}
-                value={item.jahresAfa > 0 ? amount(item.jahresAfa, 'text-violet-600') : <span>—</span>}
+                key={a.invoice.id}
+                label={a.invoice.description || a.invoice.partner || 'Wirtschaftsgut'}
+                hint={`${a.assetLabel} · ${AFA_METHODE_LABELS[a.methode]}${a.nutzungsdauer > 1 ? ` · ${a.nutzungsdauer} Jahre` : ''}${
+                  a.degressivMoeglich && a.methode === 'degressiv' ? ` · linear wären ${fmtCurrency(a.linearImJahr, privacyMode)}` : ''
+                }`}
+                value={a.jahresAfa > 0 ? amount(a.jahresAfa, 'text-violet-600') : <span>—</span>}
                 noChevron
               />
             ))}
           </ListGroup>
         )}
 
+        {(euer.haushaltsnaheKosten > 0 || euer.handwerkerKosten > 0 || euer.aussergewoehnlicheBelastungen > 0) && (
+          <ListGroup
+            title="Privat abziehbar"
+            footer="Diese Posten hängen am privaten Einkommen und stehen jedem zu – auch Selbständigen. Sie mindern nicht den Gewinn, sondern die Steuer selbst (§ 35a) beziehungsweise das Einkommen (§ 33)."
+          >
+            {euer.haushaltsnaheKosten > 0 && (
+              <ListRow
+                label="Haushaltsnahe Dienstleistungen"
+                hint={`20 % davon gehen direkt von der Steuer ab, höchstens ${fmtCurrency(jahreswerte.haushaltsnahMax * jahreswerte.paragraf35aSatz, privacyMode)}`}
+                value={amount(Math.min(euer.haushaltsnaheKosten, jahreswerte.haushaltsnahMax) * jahreswerte.paragraf35aSatz, 'text-emerald-600')}
+                noChevron
+              />
+            )}
+            {euer.handwerkerKosten > 0 && (
+              <ListRow
+                label="Handwerkerleistungen"
+                hint={`Nur der Arbeitsanteil, höchstens ${fmtCurrency(jahreswerte.handwerkerMax * jahreswerte.paragraf35aSatz, privacyMode)} Ermäßigung`}
+                value={amount(Math.min(euer.handwerkerKosten, jahreswerte.handwerkerMax) * jahreswerte.paragraf35aSatz, 'text-emerald-600')}
+                noChevron
+              />
+            )}
+            {euer.aussergewoehnlicheBelastungen > 0 && (
+              <ListRow
+                label="Außergewöhnliche Belastungen"
+                hint="Wirken erst über der zumutbaren Belastung (§ 33 EStG)"
+                value={amount(euer.aussergewoehnlicheBelastungen)}
+                noChevron
+              />
+            )}
+          </ListGroup>
+        )}
+
         {sonderausgaben > 0 && (
           <ListGroup
             title="Sonderausgaben"
-            footer="Kranken- und Pflegeversicherung, Altersvorsorge, Spenden – in der Einkommensteuererklärung geltend zu machen."
+            footer="Kranken- und Pflegeversicherung, Altersvorsorge und Spenden mindern nicht den Gewinn, sondern erst in der Einkommensteuererklärung das zu versteuernde Einkommen."
           >
             <ListRow label="Privat absetzbar" value={amount(sonderausgaben)} noChevron />
           </ListGroup>
@@ -402,19 +532,20 @@ export default function SteuerbrichtPage() {
           <ListRow
             tint="blue"
             icon={<Download />}
-            label="Als DATEV-Datei"
-            hint="Für die Steuerkanzlei"
+            label="Buchungen als CSV"
+            hint="Für die Steuerkanzlei – kein fertiger DATEV-Stapel"
             noChevron
             onClick={async () => {
-              try { await exportToDatev(invoices, selectedYear); toast.success('DATEV-Export erstellt'); }
+              try { await exportToSteuerberaterCsv(invoices, selectedYear); toast.success('Buchungs-CSV erstellt'); }
               catch (e) { toast.error('Export fehlgeschlagen: ' + (e as Error).message); }
             }}
           />
         </ListGroup>
 
         <p className="px-4 text-[13px] leading-snug text-muted-foreground">
-          Diese Auswertung dient der Orientierung und ersetzt keine Steuerberatung. Die AfA beruht auf
-          automatisch erkannten Wirtschaftsgut-Typen und typischen Nutzungsdauern.
+          Diese Auswertung dient der Orientierung und ersetzt keine Steuerberatung. Die Abschreibung beruht
+          auf automatisch erkannten Wirtschaftsgut-Typen und typischen Nutzungsdauern. Die EÜR ist eine
+          Anlage zur Einkommensteuererklärung und muss elektronisch übermittelt werden.
         </p>
       </div>
     );
@@ -429,7 +560,7 @@ export default function SteuerbrichtPage() {
             <FileText className="h-6 w-6" /> Steuerbericht {selectedYear}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Einnahmen-Überschuss-Rechnung (EÜR) – steuerliche Basis inkl. AfA-Korrektur
+            Einnahmen-Überschuss-Rechnung nach § 4 Abs. 3 EStG – Anlage zur Einkommensteuererklärung
           </p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
@@ -444,11 +575,11 @@ export default function SteuerbrichtPage() {
           }}>
             <Download className="mr-2 h-4 w-4" /> Excel
           </Button>
-          <Button variant="outline" size="sm" onClick={async () => {
-            try { await exportToDatev(invoices, selectedYear); toast.success('DATEV-Export erstellt'); }
+          <Button variant="outline" size="sm" title="Buchungs-CSV für die Steuerkanzlei – kein fertiger DATEV-Buchungsstapel" onClick={async () => {
+            try { await exportToSteuerberaterCsv(invoices, selectedYear); toast.success('Buchungs-CSV erstellt'); }
             catch (e) { toast.error('Export fehlgeschlagen: ' + (e as Error).message); }
           }}>
-            <Download className="mr-2 h-4 w-4" /> DATEV
+            <Download className="mr-2 h-4 w-4" /> Buchungen (CSV)
           </Button>
         </div>
       </div>
@@ -459,8 +590,8 @@ export default function SteuerbrichtPage() {
           <CardContent className="pt-5 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <TrendingUp className="h-3.5 w-3.5 text-green-600" />
-              Betriebseinnahmen (Netto)
-              <InfoTooltip text="Nettobetrag aller Einnahmen (ohne Umsatzsteuer). Die Basis der EÜR." side="top" />
+              Betriebseinnahmen
+              <InfoTooltip text={steuerregelung === 'kleinunternehmer' ? "Summe der Betriebseinnahmen. Als Kleinunternehmer weist du keine Umsatzsteuer aus, netto und brutto sind dasselbe. Privateinlagen zählen nicht mit." : "Nettobetrag der Betriebseinnahmen, ohne Umsatzsteuer. Privateinlagen und Umsatzsteuererstattungen zählen nicht mit."} side="top" />
             </div>
             <p className="text-xl font-bold text-green-600">{fmtCurrency(einnahmen, privacyMode)}</p>
           </CardContent>
@@ -469,7 +600,7 @@ export default function SteuerbrichtPage() {
           <CardContent className="pt-5 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <TrendingDown className="h-3.5 w-3.5 text-red-600" /> Betriebsausgaben (steuerlich)
-              <InfoTooltip text={`Inkl. zeitanteiliger AfA statt vollem Kaufpreis. Reguläre Ausgaben: ${fmtCurrency(betriebsausgabenOhneAfa, privacyMode)} + Jahres-AfA: ${fmtCurrency(afaJahresgesamt, privacyMode)}${fahrtAbsetzbar > 0 ? ` + km-Pauschale Fahrtenbuch: ${fmtCurrency(fahrtAbsetzbar, privacyMode)}` : ''}`} side="top" />
+              <InfoTooltip text={`Laufende Ausgaben plus Abschreibung statt vollem Kaufpreis: ${fmtCurrency(afaJahresgesamt, privacyMode)} AfA${fahrtAbsetzbar > 0 ? `, ${fmtCurrency(fahrtAbsetzbar, privacyMode)} km-Pauschale` : ''}${euer.zahlungsgebuehren > 0 ? `, ${fmtCurrency(euer.zahlungsgebuehren, privacyMode)} einbehaltene Gebühren` : ''}. Kranken- und Pflegeversicherung sind nicht enthalten – sie sind Sonderausgaben und mindern den Gewinn nicht.`} side="top" />
             </div>
             <p className="text-xl font-bold text-red-600">{fmtCurrency(betriebsausgabenSteuerlich, privacyMode)}</p>
             {anlagevermoegen_kaufpreis > 0 && (
@@ -488,35 +619,121 @@ export default function SteuerbrichtPage() {
             </div>
             <p className={`text-xl font-bold ${gewinnSteuerlich >= 0 ? 'text-violet-600' : 'text-red-600'}`}>{fmtCurrency(gewinnSteuerlich, privacyMode)}</p>
             {anlagevermoegen_kaufpreis > 0 && (
-              <p className="text-[10px] text-muted-foreground">AfA-Differenz: +{fmtCurrency(anlagevermoegen_kaufpreis - afaJahresgesamt, privacyMode)}</p>
+              <p className="text-[10px] text-muted-foreground">AfA-Differenz: {anlagevermoegen_kaufpreis - afaJahresgesamt >= 0 ? '+' : ''}{fmtCurrency(anlagevermoegen_kaufpreis - afaJahresgesamt, privacyMode)}</p>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <PiggyBank className="h-3.5 w-3.5 text-amber-500" /> Steuerrücklage (30 %)
-              <InfoTooltip text="Empfohlene Rücklage für die Einkommensteuer: 30 % des steuerlichen Gewinns über dem Grundfreibetrag. Kein amtlicher Steuersatz – nur eine Faustregel für Selbstständige." side="top" />
+              <PiggyBank className="h-3.5 w-3.5 text-amber-500" /> Steuerrücklage
+              <InfoTooltip text={`Gerechnet mit dem Einkommensteuertarif des § 32a EStG für ${selectedYear}, zuzüglich Solidaritätszuschlag${kirchensteuerSatz > 0 ? ' und Kirchensteuer' : ''}${rechtsform === 'gewerbetreibend' ? ' und der nach § 35 EStG verbleibenden Gewerbesteuer' : ''}. Vom Gewinn abgezogen sind die Sonderausgaben – bei Selbständigen vor allem die Krankenversicherung. Andere Einkünfte kennt die App nicht; wer welche hat, liegt höher.`} side="top" />
             </div>
             <p className="text-xl font-bold text-amber-600">{fmtCurrency(steuerruecklage, privacyMode)}</p>
-            <p className="text-[10px] text-muted-foreground">nach GFB {fmtCurrency(grundfreibetrag, privacyMode)}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {ruecklage.ruecklage > 0
+                ? `${ruecklage.quote.toFixed(1)} % vom Gewinn · Grenzsteuersatz ${ruecklage.grenzsteuersatz.toFixed(1)} %`
+                : `unter dem Grundfreibetrag von ${fmtCurrency(grundfreibetrag, privacyMode)}`}
+            </p>
+            {!tarifIstGepflegt(selectedYear) && (
+              <p className="text-[10px] text-amber-600">
+                Für {selectedYear} liegt noch kein amtlicher Tarif vor – gerechnet mit dem letzten bekannten.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* AfA-Übersicht */}
-      {afaItems.length > 0 && (
-        <Card>
+      {/* Was der Nutzer wissen muss, bevor er die Zahlen weiterreicht. */}
+      {(euer.warnungen.length > 0 || (steuerregelung === 'kleinunternehmer' && reverseCharge.length > 0)) && (
+        <Card className="border-amber-300 dark:border-amber-800">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Calculator className="h-4 w-4 text-violet-600" /> AfA-Plan {selectedYear}
-              <InfoTooltip text="AfA = Absetzung für Abnutzung: Wirtschaftsgüter über 800 € Netto werden nicht sofort, sondern über mehrere Jahre (Nutzungsdauer) steuerlich abgesetzt. GWG unter 800 € können im Kaufjahr voll abgesetzt werden." side="right" />
+              <Receipt className="h-4 w-4 text-amber-600" /> Zu prüfen
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs text-muted-foreground">
+            {euer.warnungen.map((w, i) => (
+              <p key={i}>{w}</p>
+            ))}
+            {steuerregelung === 'kleinunternehmer' && reverseCharge.length > 0 && (
+              <p>
+                <strong className="text-foreground">
+                  {reverseCharge.length} Beleg{reverseCharge.length === 1 ? '' : 'e'} mit Reverse Charge
+                  ({fmtCurrency(reverseCharge.reduce((sum, i) => sum + i.brutto, 0), privacyMode)}).
+                </strong>{' '}
+                Die Kleinunternehmerregelung befreit nicht von § 13b UStG: Die Umsatzsteuer schuldest du
+                selbst, musst für diese Zeiträume eine Umsatzsteuer-Voranmeldung abgeben und kannst sie
+                mangels Vorsteuerabzug nicht gegenrechnen. Dafür brauchst du eine USt-IdNr.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Verpflegungsmehraufwand – ohne Beleg, deshalb von Hand gezählt. */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Receipt className="h-4 w-4 text-blue-600" /> Reisetage {selectedYear}
+            <InfoTooltip text={`Verpflegungspauschalen nach § 9 Abs. 4a EStG. Sie gelten ohne Beleg, setzen aber eine Auswärtstätigkeit voraus. Nach drei Monaten an derselben Tätigkeitsstätte entfallen sie. Stellt jemand anderes eine Mahlzeit, wird gekürzt: Frühstück 20 %, Mittag- und Abendessen je 40 % von ${jahreswerte.verpflegungVollerTag} €.`} side="right" />
+            {euer.verpflegungsmehraufwand > 0 && (
               <Badge variant="outline" className="text-[10px]">
-                Jahres-AfA gesamt: {fmtCurrency(afaJahresgesamt, privacyMode)}
+                {fmtCurrency(euer.verpflegungsmehraufwand, privacyMode)} als Betriebsausgabe
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-6">
+          <div className="space-y-1.5">
+            <label className="block text-xs text-muted-foreground">Volle Tage (24 Stunden)</label>
+            <input
+              type="number"
+              min={0}
+              className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
+              value={reiseTageVoll || ''}
+              onChange={(e) => setReiseTageVoll(Number(e.target.value) || 0)}
+              placeholder="0"
+            />
+            <p className="text-[10px] text-muted-foreground">je {jahreswerte.verpflegungVollerTag} €</p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs text-muted-foreground">An-/Abreisetage, über 8 Stunden</label>
+            <input
+              type="number"
+              min={0}
+              className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
+              value={reiseTageTeil || ''}
+              onChange={(e) => setReiseTageTeil(Number(e.target.value) || 0)}
+              placeholder="0"
+            />
+            <p className="text-[10px] text-muted-foreground">je {jahreswerte.verpflegungTeilTag} €</p>
+          </div>
+          <p className="text-xs text-muted-foreground max-w-md">
+            Das Fahrtenbuch hält nur Kilometer fest, keine Uhrzeiten – deshalb werden die Tage hier
+            gezählt. Ohne diese Angabe bleibt die Pauschale liegen.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Wirtschaftsgüter */}
+      {anlagegueter.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex flex-wrap items-center gap-2">
+              <Calculator className="h-4 w-4 text-violet-600" /> Wirtschaftsgüter {selectedYear}
+              <InfoTooltip text={`Wirtschaftsgüter über ${jahreswerte.gwgSofortGrenze} € netto werden über die Nutzungsdauer abgeschrieben. Bis ${jahreswerte.gwgSofortGrenze} € netto ist ein Sofortabzug möglich – aber nur, wenn das Gut für sich allein nutzbar ist. Bildschirme und Drucker sind das nicht.`} side="right" />
+              <Badge variant="outline" className="text-[10px]">
+                Abschreibung {selectedYear}: {fmtCurrency(afaJahresgesamt, privacyMode)}
               </Badge>
               {anlagevermoegen_kaufpreis > 0 && (
                 <Badge variant="secondary" className="text-[10px]">
-                  Kaufpreise: {fmtCurrency(anlagevermoegen_kaufpreis, privacyMode)} → nur {fmtCurrency(afaJahresgesamt, privacyMode)} steuerlich absetzbar
+                  Zugänge {fmtCurrency(anlagevermoegen_kaufpreis, privacyMode)} → davon {fmtCurrency(afaJahresgesamt, privacyMode)} in diesem Jahr
+                </Badge>
+              )}
+              {steuerregelung === 'kleinunternehmer' && (
+                <Badge variant="secondary" className="text-[10px]">
+                  Bemessung brutto (§ 9b EStG)
                 </Badge>
               )}
             </CardTitle>
@@ -529,52 +746,62 @@ export default function SteuerbrichtPage() {
                   <TableHead>Typ</TableHead>
                   <TableHead className="text-right">
                     <span className="flex items-center justify-end gap-1">
-                      Kaufpreis
-                      <InfoTooltip text="Nettokaufpreis des Wirtschaftsguts (ohne USt)." side="top" />
+                      Bemessung
+                      <InfoTooltip text={`Der Betrag, der abgeschrieben wird. Wer keine Vorsteuer ziehen darf, schreibt brutto ab – die Umsatzsteuer gehört dann zu den Anschaffungskosten (§ 9b Abs. 1 EStG). Die ${jahreswerte.gwgSofortGrenze}-€-Grenze wird davon unabhängig immer am Nettobetrag gemessen.`} side="top" />
                     </span>
                   </TableHead>
                   <TableHead>
                     <span className="flex items-center gap-1">
                       Methode
-                      <InfoTooltip text="Lineare AfA: gleichmäßige Abschreibung. Degressive AfA: höhere Abschreibung in frühen Jahren. Sofortabschreibung: GWG unter 800 € netto im Kaufjahr vollständig absetzen." side="top" />
+                      <InfoTooltip text={`Sofortabzug bis ${jahreswerte.gwgSofortGrenze} € netto. Degressive AfA: 30 % vom Restbuchwert, möglich für Anschaffungen vom 01.07.2025 bis 31.12.2027; die App wechselt automatisch zur linearen AfA, sobald das mehr bringt. Computerhardware darf über ein Jahr abgeschrieben werden.`} side="top" />
                     </span>
                   </TableHead>
-                  <TableHead className="text-right">
-                    <span className="flex items-center justify-end gap-1">
-                      ND (Jahre)
-                      <InfoTooltip text="Nutzungsdauer in Jahren, über die das Wirtschaftsgut abgeschrieben wird (laut AfA-Tabelle des BMF)." side="top" />
-                    </span>
-                  </TableHead>
+                  <TableHead className="text-right">ND (Jahre)</TableHead>
                   <TableHead className="text-right">
                     <span className="flex items-center justify-end gap-1">
                       AfA {selectedYear}
-                      <InfoTooltip text="Zeitanteilig berechneter Abschreibungsbetrag im gewählten Jahr. Dieser Betrag ist als Betriebsausgabe steuerlich absetzbar." side="top" />
+                      <InfoTooltip text="Abschreibungsbetrag im gewählten Jahr. Er mindert als Betriebsausgabe den Gewinn." side="top" />
                     </span>
                   </TableHead>
+                  <TableHead className="text-right">Restbuchwert</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {afaItems.map((item) => (
-                  <TableRow key={item.invoice.id}>
+                {anlagegueter.map((a) => (
+                  <TableRow key={a.invoice.id}>
                     <TableCell className="text-xs">
-                      <div className="font-medium">{item.invoice.description || '—'}</div>
-                      <div className="text-muted-foreground">{item.invoice.partner} · {item.invoice.date.slice(0, 10)}</div>
+                      <div className="font-medium">{a.invoice.description || '—'}</div>
+                      <div className="text-muted-foreground">{a.invoice.partner} · {a.invoice.date.slice(0, 10)}</div>
+                      {a.hinweis && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5 max-w-md">{a.hinweis}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.assetLabel}</TableCell>
+                    <TableCell className="text-right text-xs font-mono">
+                      {fmtCurrency(a.bemessung, privacyMode)}
+                      {Math.abs(a.bemessung - a.pruefBetrag) > 0.005 && (
+                        <div className="text-[10px] text-muted-foreground">netto {fmtCurrency(a.pruefBetrag, privacyMode)}</div>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {NUTZUNGSDAUER_LABELS[item.assetType] ?? item.assetType}
+                      {AFA_METHODE_LABELS[a.methode]}
+                      {a.methode === 'degressiv' && a.linearImJahr > 0 && (
+                        <div className="text-[10px]">linear wären {fmtCurrency(a.linearImJahr, privacyMode)}</div>
+                      )}
                     </TableCell>
-                    <TableCell className="text-right text-xs font-mono">{fmtCurrency(item.kaufPreis, privacyMode)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.methode}</TableCell>
-                    <TableCell className="text-right text-xs">{item.nutzungsdauer}</TableCell>
+                    <TableCell className="text-right text-xs">{a.nutzungsdauer}</TableCell>
                     <TableCell className="text-right text-xs font-mono font-semibold text-violet-600">
-                      {item.jahresAfa > 0 ? fmtCurrency(item.jahresAfa, privacyMode) : <span className="text-muted-foreground">—</span>}
+                      {a.jahresAfa > 0 ? fmtCurrency(a.jahresAfa, privacyMode) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono text-muted-foreground">
+                      {fmtCurrency(a.restbuchwert, privacyMode)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
             <p className="text-xs text-muted-foreground mt-2">
-              * Es werden alle Anlagevermögen-Positionen aus allen Jahren berücksichtigt, die noch nicht vollständig abgeschrieben sind.
+              * Aufgeführt sind alle Wirtschaftsgüter aus allen Jahren. Vollständig abgeschriebene stehen mit 0 € in der Jahresspalte und einem Restbuchwert von 0 €.
             </p>
           </CardContent>
         </Card>
@@ -634,12 +861,19 @@ export default function SteuerbrichtPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {einnahmenByKat.map(([cat, betrag]) => (
-                  <TableRow key={cat}>
-                    <TableCell className="text-xs">{CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}</TableCell>
-                    <TableCell className="text-right text-xs font-mono">{fmtCurrency(betrag, privacyMode)}</TableCell>
+                {einnahmenByKat.map((k) => (
+                  <TableRow key={k.category}>
+                    <TableCell className="text-xs">
+                      {CATEGORY_LABELS[k.category as keyof typeof CATEGORY_LABELS] ?? k.category}
+                      {k.steuerlich === 0 && (
+                        <Badge variant="secondary" className="ml-1 text-[9px]">kein Gewinn</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono">{fmtCurrency(k.betrag, privacyMode)}</TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">
-                      {einnahmen > 0 ? ((betrag / einnahmen) * 100).toFixed(1) + ' %' : '—'}
+                      {k.steuerlich === 0
+                        ? '—'
+                        : einnahmen > 0 ? ((k.betrag / einnahmen) * 100).toFixed(1) + ' %' : '—'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -663,29 +897,47 @@ export default function SteuerbrichtPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Kategorie</TableHead>
-                  <TableHead className="text-right">Netto (Cash)</TableHead>
-                  <TableHead className="text-right">Steuerlich</TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      {steuerregelung === 'kleinunternehmer' ? 'Gezahlt' : 'Netto'}
+                      <InfoTooltip
+                        text={steuerregelung === 'kleinunternehmer'
+                          ? 'Der volle Rechnungsbetrag. Ohne Vorsteuerabzug ist die Umsatzsteuer Teil deiner Kosten.'
+                          : 'Nettobetrag ohne Umsatzsteuer – die ziehst du als Vorsteuer. Bei Kategorien ohne Vorsteuerabzug steht hier der Bruttobetrag.'}
+                        side="top"
+                      />
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      Mindert den Gewinn
+                      <InfoTooltip text="Nur Betriebsausgaben mindern den Gewinn der EÜR. Kranken- und Pflegeversicherung, Altersvorsorge und Spenden sind Sonderausgaben – sie wirken erst in der Einkommensteuererklärung und stehen deshalb nicht in dieser Spalte." side="top" />
+                    </span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ausgabenByKat.map(([cat, betrag]) => {
-                  const isAfaCat = cat === 'anlagevermoegen_afa';
-                  const isAbsetzbar = BETRIEBSAUSGABEN_CATS.includes(cat) || (SONDERAUSGABEN_CATEGORIES as readonly string[]).includes(cat);
-                  // Für AfA: zeige die steuerliche AfA statt dem Kaufpreis
-                  const steuerlichBetrag = isAfaCat
-                    ? afaJahresgesamt
-                    : betrag;
+                {ausgabenByKat.map((k) => {
+                  const isAfaCat = regelFuer(k.category).ueberAfa === true;
+                  const mindertGewinn = k.wirkung === 'betriebsausgabe';
+                  const steuerlichBetrag = k.steuerlich;
+                  const gekuerzt = mindertGewinn && !isAfaCat && Math.abs(k.steuerlich - k.betrag) > 0.005;
                   return (
-                    <TableRow key={cat}>
+                    <TableRow key={k.category}>
                       <TableCell className="text-xs">
-                        {CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
-                        {isAfaCat && <Badge variant="outline" className="ml-1 text-[9px]">AfA-korrigiert</Badge>}
+                        {CATEGORY_LABELS[k.category as keyof typeof CATEGORY_LABELS] ?? k.category}
+                        {isAfaCat && <Badge variant="outline" className="ml-1 text-[9px]">über die Nutzungsdauer</Badge>}
+                        {gekuerzt && <Badge variant="outline" className="ml-1 text-[9px]">70 %</Badge>}
                       </TableCell>
-                      <TableCell className="text-right text-xs font-mono text-muted-foreground">{fmtCurrency(betrag, privacyMode)}</TableCell>
+                      <TableCell className="text-right text-xs font-mono text-muted-foreground">{fmtCurrency(k.betrag, privacyMode)}</TableCell>
                       <TableCell className="text-right text-xs font-mono font-semibold">
-                        {isAbsetzbar
-                          ? <span className={isAfaCat && steuerlichBetrag !== betrag ? 'text-violet-600' : ''}>{fmtCurrency(steuerlichBetrag, privacyMode)}</span>
-                          : <Badge variant="secondary" className="text-[10px]">nicht absetzbar</Badge>
+                        {mindertGewinn
+                          ? <span className={isAfaCat || gekuerzt ? 'text-violet-600' : ''}>{fmtCurrency(steuerlichBetrag, privacyMode)}</span>
+                          : (
+                            <span title={WIRKUNG_ERKLAERUNG[k.wirkung]}>
+                              <Badge variant="secondary" className="text-[10px] font-normal">{WIRKUNG_KURZ[k.wirkung]}</Badge>
+                            </span>
+                          )
                         }
                       </TableCell>
                     </TableRow>
@@ -693,6 +945,26 @@ export default function SteuerbrichtPage() {
                 })}
                 {ausgabenByKat.length === 0 && (
                   <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground text-xs py-4">Keine Ausgaben</TableCell></TableRow>
+                )}
+                {euer.zahlungsgebuehren > 0 && (
+                  <TableRow className="border-t-2">
+                    <TableCell className="text-xs">
+                      Einbehaltene Gebühren der Zahlungsanbieter
+                      <Badge variant="outline" className="ml-1 text-[9px] text-blue-600 border-blue-300">ohne eigenen Beleg</Badge>
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono text-muted-foreground">—</TableCell>
+                    <TableCell className="text-right text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">{fmtCurrency(euer.zahlungsgebuehren, privacyMode)}</TableCell>
+                  </TableRow>
+                )}
+                {euer.verpflegungsmehraufwand > 0 && (
+                  <TableRow className="border-t-2">
+                    <TableCell className="text-xs">
+                      Verpflegungsmehraufwand ({reiseTageVoll} × {jahreswerte.verpflegungVollerTag} €, {reiseTageTeil} × {jahreswerte.verpflegungTeilTag} €)
+                      <Badge variant="outline" className="ml-1 text-[9px] text-blue-600 border-blue-300">Pauschale</Badge>
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-mono text-muted-foreground">—</TableCell>
+                    <TableCell className="text-right text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">{fmtCurrency(euer.verpflegungsmehraufwand, privacyMode)}</TableCell>
+                  </TableRow>
                 )}
                 {/* km-Pauschale aus Fahrtenbuch als eigene Zeile */}
                 {fahrtAbsetzbar > 0 && (
@@ -719,7 +991,12 @@ export default function SteuerbrichtPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm">Summe: <span className="font-bold">{fmtCurrency(sonderausgaben, privacyMode)}</span></p>
-            <p className="text-xs text-muted-foreground mt-1">Kranken- und Pflegeversicherung, Altersvorsorge, Spenden – werden in der Einkommensteuererklärung (Anlage Vorsorgeaufwand / Sonderausgaben) geltend gemacht.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Kranken- und Pflegeversicherung, Altersvorsorge und Spenden mindern <strong>nicht</strong> den
+              Gewinn deiner EÜR – sie gehören in die Einkommensteuererklärung (Anlage Vorsorgeaufwand bzw.
+              Sonderausgaben) und senken dort das zu versteuernde Einkommen. Wer sie als Betriebsausgabe
+              bucht, dem streicht das Finanzamt sie wieder heraus.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -754,7 +1031,7 @@ export default function SteuerbrichtPage() {
           </Table>
           <div className="mt-3 pt-3 border-t flex flex-wrap justify-end gap-4 text-sm">
             <span>Einnahmen: <strong className="text-green-600">{fmtCurrency(einnahmen, privacyMode)}</strong></span>
-            <span>Ausgaben (Cash): <strong className="text-red-600">{fmtCurrency(betriebsausgabenCash + sonderausgaben, privacyMode)}</strong></span>
+            <span>Ausgaben (Cash): <strong className="text-red-600">{fmtCurrency(euer.cashAusgaben, privacyMode)}</strong></span>
             <span>Steuerl. Gewinn: <strong className={gewinnSteuerlich >= 0 ? 'text-violet-600' : 'text-red-600'}>{fmtCurrency(gewinnSteuerlich, privacyMode)}</strong></span>
           </div>
         </CardContent>
@@ -764,7 +1041,7 @@ export default function SteuerbrichtPage() {
       <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
         <CardContent className="pt-4">
           <p className="text-xs text-amber-800 dark:text-amber-200">
-            ⚠️ <strong>Hinweis:</strong> Diese Auswertung dient nur zur Orientierung und ersetzt keine Steuerberatung. Die AfA-Berechnung basiert auf automatisch erkannten Wirtschaftsgut-Typen und typischen Nutzungsdauern – bitte mit deinem Steuerberater abstimmen. Weitere Korrekturen (Bewirtungskosten-Kürzung 30 %, Privatanteile, tatsächliche Abschreibungsmethode) können erforderlich sein.
+            ⚠️ <strong>Hinweis:</strong> Diese Auswertung dient nur zur Orientierung und ersetzt keine Steuerberatung. Die AfA-Berechnung basiert auf automatisch erkannten Wirtschaftsgut-Typen und typischen Nutzungsdauern – bitte mit deinem Steuerberater abstimmen. Die 30-%-Kürzung bei der Bewirtung nimmt die App bereits vor. Was sie nicht wissen kann: private Nutzungsanteile bei Telefon, Internet und Fahrzeug sowie eine abweichende Abschreibungsmethode.
           </p>
         </CardContent>
       </Card>

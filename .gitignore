@@ -30,3 +30,9 @@ src-tauri/.tauri/
 !.env.example
 
 
+
+# Echte Buchhaltungsdaten für den Browser-Modus (npm run dev ohne Tauri).
+# Sie liegen hier bewusst außerhalb der Versionskontrolle: Der Bezug ist
+# öffentlich, und die Datei enthält Name, Anschrift, Steuernummer, IBAN und
+# alle Belege. Fehlt sie, zeigt der Mock eine einzelne Demo-Buchung.
+src/lib/devdaten/

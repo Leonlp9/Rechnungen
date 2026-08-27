@@ -75,7 +75,6 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
   const ctx = useDashboardContext();
   const navigate = useNavigate();
   const steuerregelung = useAppStore((s) => s.steuerregelung);
-  const grundfreibetrag = useAppStore((s) => s.grundfreibetrag);
   const kmPauschale = useAppStore((s) => s.kmPauschale);
   const [ctxMenu, setCtxMenu] = useState<{ invoice: Invoice; x: number; y: number } | null>(null);
   const [beOpen, setBeOpen] = useState(false);
@@ -84,6 +83,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
     const {
     loading, privacyMode,
     einnahmen, ausgaben, saldo, betriebsergebnis, betriebsergebnisNachAfa, recentCount,
+    kuStatus, ruecklage, euer,
     deltaEin, deltaAus, deltaSaldo,
     monatEin, monatAus, monatSaldo, monatSaldoMitPrognose,
     deltaMonatEin, deltaMonatAus, deltaMonatSaldo,
@@ -142,7 +142,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
             rawValue={privacyMode ? undefined : betriebsergebnis}
             formatValue={privacyMode ? undefined : (v) => fmtCurrency(v, false)}
             icon={<Calculator className="h-4 w-4 text-violet-600" />}
-            tooltip="Cashflow-Gewinn: Einnahmen minus alle Betriebsausgaben (voller Kaufpreis). Klicken für Details."
+            tooltip="Was tatsächlich geflossen ist: Betriebseinnahmen minus Betriebsausgaben mit vollem Kaufpreis, ohne Abschreibung. Privateinlagen und Privatentnahmen bleiben außen vor, ebenso Sonderausgaben wie die Krankenversicherung – die mindern den Gewinn nicht. Klicken für Details."
             onClick={() => setBeOpen(true)} />
           <BetriebsergebnisDialog open={beOpen} onOpenChange={setBeOpen} variant="cash" />
         </>
@@ -221,14 +221,12 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
           />
         );
       }
-      // Regelbesteuerung: USt auf Einnahmen minus Vorsteuer aus Ausgaben
-      const ustEinnahmen = yearInvoices
-        .filter((i) => i.type === 'einnahme')
-        .reduce((s, i) => s + (i.ust ?? 0), 0);
-      const vorsteuer = yearInvoices
-        .filter((i) => i.type === 'ausgabe')
-        .reduce((s, i) => s + (i.ust ?? 0), 0);
-      const zahllast = ustEinnahmen - vorsteuer;
+      // Aus der EÜR. Vorher wurde die Vorsteuer stur über alle Ausgaben
+      // summiert – auch über Krankenkassenbeiträge, Spenden und private
+      // Einkäufe, aus denen es gar keinen Vorsteuerabzug gibt (§ 15 UStG).
+      const ustEinnahmen = euer.umsatzsteuer;
+      const vorsteuer = euer.vorsteuer;
+      const zahllast = euer.zahllast;
       return (
         <KPICard loading={loading} title="USt-Zahllast (Jahr)"
           value={fmtCurrency(zahllast, privacyMode)}
@@ -267,22 +265,25 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
         <KPICard loading={loading} title="Gewinnmarge"
           value={`${marge.toFixed(1)} %`}
           icon={<Percent className="h-4 w-4 text-violet-500" />}
-          tooltip="Betriebsergebnis / Einnahmen × 100 – steuerlicher Gewinnanteil" />
+          tooltip="Cash-Gewinn geteilt durch die Betriebseinnahmen. Ohne Abschreibung – der steuerliche Gewinn liegt im Jahr einer Anschaffung darüber, in den Folgejahren darunter." />
       );
     }
     case 'kpi-steuerruecklage': {
-      const basis = betriebsergebnisNachAfa;
-      // Grundfreibetrag aus Store (konfigurierbar unter Einstellungen)
-      const GRUNDFREIBETRAG = grundfreibetrag;
-      const zuVersteuern = Math.max(0, basis - GRUNDFREIBETRAG);
-      const ruecklage = Math.round(zuVersteuern * 0.3 * 100) / 100;
+      // Rechnet den Tarif des § 32a EStG statt pauschaler 30 % – und zieht die
+      // Sonderausgaben ab, die vorher gar nicht vorkamen. Bei kleinen Gewinnen
+      // war die Faustregel deutlich zu hoch, bei großen zu niedrig.
+      const est = ruecklage.einkommensteuer;
       return (
-        <KPICard loading={loading} title="Steuerrücklage (30 %)"
-          value={fmtCurrency(ruecklage, privacyMode)}
+        <KPICard loading={loading} title="Steuerrücklage"
+          value={fmtCurrency(ruecklage.ruecklage, privacyMode)}
           icon={<PiggyBank className="h-4 w-4 text-amber-500" />}
-          tooltip={basis <= GRUNDFREIBETRAG
-            ? `Dein steuerlicher Gewinn (${fmtCurrency(basis, privacyMode)}) liegt unter dem Grundfreibetrag (${GRUNDFREIBETRAG.toLocaleString('de-DE')} €). Voraussichtlich keine Einkommensteuer fällig.`
-            : `Empfohlene Rücklage: 30 % × (${fmtCurrency(basis, privacyMode)} Gewinn − ${GRUNDFREIBETRAG.toLocaleString('de-DE')} € Grundfreibetrag) = ${fmtCurrency(ruecklage, privacyMode)}. Jeder Selbstständige zahlt Einkommensteuer – auch Kleinunternehmer.`
+          tooltip={ruecklage.ruecklage === 0
+            ? `Nach Abzug der Sonderausgaben bleibt ein zu versteuerndes Einkommen von ${fmtCurrency(ruecklage.zvE, privacyMode)} – das liegt unter dem Grundfreibetrag. Voraussichtlich keine Einkommensteuer.`
+            : `Einkommensteuer nach § 32a EStG auf ${fmtCurrency(ruecklage.zvE, privacyMode)} zu versteuerndes Einkommen: ${fmtCurrency(est, privacyMode)}`
+              + (ruecklage.soli > 0 ? `, Solidaritätszuschlag ${fmtCurrency(ruecklage.soli, privacyMode)}` : '')
+              + (ruecklage.kirchensteuer > 0 ? `, Kirchensteuer ${fmtCurrency(ruecklage.kirchensteuer, privacyMode)}` : '')
+              + (ruecklage.gewerbesteuer && ruecklage.gewerbesteuer.verbleibt > 0 ? `, Gewerbesteuer nach Anrechnung ${fmtCurrency(ruecklage.gewerbesteuer.verbleibt, privacyMode)}` : '')
+              + `. Das sind ${ruecklage.quote.toFixed(1)} % des Gewinns; der nächste verdiente Euro kostet ${ruecklage.grenzsteuersatz.toFixed(1)} %. Andere Einkünfte kennt die App nicht – wer welche hat, liegt höher.`
           } />
       );
     }
@@ -374,8 +375,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
       return (
         <KleinunternehmerCard
           loading={loading}
-          einnahmen={einnahmen}
-          selectedYear={selectedYear}
+          status={kuStatus}
           privacyMode={privacyMode}
         />
       );
@@ -549,7 +549,7 @@ function DashboardElementInner({ type, settingsOpen, onSettingsClose }: Dashboar
         <KPICard loading={loading} title={`km-Pauschale ${selectedYear}`}
           value={fmtCurrency(fahrtAbsetzbar, privacyMode)}
           icon={<Car className="h-4 w-4 text-green-600" />}
-          tooltip={`Steuerlich absetzbarer Betrag aus Dienstfahrten: ${fahrtKmDienst.toFixed(0)} km × ${kmPauschale.toFixed(2).replace('.', ',')} €/km = ${fmtCurrency(fahrtAbsetzbar, false)}. Dieser Betrag fließt bereits in den steuerlichen Gewinn (EÜR) ein.`}
+          tooltip={`Steuerlich absetzbarer Betrag aus Dienstfahrten: ${fahrtKmDienst.toFixed(0)} km × ${kmPauschale.toFixed(2).replace('.', ',')} €/km = ${fmtCurrency(fahrtAbsetzbar, false)}. Der Betrag fließt in den steuerlichen Gewinn ein – es sei denn, das Fahrzeug steht laut Einstellungen im Betriebsvermögen; dann zählen die tatsächlichen Kosten und die Pauschale entfällt.`}
           onClick={() => navigate('/fahrtenbuch')} />
       );
     case 'kpi-fahrt-km-monat': {
@@ -653,7 +653,7 @@ export const ELEMENT_LABELS: Record<ElementType, string> = {
   'kpi-avg-einnahmen-monat': 'Ø Einnahmen / Monat',
   'kpi-avg-ausgaben-monat': 'Ø Ausgaben / Monat',
   'kpi-marge': 'Gewinnmarge',
-  'kpi-steuerruecklage': 'Steuerrücklage (30 %)',
+  'kpi-steuerruecklage': 'Steuerrücklage',
   'list-top-einnahmen': 'Top Einnahmen',
   'card-monatsuebersicht': 'Monatsübersicht',
   'card-jahresvergleich': 'Jahresvergleich',

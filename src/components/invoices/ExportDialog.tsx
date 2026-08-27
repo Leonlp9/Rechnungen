@@ -33,11 +33,11 @@ import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { FormGroup, FormRow, FIELD_SELECT } from '@/components/ui/form-list';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppStore } from '@/store';
-import { exportToXlsx, exportToZip, exportAll, exportToDatev } from '@/lib/export';
+import { exportToXlsx, exportToZip, exportAll, exportToSteuerberaterCsv } from '@/lib/export';
 import { toast } from 'sonner';
 import { Loader2, Download } from 'lucide-react';
 
-type ExportFormat = 'xlsx' | 'zip' | 'all' | 'datev';
+type ExportFormat = 'xlsx' | 'zip' | 'all' | 'buchungen';
 type PeriodMode = 'month' | 'year' | 'all';
 
 const MONTH_NAMES = [
@@ -58,9 +58,9 @@ const FORMAT_OPTIONS: ReadonlyArray<{ value: ExportFormat; label: string; descri
     description: 'Excel-Datei mit 4 Sheets (Alle Belege, Zusammenfassung, Nach Monat, Hinweise)',
   },
   {
-    value: 'datev',
-    label: '📋 DATEV (CSV)',
-    description: 'CSV im DATEV-Buchungsstapel-Format – ideal für den Steuerberater oder DATEV-Import.',
+    value: 'buchungen',
+    label: '📋 Buchungen für den Steuerberater (CSV)',
+    description: 'CSV mit Konto, Gegenkonto und Buchungstext nach SKR03 – zum Einlesen in der Kanzlei. Kein fertiger DATEV-Buchungsstapel: Dafür fehlen Berater- und Mandantennummer.',
   },
   {
     value: 'zip',
@@ -119,7 +119,7 @@ export function ExportDialog({ open, onClose }: Props) {
 
       if (format === 'xlsx') await exportToXlsx(filtered, label as number);
       else if (format === 'zip') await exportToZip(filtered, label as number);
-      else if (format === 'datev') await exportToDatev(filtered, label);
+      else if (format === 'buchungen') await exportToSteuerberaterCsv(filtered, label);
       else await exportAll(filtered, label as number);
 
       toast.success('Export erfolgreich!');
@@ -170,7 +170,7 @@ export function ExportDialog({ open, onClose }: Props) {
   );
 
   /** Aufbau eines ZIP-Archivs – nur dort, wo PDFs mitgehen. */
-  const zipHint = format !== 'xlsx' && format !== 'datev' && (
+  const zipHint = format !== 'xlsx' && format !== 'buchungen' && (
     <div className="space-y-1 rounded-xl bg-muted/50 p-3 text-[13px] text-muted-foreground">
       <p className="font-medium text-foreground">ZIP-Struktur:</p>
       <p className="font-mono break-all">

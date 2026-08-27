@@ -49,20 +49,34 @@ export function FormGroup({
 
 export function FormRow({
   label,
+  hint,
   warn,
   children,
 }: {
   label: string;
+  /**
+   * Ein Satz unter der Beschriftung. Für Schalter, deren Wirkung man nicht
+   * sieht – etwa „Fahrzeug im Betriebsvermögen", das die Kilometerpauschale
+   * abschaltet.
+   */
+  hint?: string;
   /** Beschriftung hervorheben, wenn mit dem Wert etwas nicht stimmt */
   warn?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div data-form-row className="flex min-h-[44px] items-center gap-3 border-b border-border px-4 py-1.5">
-      <span className={cn('shrink-0 text-[17px]', warn && 'text-amber-600 dark:text-amber-400')}>
-        {label}
+      <span className="min-w-0 flex-1">
+        <span className={cn('block text-[17px]', warn && 'text-amber-600 dark:text-amber-400')}>
+          {label}
+        </span>
+        {hint && (
+          <span className="block pb-1 pr-2 text-[13px] leading-snug text-muted-foreground">{hint}</span>
+        )}
       </span>
-      <div className="flex min-w-0 flex-1 items-center justify-end">{children}</div>
+      <div className={cn('flex min-w-0 items-center justify-end', hint ? 'shrink-0' : 'flex-1')}>
+        {children}
+      </div>
     </div>
   );
 }

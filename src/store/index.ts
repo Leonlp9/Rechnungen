@@ -17,7 +17,6 @@ export function normalizeTheme(theme: unknown): AppTheme {
   return APP_THEMES.includes(theme as AppTheme) ? (theme as AppTheme) : 'default';
 }
 export type Steuerregelung = 'kleinunternehmer' | 'regelbesteuerung';
-export type Taetigkeitsart = 'freiberufler' | 'gewerbetreibend' | 'angestellt' | 'content_creator';
 export type Rechtsform = 'freiberufler' | 'gewerbetreibend' | 'angestellt';
 export type Branchenprofil = 'standard' | 'content_creator' | 'ecommerce' | 'handwerk' | 'beratung';
 
@@ -83,8 +82,6 @@ interface AppState {
   toggleNavItem: (path: string) => void;
   steuerregelung: Steuerregelung;
   setSteuerregelung: (r: Steuerregelung) => void;
-  taetigkeitsart: Taetigkeitsart;
-  setTaetigkeitsart: (t: Taetigkeitsart) => void;
   rechtsform: Rechtsform;
   setRechtsform: (r: Rechtsform) => void;
   branchenprofil: Branchenprofil;
@@ -92,9 +89,6 @@ interface AppState {
   /** Laufender KI-Fix – wird in InvoiceDetail ausgeführt */
   activeAiFix: ActiveAiFix | null;
   setActiveAiFix: (fix: ActiveAiFix | null) => void;
-  /** Konfigurierbarer Grundfreibetrag für Steuerrücklage-Berechnung */
-  grundfreibetrag: number;
-  setGrundfreibetrag: (v: number) => void;
   /** Km-Pauschale für Fahrtenbuch (Standard: 0,30 €/km) */
   kmPauschale: number;
   setKmPauschale: (v: number) => void;
@@ -121,6 +115,50 @@ interface AppState {
   setHomeofficeTage: (tage: number) => void;
   showGlossarTooltips: boolean;
   setShowGlossarTooltips: (v: boolean) => void;
+
+  // ── Steuerprofil ─────────────────────────────────────────────────────────
+  // Diese Angaben entscheiden über Beitragssätze, Freibeträge und
+  // Abzugsgrenzen. Vorher waren sie fest verdrahtet und galten für alle
+  // gleich – jetzt stellt jeder ein, was auf ihn zutrifft.
+  /** Zusammenveranlagt? Verdoppelt den Grundfreibetrag und ändert die zumutbare Belastung. */
+  verheiratet: boolean;
+  setVerheiratet: (v: boolean) => void;
+  /** Zahl der Kinder – wirkt auf zumutbare Belastung und Pflegeversicherung. */
+  kinder: number;
+  setKinder: (v: number) => void;
+  /** Kirchensteuersatz in Prozent; 0 = keine Kirchensteuer. */
+  kirchensteuerSatz: number;
+  setKirchensteuerSatz: (v: number) => void;
+  /** Hebesatz der Gemeinde für die Gewerbesteuer, in Prozent. */
+  gewerbesteuerHebesatz: number;
+  setGewerbesteuerHebesatz: (v: number) => void;
+  /**
+   * Gehört das Fahrzeug zum Betriebsvermögen? Dann zählen die tatsächlichen
+   * Kosten und die Kilometerpauschale entfällt – sonst wäre es ein doppelter
+   * Abzug.
+   */
+  fahrzeugImBetriebsvermoegen: boolean;
+  setFahrzeugImBetriebsvermoegen: (v: boolean) => void;
+  /** Krankengeldanspruch: entscheidet zwischen allgemeinem und ermäßigtem Beitragssatz. */
+  kvKrankengeld: boolean;
+  setKvKrankengeld: (v: boolean) => void;
+  /**
+   * Eigener Grundfreibetrag. 0 heißt: den amtlichen Wert des jeweiligen Jahres
+   * nehmen. Vorher stand hier eine feste Zahl, die für jedes Jahr galt.
+   */
+  grundfreibetragManuell: number;
+  setGrundfreibetragManuell: (v: number) => void;
+  /**
+   * Verpflegungsmehraufwand: Tage mit voller Abwesenheit (24 Stunden) und
+   * Tage mit mehr als 8 Stunden bzw. An- und Abreisetage. Das Fahrtenbuch hält
+   * nur Kilometer fest, keine Uhrzeiten – deshalb werden die Tage hier von
+   * Hand gezählt. Ohne diese Angabe blieb die Pauschale bisher ganz liegen,
+   * obwohl die Hilfe sie nannte.
+   */
+  reiseTageVoll: number;
+  setReiseTageVoll: (v: number) => void;
+  reiseTageTeil: number;
+  setReiseTageTeil: (v: number) => void;
 }
 
 /** Hell, Dunkel oder dem System folgen. */
@@ -190,16 +228,12 @@ export const useAppStore = create<AppState>()(
         })),
       steuerregelung: 'kleinunternehmer' as Steuerregelung,
       setSteuerregelung: (steuerregelung) => set({ steuerregelung }),
-      taetigkeitsart: 'gewerbetreibend' as Taetigkeitsart,
-      setTaetigkeitsart: (taetigkeitsart) => set({ taetigkeitsart }),
       rechtsform: 'freiberufler' as Rechtsform,
       setRechtsform: (rechtsform) => set({ rechtsform }),
       branchenprofil: 'standard' as Branchenprofil,
       setBranchenprofil: (branchenprofil) => set({ branchenprofil }),
       activeAiFix: null,
       setActiveAiFix: (activeAiFix) => set({ activeAiFix }),
-      grundfreibetrag: 12_348,
-      setGrundfreibetrag: (grundfreibetrag) => set({ grundfreibetrag }),
       kmPauschale: 0.30,
       setKmPauschale: (kmPauschale) => set({ kmPauschale }),
       showAiChat: true,
@@ -214,10 +248,28 @@ export const useAppStore = create<AppState>()(
       setHomeofficeTage: (homeofficeTage) => set({ homeofficeTage }),
       showGlossarTooltips: true,
       setShowGlossarTooltips: (showGlossarTooltips) => set({ showGlossarTooltips }),
+      verheiratet: false,
+      setVerheiratet: (verheiratet) => set({ verheiratet }),
+      kinder: 0,
+      setKinder: (kinder) => set({ kinder: Math.max(0, Math.round(kinder)) }),
+      kirchensteuerSatz: 0,
+      setKirchensteuerSatz: (kirchensteuerSatz) => set({ kirchensteuerSatz }),
+      gewerbesteuerHebesatz: 400,
+      setGewerbesteuerHebesatz: (gewerbesteuerHebesatz) => set({ gewerbesteuerHebesatz }),
+      fahrzeugImBetriebsvermoegen: false,
+      setFahrzeugImBetriebsvermoegen: (fahrzeugImBetriebsvermoegen) => set({ fahrzeugImBetriebsvermoegen }),
+      kvKrankengeld: false,
+      setKvKrankengeld: (kvKrankengeld) => set({ kvKrankengeld }),
+      grundfreibetragManuell: 0,
+      setGrundfreibetragManuell: (grundfreibetragManuell) => set({ grundfreibetragManuell }),
+      reiseTageVoll: 0,
+      setReiseTageVoll: (reiseTageVoll) => set({ reiseTageVoll: Math.max(0, Math.round(reiseTageVoll)) }),
+      reiseTageTeil: 0,
+      setReiseTageTeil: (reiseTageTeil) => set({ reiseTageTeil: Math.max(0, Math.round(reiseTageTeil)) }),
     }),
     {
       name: 'Klevr-settings',
-      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, themeMode: state.themeMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, taetigkeitsart: state.taetigkeitsart, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, grundfreibetrag: state.grundfreibetrag, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips, pendlerKm: state.pendlerKm, pendlerTage: state.pendlerTage, homeofficeTage: state.homeofficeTage }),
+      partialize: (state) => ({ privacyMode: state.privacyMode, darkMode: state.darkMode, themeMode: state.themeMode, theme: state.theme, animations: state.animations, hiddenNavItems: state.hiddenNavItems, steuerregelung: state.steuerregelung, rechtsform: state.rechtsform, branchenprofil: state.branchenprofil, kmPauschale: state.kmPauschale, showAiChat: state.showAiChat, showGlossarTooltips: state.showGlossarTooltips, pendlerKm: state.pendlerKm, pendlerTage: state.pendlerTage, homeofficeTage: state.homeofficeTage, verheiratet: state.verheiratet, kinder: state.kinder, kirchensteuerSatz: state.kirchensteuerSatz, gewerbesteuerHebesatz: state.gewerbesteuerHebesatz, fahrzeugImBetriebsvermoegen: state.fahrzeugImBetriebsvermoegen, kvKrankengeld: state.kvKrankengeld, grundfreibetragManuell: state.grundfreibetragManuell, reiseTageVoll: state.reiseTageVoll, reiseTageTeil: state.reiseTageTeil }),
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as object), drafts: [] };
         // Ein entferntes Theme im gespeicherten Zustand würde sonst eine
@@ -230,7 +282,34 @@ export const useAppStore = create<AppState>()(
           merged.themeMode === 'light' || merged.themeMode === 'dark' || merged.themeMode === 'auto'
             ? merged.themeMode
             : merged.darkMode ? 'dark' : 'light';
-        return { ...merged, theme, themeMode, darkMode: resolveDark(themeMode, merged.darkMode) };
+        // Früher stand der Grundfreibetrag als eine feste Zahl im Profil und
+        // galt für jedes Jahr. Wer nie etwas verstellt hat, hatte einen der
+        // amtlichen Werte stehen – der wird jetzt auf „automatisch" (0)
+        // gesetzt, damit jedes Jahr seinen eigenen bekommt. Nur ein davon
+        // abweichender Wert war eine bewusste Eingabe und bleibt erhalten.
+        const amtlicheGrundfreibetraege = [10_908, 11_604, 11_784, 12_084, 12_096, 12_348];
+        // Der alte Schlüssel steht nur noch in gespeicherten Ständen, nicht
+        // mehr im Typ – deshalb hier ausdrücklich aus dem rohen Objekt gelesen.
+        const alterWert = (persisted as { grundfreibetrag?: unknown } | undefined)?.grundfreibetrag;
+        const grundfreibetragManuell =
+          typeof merged.grundfreibetragManuell === 'number'
+            ? merged.grundfreibetragManuell
+            : (typeof alterWert === 'number'
+              && alterWert > 0
+              && !amtlicheGrundfreibetraege.includes(alterWert))
+              ? alterWert
+              : 0;
+
+        // `taetigkeitsart` und `rechtsform` beschrieben dasselbe und liefen
+        // auseinander – im Zweifel gewinnt die Rechtsform, weil nur sie
+        // ausgewertet wird. Die alte Angabe wird nicht mehr fortgeführt.
+        return {
+          ...merged,
+          theme,
+          themeMode,
+          darkMode: resolveDark(themeMode, merged.darkMode),
+          grundfreibetragManuell,
+        };
       },
     }
   )

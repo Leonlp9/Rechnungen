@@ -14,6 +14,8 @@ import { getAbsolutePdfPath } from '@/lib/pdf';
 import { ensureCurrencyConversions } from '@/lib/currency';
 import { isCategoryValidForType, CATEGORY_LABELS, TYPE_LABELS } from '@/types';
 import type { Invoice } from '@/types';
+import { istSelbstaendigNutzbar } from '@/lib/steuer/anlagen';
+import { guessAssetType } from '@/lib/afa';
 
 export interface DataIssue {
   id: string;
@@ -63,13 +65,35 @@ export function detectIssues(invoices: Invoice[]): DataIssue[] {
         fixFields: ['category'],
       });
     }
-    if (inv.category === 'anlagevermoegen_afa' && inv.netto > 0 && inv.netto <= 800) {
+    // Der Vorschlag „das könnte ein GWG sein" gilt nur, wenn das Gut auch für
+    // sich allein nutzbar ist. Ein Bildschirm ist es nicht (§ 6 Abs. 2 Satz 2
+    // EStG) – ihn nach GWG umzubuchen wäre falsch, obwohl er unter der Grenze
+    // liegt.
+    if (
+      inv.category === 'anlagevermoegen_afa'
+      && inv.netto > 0
+      && inv.netto <= 800
+      && istSelbstaendigNutzbar(guessAssetType(inv.description, inv.partner))
+    ) {
       issues.push({
         id: `afa-too-low-${inv.id}`,
         invoiceId: inv.id,
         severity: 'warning',
         title: 'AfA unter GWG-Grenze',
         description: `Netto ${inv.netto.toFixed(2)} € ≤ 800 € – kann als GWG sofort abgeschrieben werden statt über mehrere Jahre.`,
+        invoice: inv,
+        fixFields: ['category'],
+      });
+    }
+    // Umgekehrt: Peripherie in der GWG-Kategorie gehört zum Anlagevermögen,
+    // unabhängig vom Preis.
+    if (inv.category === 'gwg' && !istSelbstaendigNutzbar(guessAssetType(inv.description, inv.partner))) {
+      issues.push({
+        id: `gwg-nicht-selbstaendig-${inv.id}`,
+        invoiceId: inv.id,
+        severity: 'warning',
+        title: 'Kein geringwertiges Wirtschaftsgut',
+        description: 'Bildschirme und Drucker lassen sich ohne Rechner nicht nutzen und sind deshalb kein GWG (§ 6 Abs. 2 Satz 2 EStG). Als „Anlagevermögen / AfA" gebucht dürfen sie als Computerhardware trotzdem über ein Jahr abgeschrieben werden – der Abzug bleibt derselbe.',
         invoice: inv,
         fixFields: ['category'],
       });

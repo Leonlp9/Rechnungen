@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDashboardContext } from './DashboardContext';
 import { fmtCurrency } from '@/lib/utils';
+import { istSelbstaendigNutzbar } from '@/lib/steuer/anlagen';
 import { NUTZUNGSDAUER_LABELS } from '@/lib/afa';
 import { Calculator, Package, Zap, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -80,8 +81,11 @@ export function AfaUebersichtCard() {
           <div className="divide-y">
             {afaItems.map(({ invoice: inv, assetType, empfohlen, jahresAfa, proRata }) => {
               const isGwg = inv.category === 'gwg';
-              const shouldBeAfa = inv.netto > 800 && inv.category === 'gwg';
-              const shouldBeGwg = inv.netto <= 800 && inv.category === 'anlagevermoegen_afa';
+              const selbstaendig = istSelbstaendigNutzbar(assetType);
+              // Bildschirme und Drucker sind auch unter 800 € kein GWG
+              // (§ 6 Abs. 2 Satz 2 EStG) – sie hier anzumahnen wäre falsch.
+              const shouldBeAfa = inv.category === 'gwg' && (inv.netto > 800 || !selbstaendig);
+              const shouldBeGwg = inv.netto <= 800 && selbstaendig && inv.category === 'anlagevermoegen_afa';
               const hasIssue = shouldBeAfa || shouldBeGwg;
               const isAnteilig = proRata && proRata.monateImJahr < 12 && proRata.monateImJahr > 0;
 
@@ -167,7 +171,10 @@ export function AfaUebersichtCard() {
               <KaTeX math="\text{AfA im Jahr} = \frac{\text{Netto}}{n \text{ Jahre}} \times \frac{\text{Monate im Jahr}}{12}" display />
             </div>
             <p className="text-muted-foreground text-[11px]">
-              <strong>GWG</strong> (≤ 800 € netto): Sofortabzug im Kaufjahr (keine Verteilung). <strong>Lineare AfA</strong> (&gt; 800 €): Zeitanteilig über die Nutzungsdauer.
+              <strong>Sofortabzug</strong> bis 800 € netto, aber nur bei Gütern, die für sich allein
+              nutzbar sind – Bildschirme und Drucker gehören nicht dazu. <strong>Abschreibung</strong>
+              darüber zeitanteilig über die Nutzungsdauer. Die Grenze wird immer am Nettobetrag
+              gemessen; abgeschrieben wird ohne Vorsteuerabzug der Bruttobetrag (§ 9b EStG).
             </p>
           </div>
 
@@ -189,7 +196,7 @@ export function AfaUebersichtCard() {
             <div className="space-y-3">
               <p className="font-semibold">Einzelposten ({afaItems.length})</p>
               <div className="divide-y rounded-lg border overflow-hidden">
-                {afaItems.map(({ invoice: inv, assetType, jahresAfa, nutzungsdauer, proRata }) => {
+                {afaItems.map(({ invoice: inv, assetType, jahresAfa, nutzungsdauer, proRata, bemessung }) => {
                   const isGwg = nutzungsdauer <= 1;
                   const kaufDatum = new Date(inv.date);
                   const kaufMonatLabel = kaufDatum.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
@@ -214,7 +221,8 @@ export function AfaUebersichtCard() {
 
                       {/* Kaufdatum */}
                       <div className="text-[10px] text-muted-foreground">
-                        Kauf: {kaufMonatLabel} · Netto: {fmtCurrency(inv.netto, privacyMode)}
+                        Kauf: {kaufMonatLabel} · Bemessung: {fmtCurrency(bemessung, privacyMode)}
+                        {Math.abs(bemessung - inv.netto) > 0.005 && ` (netto ${fmtCurrency(inv.netto, privacyMode)}, ohne Vorsteuerabzug zählt brutto)`}
                         {!isGwg && proRata && <> · Abgeschrieben bis: {proRata.endeJahr}</>}
                       </div>
 

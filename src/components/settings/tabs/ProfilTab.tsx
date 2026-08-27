@@ -8,6 +8,8 @@ import { ListGroup, ListRow } from '@/components/ui/list-group';
 import { Segmented } from '@/components/ui/segmented';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppStore } from '@/store';
+import { werteFuer } from '@/lib/steuer/jahreswerte';
+import { Switch } from '@/components/ui/switch';
 
 /**
  * Die Profilfelder. `label` ist die ausführliche Beschriftung für den
@@ -60,7 +62,7 @@ const BRANCHEN_OPTIONS = [
 ];
 
 const STEUER_OPTIONS = [
-  { value: 'kleinunternehmer' as const, label: 'Kleinunternehmer', desc: 'Umsatz unter 25.000 € (2025+) – keine USt auf Rechnungen, keine Abführung ans Finanzamt. Dashboard zeigt Fortschritt zur Grenze.' },
+  { value: 'kleinunternehmer' as const, label: 'Kleinunternehmer', desc: 'Keine Umsatzsteuer auf Rechnungen. Seit 2025 gilt: höchstens 25.000 € Gesamtumsatz im Vorjahr und höchstens 100.000 € im laufenden Jahr. Die Vorjahresgrenze wirkt ab dem 1. Januar, die 100.000 € sofort.' },
   { value: 'regelbesteuerung' as const, label: 'Regelbesteuerung', desc: 'USt-pflichtig – du weist Umsatzsteuer aus und führst sie ab. Dashboard zeigt deine Einnahmen ohne Grenzbalken.' },
 ];
 
@@ -80,6 +82,47 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
   const setBranchenprofil = useAppStore((s) => s.setBranchenprofil);
   const isMobile = useIsMobile();
   const angestellt = rechtsform === 'angestellt';
+
+  // Steuerprofil: Diese Angaben entscheiden über Beitragssätze, Freibeträge
+  // und Abzugsgrenzen. Vorher galten überall dieselben Annahmen – ledig, ohne
+  // Kinder, ohne Kirchensteuer, Fahrzeug im Privatvermögen.
+  const verheiratet = useAppStore((s) => s.verheiratet);
+  const setVerheiratet = useAppStore((s) => s.setVerheiratet);
+  const kinder = useAppStore((s) => s.kinder);
+  const setKinder = useAppStore((s) => s.setKinder);
+  const kirchensteuerSatz = useAppStore((s) => s.kirchensteuerSatz);
+  const setKirchensteuerSatz = useAppStore((s) => s.setKirchensteuerSatz);
+  const gewerbesteuerHebesatz = useAppStore((s) => s.gewerbesteuerHebesatz);
+  const setGewerbesteuerHebesatz = useAppStore((s) => s.setGewerbesteuerHebesatz);
+  const fahrzeugImBetriebsvermoegen = useAppStore((s) => s.fahrzeugImBetriebsvermoegen);
+  const setFahrzeugImBetriebsvermoegen = useAppStore((s) => s.setFahrzeugImBetriebsvermoegen);
+  const kvKrankengeld = useAppStore((s) => s.kvKrankengeld);
+  const setKvKrankengeld = useAppStore((s) => s.setKvKrankengeld);
+  const grundfreibetragManuell = useAppStore((s) => s.grundfreibetragManuell);
+  const setGrundfreibetragManuell = useAppStore((s) => s.setGrundfreibetragManuell);
+  const jahr = useAppStore((s) => s.selectedYear);
+  const werte = werteFuer(jahr);
+
+  /**
+   * Zwei Angaben, die sich widersprechen können, und die niemand von selbst
+   * bemerkt – sie stehen an verschiedenen Stellen und wirken erst im
+   * Steuerbericht.
+   */
+  const hinweise: string[] = [];
+  if (branchenprofil === 'content_creator' && rechtsform === 'freiberufler') {
+    hinweise.push(
+      'Branche „Content Creator" und Rechtsform „Freiberufler" passen selten zusammen: Streaming, '
+      + 'YouTube und Influencer-Tätigkeit gelten in aller Regel als Gewerbebetrieb nach § 15 EStG, '
+      + 'nicht als Katalogberuf nach § 18 EStG. Das entscheidet über Gewerbeanmeldung, Gewerbesteuer '
+      + 'und darüber, ob die Anlage G oder die Anlage S zur Steuererklärung gehört.',
+    );
+  }
+  if (rechtsform === 'angestellt' && steuerregelung === 'regelbesteuerung') {
+    hinweise.push(
+      'Als Angestellter führst du keinen Betrieb – eine Steuerregelung brauchst du nur, wenn du '
+      + 'nebenbei selbständig bist. Dann passt „Angestellt" als Rechtsform nicht.',
+    );
+  }
 
   // ── Handy: Gruppenlisten statt Karten mit gestapelten Feldern ──
   // Beschriftung über Feld ergab auf 375 px eine endlose Kolonne, in der der
@@ -187,17 +230,91 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
           </div>
         )}
 
+        {hinweise.length > 0 && (
+          <div className="space-y-2 px-4">
+            {hinweise.map((h, i) => (
+              <p key={i} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-[13px] leading-snug text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                {h}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <FormGroup
+          title="Persönliche Verhältnisse"
+          footer="Bestimmt den Grundfreibetrag, die zumutbare Belastung bei außergewöhnlichen Belastungen und den Satz der Pflegeversicherung."
+        >
+          <FormRow label="Zusammenveranlagt">
+            <Switch checked={verheiratet} onCheckedChange={setVerheiratet} />
+          </FormRow>
+          <FormRow label="Kinder">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              className={FIELD}
+              value={kinder || ''}
+              onChange={(e) => setKinder(Number(e.target.value) || 0)}
+              placeholder="0"
+            />
+          </FormRow>
+          <FormRow label="Kirchensteuer">
+            <select
+              className={FIELD}
+              value={String(kirchensteuerSatz)}
+              onChange={(e) => setKirchensteuerSatz(Number(e.target.value))}
+            >
+              <option value="0">keine</option>
+              <option value="8">8 % (BW, BY)</option>
+              <option value="9">9 % (übrige Länder)</option>
+            </select>
+          </FormRow>
+        </FormGroup>
+
+        {!angestellt && (
+          <FormGroup
+            title="Betrieb"
+            footer="Der Hebesatz steht auf dem Gewerbesteuerbescheid oder auf der Seite deiner Gemeinde. Bis 400 % gleicht die Anrechnung nach § 35 EStG die Gewerbesteuer rechnerisch wieder aus."
+          >
+            {rechtsform === 'gewerbetreibend' && (
+              <FormRow label="Hebesatz (%)">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  className={FIELD}
+                  value={gewerbesteuerHebesatz || ''}
+                  onChange={(e) => setGewerbesteuerHebesatz(Number(e.target.value) || 0)}
+                  placeholder="400"
+                />
+              </FormRow>
+            )}
+            <FormRow
+              label="Fahrzeug im Betriebsvermögen"
+              hint="Dann zählen die tatsächlichen Kosten, und die Kilometerpauschale aus dem Fahrtenbuch entfällt – beides zusammen wäre ein doppelter Abzug."
+            >
+              <Switch checked={fahrzeugImBetriebsvermoegen} onCheckedChange={setFahrzeugImBetriebsvermoegen} />
+            </FormRow>
+            <FormRow
+              label="Krankengeldanspruch"
+              hint={`Belegt einen neuen Beitragssatz mit ${werte.kvSatzAllgemein.toFixed(1).replace('.', ',')} % statt ${werte.kvSatzErmaessigt.toFixed(1).replace('.', ',')} % vor. Bestehende Sätze bleiben, wie sie sind.`}
+            >
+              <Switch checked={kvKrankengeld} onCheckedChange={setKvKrankengeld} />
+            </FormRow>
+          </FormGroup>
+        )}
+
         <FormGroup
           title="Steuerwerte"
-          footer="Grundlage der Steuerrücklage. 2025: 12.096 €, 2026: ca. 12.348 €."
+          footer={`Leer heißt: den amtlichen Wert des jeweiligen Jahres nehmen – für ${jahr} sind das ${werte.grundfreibetrag.toLocaleString('de-DE')} €. Nur eintragen, wenn du bewusst mit einem anderen Wert rechnen willst.`}
         >
           <FormRow label="Grundfreibetrag">
             <input
               type="number"
               inputMode="decimal"
               className={FIELD}
-              defaultValue={useAppStore.getState().grundfreibetrag}
-              onChange={(e) => useAppStore.getState().setGrundfreibetrag(Number(e.target.value) || 12348)}
+              value={grundfreibetragManuell || ''}
+              onChange={(e) => setGrundfreibetragManuell(Number(e.target.value) || 0)}
+              placeholder={String(werte.grundfreibetrag)}
             />
           </FormRow>
         </FormGroup>
@@ -310,14 +427,18 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
           <div className="rounded-lg bg-muted/50 border border-border p-3 ml-8 space-y-1">
             <p className="text-xs font-semibold text-foreground">Aktuelle Konfiguration:</p>
             <div className="flex flex-wrap gap-2 text-[11px]">
-              <span className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 font-medium">{rechtsform === 'freiberufler' ? '🎓 Freiberufler' : '🏢 Gewerbetreibend'}</span>
+              <span className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 font-medium">{rechtsform === 'angestellt' ? '👔 Angestellt' : rechtsform === 'freiberufler' ? '🎓 Freiberufler' : '🏢 Gewerbetreibend'}</span>
               <span className="rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2.5 py-0.5 font-medium">
                 {branchenprofil === 'content_creator' ? '🎮 Content Creator' : branchenprofil === 'ecommerce' ? '🛒 E-Commerce' : branchenprofil === 'handwerk' ? '🔧 Handwerk' : branchenprofil === 'beratung' ? '💼 Beratung' : '📋 Standard'}
               </span>
               <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 font-medium">{steuerregelung === 'kleinunternehmer' ? '§19 Kleinunternehmer' : '💶 Regelbesteuerung'}</span>
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">
-              {rechtsform === 'freiberufler' ? 'Steuererklärung: Anlage S · Keine Gewerbesteuer' : 'Steuererklärung: Anlage G · Gewerbesteuer ab 24.500 € Gewinn'}
+              {rechtsform === 'angestellt'
+                ? 'Steuererklärung: Anlage N · Werbungskosten über dem Pauschbetrag'
+                : rechtsform === 'freiberufler'
+                  ? 'Steuererklärung: Anlage S · Keine Gewerbesteuer'
+                  : 'Steuererklärung: Anlage G · Gewerbesteuer ab 24.500 € Gewinn'}
               {branchenprofil === 'content_creator' ? ' · Erweiterte Kategorien: Donations, Sponsoring, Affiliate, Reverse Charge, Sachzuwendungen' : branchenprofil === 'ecommerce' ? ' · Erweiterte Kategorien: Reverse Charge' : ''}
             </p>
           </div>
@@ -325,18 +446,128 @@ export function ProfilTab({ profile, setProfile, profileSaving, saveProfile }: P
       </Card>
 
       <Card className="rounded-xl shadow-sm">
-        <CardHeader><CardTitle className="text-base">Steuerwerte</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Grundfreibetrag (€)</Label>
-            <Input
-              type="number"
-              defaultValue={useAppStore.getState().grundfreibetrag}
-              onChange={(e) => useAppStore.getState().setGrundfreibetrag(Number(e.target.value) || 12348)}
-              className="w-40"
-            />
-            <p className="text-xs text-muted-foreground">Wird für die Steuerrücklage-Berechnung verwendet. 2025: 12.096 €, 2026: ca. 12.348 €.</p>
+        <CardHeader>
+          <CardTitle className="text-base">Steuerprofil</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Diese Angaben entscheiden über Freibeträge, Beitragssätze und Abzugsgrenzen. Ohne sie rechnet
+            die App mit den Annahmen ledig, kinderlos, ohne Kirchensteuer.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {hinweise.length > 0 && (
+            <div className="space-y-2">
+              {hinweise.map((h, i) => (
+                <p key={i} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs leading-snug text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                  {h}
+                </p>
+              ))}
+            </div>
+          )}
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+              <div className="min-w-0">
+                <Label className="text-sm">Zusammenveranlagt</Label>
+                <p className="text-[11px] text-muted-foreground">Verdoppelt den Grundfreibetrag und wendet den Splittingtarif an</p>
+              </div>
+              <Switch className="shrink-0" checked={verheiratet} onCheckedChange={setVerheiratet} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Kinder</Label>
+              <Input
+                type="number"
+                min={0}
+                value={kinder || ''}
+                onChange={(e) => setKinder(Number(e.target.value) || 0)}
+                placeholder="0"
+                className="w-24"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Senkt die zumutbare Belastung bei außergewöhnlichen Belastungen und den Satz der
+                Pflegeversicherung.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Kirchensteuer</Label>
+              <select
+                className="h-9 w-full max-w-[14rem] rounded-md border border-input bg-background px-3 text-sm"
+                value={String(kirchensteuerSatz)}
+                onChange={(e) => setKirchensteuerSatz(Number(e.target.value))}
+              >
+                <option value="0">keine</option>
+                <option value="8">8 % (Baden-Württemberg, Bayern)</option>
+                <option value="9">9 % (übrige Länder)</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground">Wird auf die Einkommensteuer aufgeschlagen.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Grundfreibetrag (€)</Label>
+              <Input
+                type="number"
+                value={grundfreibetragManuell || ''}
+                onChange={(e) => setGrundfreibetragManuell(Number(e.target.value) || 0)}
+                placeholder={String(werte.grundfreibetrag)}
+                className="w-full max-w-[10rem]"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Leer lassen heißt: den amtlichen Wert des jeweiligen Jahres nehmen – für {jahr} sind das{' '}
+                {werte.grundfreibetrag.toLocaleString('de-DE')} €.
+              </p>
+            </div>
           </div>
+
+          {!angestellt && (
+            <div className="space-y-5 border-t pt-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                {rechtsform === 'gewerbetreibend' && (
+                  <div className="space-y-1.5">
+                    <Label>Gewerbesteuer-Hebesatz (%)</Label>
+                    <Input
+                      type="number"
+                      value={gewerbesteuerHebesatz || ''}
+                      onChange={(e) => setGewerbesteuerHebesatz(Number(e.target.value) || 0)}
+                      placeholder="400"
+                      className="w-32"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Steht auf dem Gewerbesteuerbescheid oder auf der Seite deiner Gemeinde. Bis 400 %
+                      gleicht die Anrechnung nach § 35 EStG die Gewerbesteuer rechnerisch wieder aus.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                  <div className="min-w-0">
+                    <Label className="text-sm">Fahrzeug im Betriebsvermögen</Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Dann zählen die tatsächlichen Kosten, und die Kilometerpauschale aus dem Fahrtenbuch
+                      entfällt – beides zusammen wäre ein doppelter Abzug. Dafür ist die Privatnutzung zu
+                      versteuern.
+                    </p>
+                  </div>
+                  <Switch
+                    className="mt-0.5 shrink-0"
+                    checked={fahrzeugImBetriebsvermoegen}
+                    onCheckedChange={setFahrzeugImBetriebsvermoegen}
+                  />
+                </div>
+
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                  <div className="min-w-0">
+                    <Label className="text-sm">Krankengeldanspruch</Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Belegt einen neu angelegten Beitragssatz mit {werte.kvSatzAllgemein.toFixed(1).replace('.', ',')} % vor
+                      statt mit {werte.kvSatzErmaessigt.toFixed(1).replace('.', ',')} %. Bereits gespeicherte Sätze auf der
+                      Krankenkassenseite bleiben unverändert.
+                    </p>
+                  </div>
+                  <Switch className="mt-0.5 shrink-0" checked={kvKrankengeld} onCheckedChange={setKvKrankengeld} />
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </>
