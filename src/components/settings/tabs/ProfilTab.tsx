@@ -18,12 +18,17 @@ import { Switch } from '@/components/ui/switch';
  * `group` fasst die Felder auf dem Handy zu Abschnitten zusammen.
  */
 export const PROFILE_FIELDS = [
+  // Reihenfolge und Beschriftung sind hier nicht Kosmetik. Vorher stand das
+  // einzeilige Feld oben und hiess „für Rechnungsvorlagen", während Straße, PLZ
+  // und Stadt als „für XRechnung" abgetan wurden – als gingen sie die gedruckte
+  // Rechnung nichts an. Wer sich daran hielt, bekam eine Rechnung ohne
+  // Postleitzahl, und die ist nach § 14 Abs. 4 Nr. 1 UStG unvollständig.
   { key: 'profile_name', label: 'Name / Firma', short: 'Name', hint: 'Name oder Firma', group: 'Anschrift' },
-  { key: 'profile_address', label: 'Adresse (einzeilig – für Rechnungsvorlagen)', short: 'Adresse', hint: 'Einzeilig, für Vorlagen', group: 'Anschrift' },
-  { key: 'profile_street', label: 'Straße & Hausnummer (für XRechnung / E-Rechnung)', short: 'Straße', hint: 'Straße & Hausnummer', group: 'Anschrift' },
-  { key: 'profile_zip', label: 'Postleitzahl (für XRechnung)', short: 'PLZ', hint: 'Postleitzahl', group: 'Anschrift' },
-  { key: 'profile_city', label: 'Stadt (für XRechnung)', short: 'Stadt', hint: 'Stadt', group: 'Anschrift' },
+  { key: 'profile_street', label: 'Straße & Hausnummer', short: 'Straße', hint: 'Straße & Hausnummer', group: 'Anschrift' },
+  { key: 'profile_zip', label: 'Postleitzahl', short: 'PLZ', hint: 'Postleitzahl', group: 'Anschrift' },
+  { key: 'profile_city', label: 'Stadt', short: 'Stadt', hint: 'Stadt', group: 'Anschrift' },
   { key: 'profile_country', label: 'Land-Code (ISO 3166, z.B. DE)', short: 'Land', hint: 'DE', group: 'Anschrift' },
+  { key: 'profile_address', label: 'Adresse einzeilig – nur als Ersatz', short: 'Adresse', hint: 'Nur genutzt, wenn Straße, PLZ oder Stadt fehlen', group: 'Anschrift' },
   { key: 'profile_tax_number', label: 'Steuernummer (z.B. 123/456/78901)', short: 'Steuernummer', hint: '123/456/78901', group: 'Steuer' },
   { key: 'profile_w_idnr', label: 'W-IdNr. – Wirtschafts-Identifikationsnummer', short: 'W-IdNr.', hint: 'Wirtschafts-Ident.-Nr.', group: 'Steuer' },
   { key: 'profile_vat_id', label: 'USt-IdNr. (z.B. DE123456789 – für XRechnung & Regelbesteuerung)', short: 'USt-IdNr.', hint: 'DE123456789', group: 'Steuer' },

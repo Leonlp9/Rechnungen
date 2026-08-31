@@ -258,7 +258,7 @@ export default function InvoiceDesigner() {
       payment_terms: `Zahlbar ohne Abzug bis zum ${datum(spaeter)}.`,
       legal_notice:
         steuerregelung === 'kleinunternehmer'
-          ? 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.'
+          ? 'Steuerfreie Leistung eines Kleinunternehmers nach § 19 UStG.'
           : 'Es gilt das Leistungsdatum als Zeitpunkt der Lieferung bzw. Leistung.',
       notes:
         'Sehr geehrte Frau Beispiel,\n\nvielen Dank für Ihren Auftrag. Wie besprochen stelle ich Ihnen die folgenden Leistungen in Rechnung.',

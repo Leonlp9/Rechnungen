@@ -57,6 +57,10 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { SaveInvoiceDialog } from '@/components/invoices/SaveInvoiceDialog';
 import { Blattvorschau } from '@/components/rechnung/Blattvorschau';
 import { useKneifzoom } from '@/components/rechnung/useKneifzoom';
+import { AlertTriangle, Info, ShieldCheck, XCircle } from 'lucide-react';
+import { Pruefbericht } from '@/components/rechnung/Pruefbericht';
+import { pruefeRechnung, sortiere, zaehle, type Befund, type PruefEingabe } from '@/lib/rechnung/pruefung';
+import { kiBereit, kiSchluesselDa, pruefeMitKi } from '@/lib/rechnung/kipruefung';
 
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppStore } from '@/store';
@@ -148,11 +152,25 @@ const PROFIL_SCHLUESSEL = [
  * Blick von dem weggezogen, was an dieser Rechnung neu ist.
  */
 function absenderFelder(p: Record<string, string>): Record<string, string> {
-  const anschrift =
-    p.profile_address?.trim() ||
-    [p.profile_street, [p.profile_zip, p.profile_city].filter(Boolean).join(' ')]
-      .filter(Boolean)
-      .join(', ');
+  // Die Einzelfelder haben Vorrang, sobald sie vollstaendig sind.
+  //
+  // Vorher gewann das einzeilige Feld `profile_address`, und genau daran ist
+  // eine ausgelieferte Rechnung gescheitert: Dort stand "Im Orot 10, Datteln",
+  // waehrend `profile_zip` sauber auf 45711 gepflegt war. Die Postleitzahl fiel
+  // damit aus Absenderzeile und Fusszeile heraus – und § 14 Abs. 4 Nr. 1 UStG
+  // verlangt die VOLLSTAENDIGE Anschrift. Die Vorschau im Vorlagen-Baukasten
+  // hat es uebrigens schon immer andersherum gemacht, die beiden Seiten zeigten
+  // also verschiedene Adressen.
+  //
+  // Unvollstaendige Einzelfelder stechen den Freitext nicht aus: Wer nur dort
+  // etwas gepflegt hat, soll es weiter sehen.
+  const einzeln = [p.profile_street, p.profile_zip, p.profile_city].map((x) => x?.trim() ?? '');
+  const anschrift = einzeln.every(Boolean)
+    ? `${einzeln[0]}, ${einzeln[1]} ${einzeln[2]}`
+    : p.profile_address?.trim() ||
+      [p.profile_street, [p.profile_zip, p.profile_city].filter(Boolean).join(' ')]
+        .filter(Boolean)
+        .join(', ');
   return {
     sender_name: p.profile_name ?? '',
     sender_address: anschrift,
@@ -563,7 +581,7 @@ export default function WriteInvoice() {
     due_date: inTagen(14),
     payment_terms: 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
     legal_notice: kleinunternehmer
-      ? 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.'
+      ? 'Steuerfreie Leistung eines Kleinunternehmers nach § 19 UStG.'
       : '',
   }));
   const setzeFeld = useCallback((schluessel: string, wert: string) => {
@@ -592,7 +610,7 @@ export default function WriteInvoice() {
   const [seiteIndex, setSeiteIndex] = useState(0);
   const [vorschauOffen, setVorschauOffen] = useState(false);
 
-  const [arbeitet, setArbeitet] = useState<'pdf' | 'beleg' | null>(null);
+  const [arbeitet, setArbeitet] = useState<'pdf' | 'beleg' | 'pruefung' | null>(null);
   const [buchung, setBuchung] = useState<Buchung | null>(null);
 
   const tabelleRef = useRef<HTMLDivElement>(null);
@@ -684,6 +702,105 @@ export default function WriteInvoice() {
     () => positionen.reduce((s, p) => s + zeilenBetrag(p), 0),
     [positionen],
   );
+
+  // ── Die Prüfung ──
+  //
+  // Läuft bei jeder Änderung mit. Das kostet nichts – es sind feste Regeln auf
+  // Werten, die ohnehin schon berechnet sind – und es heißt, dass die Anzeige in
+  // der Leiste immer stimmt, statt erst beim Klick auf „Buchen" aufzuwachen.
+  const pruefEingabe = useMemo<PruefEingabe>(() => ({
+    // Für die Vorschau steht „(Nummer folgt)" im Feld, damit im Betreff keine
+    // Lücke klafft. Die Prüfung darf das nicht für eine vergebene Nummer halten.
+    werte: { ...werte, doc_number: feld.doc_number ?? '' },
+    positionen,
+    summen,
+    seiten,
+    kleinunternehmer,
+    mitUst: mwstSatz > 0,
+    ustSatz: mwstSatz,
+    art: vorlage?.art === 'gutschrift' ? 'gutschrift' : 'rechnung',
+    land: profil.profile_country || 'DE',
+  }), [werte, feld.doc_number, positionen, summen, seiten, kleinunternehmer, mwstSatz, vorlage?.art, profil.profile_country]);
+
+  const regelBefunde = useMemo(
+    () => (vorlage ? pruefeRechnung(pruefEingabe) : []),
+    [vorlage, pruefEingabe],
+  );
+
+  const [pruefOffen, setPruefOffen] = useState(false);
+  const [kiBefunde, setKiBefunde] = useState<Befund[]>([]);
+  const [kiLaeuft, setKiLaeuft] = useState(false);
+  const [kiFehler, setKiFehler] = useState<string | null>(null);
+  const [kiMoeglich, setKiMoeglich] = useState(false);
+  const [kiAutomatisch, setKiAutomatisch] = useState(false);
+  // Was nach dem Bericht passieren soll. In einem Ref, nicht im Zustand: Eine
+  // Funktion im useState-Setter würde als Updater gedeutet und sofort gerufen.
+  const nachDerPruefung = useRef<null | (() => void | Promise<void>)>(null);
+
+  useEffect(() => {
+    void kiSchluesselDa().then(setKiMoeglich).catch(() => setKiMoeglich(false));
+    void kiBereit().then(setKiAutomatisch).catch(() => setKiAutomatisch(false));
+  }, []);
+
+  const gezeigteBefunde = useMemo(
+    () => sortiere([...regelBefunde, ...kiBefunde]),
+    [regelBefunde, kiBefunde],
+  );
+
+  const kiPruefen = async (): Promise<Befund[]> => {
+    setKiLaeuft(true);
+    setKiFehler(null);
+    try {
+      const b = await pruefeMitKi(pruefEingabe, regelBefunde);
+      setKiBefunde(b);
+      setKiAutomatisch(true);
+      return b;
+    } catch (e) {
+      setKiFehler(e instanceof Error ? e.message : String(e));
+      return [];
+    } finally {
+      setKiLaeuft(false);
+    }
+  };
+
+  /**
+   * Führt `aktion` aus – aber erst, nachdem die Rechnung geprüft wurde.
+   *
+   * Ist nichts zu melden, passiert nichts Sichtbares und die Aktion läuft
+   * durch. Eine Prüfung, die auch bei einer tadellosen Rechnung einen Dialog
+   * aufmacht, gewöhnt einem das Lesen ab.
+   */
+  const mitPruefung = async (aktion: () => void | Promise<void>) => {
+    if (!vorlage) { toast.error('Keine Vorlage ausgewählt.'); return; }
+
+    const bericht = (weitere: Befund[]) => {
+      nachDerPruefung.current = aktion;
+      setKiBefunde(weitere);
+      setPruefOffen(true);
+    };
+
+    // Harte Fehler halten sofort an – dafür braucht es keine KI.
+    if (regelBefunde.some((x) => x.schwere === 'fehler')) { bericht([]); return; }
+
+    if (kiAutomatisch) {
+      setArbeitet('pruefung');
+      const b = await kiPruefen();
+      setArbeitet(null);
+      if (b.length || regelBefunde.length) { bericht(b); return; }
+    } else if (regelBefunde.length) {
+      bericht([]);
+      return;
+    }
+
+    await aktion();
+  };
+
+  const trotzdemWeiter = async () => {
+    const aktion = nachDerPruefung.current;
+    nachDerPruefung.current = null;
+    setPruefOffen(false);
+    await aktion?.();
+  };
 
   const aktiveSeite = Math.min(seiteIndex, Math.max(0, seiten.length - 1));
   useEffect(() => { if (seiteIndex > seiten.length - 1) setSeiteIndex(0); }, [seiten.length, seiteIndex]);
@@ -788,20 +905,14 @@ export default function WriteInvoice() {
     return { pfad, name };
   };
 
-  /** Vor dem Speichern kurz zusammentragen, was fehlen könnte. */
-  const pruefen = (): boolean => {
-    if (!vorlage) { toast.error('Keine Vorlage ausgewählt'); return false; }
-    if (positionen.every((p) => zeilenBetrag(p) === 0 && !p.description.trim())) {
-      toast.error('Die Rechnung hat noch keine Positionen.');
-      return false;
-    }
-    if (!feld.doc_number?.trim()) toast.warning('Ohne Rechnungsnummer ist die Rechnung nicht vollständig.');
-    if (!feld.delivery_date?.trim()) toast.warning('Leistungszeitpunkt fehlt – Pflichtangabe nach § 14 Abs. 4 UStG.');
-    return true;
-  };
+  // Die frühere Fassung dieser Prüfung bestand aus drei Toasts. Toasts sind für
+  // Pflichtangaben das falsche Mittel: Sie verschwinden nach vier Sekunden,
+  // lassen sich nicht nachlesen und nennen keine Fundstelle. Vor allem behauptete
+  // die alte Meldung, der Leistungszeitpunkt sei „Pflichtangabe nach § 14 Abs. 4
+  // UStG" – für einen Kleinunternehmer stimmt das seit 2025 nicht mehr.
+  // Geprüft wird jetzt in `lib/rechnung/pruefung.ts`, angezeigt im Prüfbericht.
 
-  const alsPdfSpeichern = async () => {
-    if (!pruefen()) return;
+  const pdfSpeichern = async () => {
     setArbeitet('pdf');
     try {
       const ergebnis = await pdfSchreiben();
@@ -819,8 +930,7 @@ export default function WriteInvoice() {
    * XML entsteht bewusst nur hier – wer nur schnell ein PDF verschickt, soll
    * keine verwaiste Datei im Archiv hinterlassen.
    */
-  const alsBelegBuchen = async () => {
-    if (!pruefen()) return;
+  const belegBuchen = async () => {
     setArbeitet('beleg');
     try {
       const ergebnis = await pdfSchreiben();
@@ -900,6 +1010,48 @@ export default function WriteInvoice() {
   };
 
   // ── Gemeinsame Bausteine beider Fassungen ──
+
+  // Der Stand der Prüfung, immer sichtbar. Er soll nicht erst beim Klick auf
+  // „Buchen" auftauchen: Wer beim Schreiben sieht, dass etwas fehlt, ergänzt es
+  // nebenbei, statt am Ende zurückspringen zu müssen.
+  const pruefchip = (() => {
+    const n = zaehle(regelBefunde);
+    const stand = n.fehler > 0
+      ? { text: `${n.fehler} ${n.fehler === 1 ? 'Fehler' : 'Fehler'}`, klasse: 'text-destructive', symbol: <XCircle className="h-3.5 w-3.5" /> }
+      : n.warnungen > 0
+        ? { text: `${n.warnungen} ${n.warnungen === 1 ? 'Warnung' : 'Warnungen'}`, klasse: 'text-amber-600 dark:text-amber-500', symbol: <AlertTriangle className="h-3.5 w-3.5" /> }
+        : n.hinweise > 0
+          ? { text: `${n.hinweise} ${n.hinweise === 1 ? 'Hinweis' : 'Hinweise'}`, klasse: 'text-muted-foreground', symbol: <Info className="h-3.5 w-3.5" /> }
+          : { text: 'Vollständig', klasse: 'text-emerald-600 dark:text-emerald-500', symbol: <ShieldCheck className="h-3.5 w-3.5" /> };
+    return (
+      <button
+        type="button"
+        onClick={() => { nachDerPruefung.current = null; setKiBefunde([]); setKiFehler(null); setPruefOffen(true); }}
+        className={cn(
+          'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[12px] font-medium transition-colors hover:bg-muted',
+          stand.klasse,
+        )}
+        title="Rechnung prüfen"
+      >
+        {stand.symbol}
+        {stand.text}
+      </button>
+    );
+  })();
+
+  const pruefbericht = (
+    <Pruefbericht
+      offen={pruefOffen}
+      onClose={() => { nachDerPruefung.current = null; setPruefOffen(false); }}
+      befunde={gezeigteBefunde}
+      kiLaeuft={kiLaeuft}
+      kiFehler={kiFehler}
+      kiMoeglich={kiMoeglich && !kiAutomatisch}
+      onKiPruefen={() => void kiPruefen()}
+      weiterLabel={nachDerPruefung.current ? 'Trotzdem fortfahren' : 'Schließen'}
+      onWeiter={() => void trotzdemWeiter()}
+    />
+  );
 
   const kundenwahl = (
     <ResponsiveModal
@@ -1124,17 +1276,20 @@ export default function WriteInvoice() {
             Geräts bereits frei. Beides zusammen ergäbe einen toten Streifen. */}
         <div className="shrink-0 border-t border-border bg-background px-4 pt-2.5 pb-2.5">
           <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-[13px] text-muted-foreground">
-              {positionen.length} {positionen.length === 1 ? 'Position' : 'Positionen'}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-[13px] text-muted-foreground">
+                {positionen.length} {positionen.length === 1 ? 'Position' : 'Positionen'}
+              </span>
+              {pruefchip}
+            </div>
             <span className="text-[20px] font-bold tabular-nums">{euro(summen.brutto)}</span>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 gap-1.5" onClick={alsPdfSpeichern} disabled={arbeitet !== null}>
+            <Button variant="outline" className="flex-1 gap-1.5" onClick={() => void mitPruefung(pdfSpeichern)} disabled={arbeitet !== null}>
               <FileDown className="h-4 w-4" />
               PDF
             </Button>
-            <Button className="flex-1 gap-1.5" onClick={alsBelegBuchen} disabled={arbeitet !== null}>
+            <Button className="flex-1 gap-1.5" onClick={() => void mitPruefung(belegBuchen)} disabled={arbeitet !== null}>
               <Save className="h-4 w-4" />
               {arbeitet === 'beleg' ? 'Moment…' : 'Buchen'}
             </Button>
@@ -1145,6 +1300,7 @@ export default function WriteInvoice() {
           <VorschauBlatt seiten={seiten} schriftart={vorlage?.gestaltung.schriftart ?? 'Helvetica'} seiteIndex={aktiveSeite} onSeite={setSeiteIndex} rand={16} />
         </ResponsiveModal>
 
+        {pruefbericht}
         {kundenwahl}
         {buchungsdialog}
       </div>
@@ -1207,7 +1363,8 @@ export default function WriteInvoice() {
             Beide Wege müssen sichtbar bleiben – vorher schob sich „Als Beleg
             buchen", also ausgerechnet die Hauptaktion, aus der Leiste heraus. */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <Button variant="outline" className="gap-1.5" onClick={alsPdfSpeichern} disabled={arbeitet !== null}>
+          {pruefchip}
+          <Button variant="outline" className="gap-1.5" onClick={() => void mitPruefung(pdfSpeichern)} disabled={arbeitet !== null}>
             <FileDown className="h-4 w-4" />
             {arbeitet === 'pdf' ? 'Speichere…' : (
               <>
@@ -1216,7 +1373,7 @@ export default function WriteInvoice() {
               </>
             )}
           </Button>
-          <Button className="gap-1.5" onClick={alsBelegBuchen} disabled={arbeitet !== null}>
+          <Button className="gap-1.5" onClick={() => void mitPruefung(belegBuchen)} disabled={arbeitet !== null}>
             <Save className="h-4 w-4" />
             {arbeitet === 'beleg' ? 'Moment…' : (
               <>
@@ -1441,7 +1598,7 @@ export default function WriteInvoice() {
                 rows={2}
                 value={feld.legal_notice ?? ''}
                 onChange={(e) => setzeFeld('legal_notice', e.target.value)}
-                placeholder="z. B. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."
+                placeholder="z. B. Steuerfreie Leistung eines Kleinunternehmers nach § 19 UStG."
                 className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring"
               />
             </div>
@@ -1478,6 +1635,7 @@ export default function WriteInvoice() {
         </div>
       </div>
 
+      {pruefbericht}
       {kundenwahl}
       {buchungsdialog}
     </div>

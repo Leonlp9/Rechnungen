@@ -116,7 +116,7 @@ function steuerKategorieFuer(
   if (invoice.category === 'umsatz_steuerfrei') {
     return {
       code: 'E',
-      grund: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+      grund: 'Steuerfreie Leistung eines Kleinunternehmers nach § 19 UStG.',
     };
   }
 
