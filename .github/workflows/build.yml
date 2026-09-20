@@ -340,3 +340,178 @@ jobs:
           done
           echo "::error::Release für ${{ github.ref_name }} nicht gefunden."
           exit 1
+
+  # ── iOS-IPA ─────────────────────────────────────────────────────────────────
+  # Baut eine Ad-hoc-IPA und hängt sie ans selbe Release an. Anders als beim
+  # Android-APK gibt es für iOS keinen Wegwerf-Signaturweg: Apple verlangt ein
+  # echtes Entwicklerzertifikat + ein dazu passendes Provisioning-Profile, das
+  # nur Geräte enthalten kann, die vorher im Apple-Developer-Portal registriert
+  # wurden. Ohne die Secrets unten macht ein Build daher schlicht keinen Sinn –
+  # der Job überspringt sich dann selbst, statt mit einem kaputten Signatur-
+  # Schritt zu scheitern. Siehe MOBILE.md ("iOS-IPA") für die Secret-Liste und
+  # wie man ein Ad-hoc-Provisioning-Profile erstellt.
+  ios:
+    permissions:
+      contents: write
+    runs-on: macos-latest
+    if: |
+      (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
+      env.IOS_SECRETS_PRESENT == 'true'
+    env:
+      IOS_SECRETS_PRESENT: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 != '' && secrets.IOS_MOBILEPROVISION_BASE64 != '' && secrets.APPLE_TEAM_ID != '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env from secrets
+        shell: bash
+        run: |
+          echo "VITE_GMAIL_CLIENT_ID=${{ secrets.VITE_GMAIL_CLIENT_ID }}" >> .env
+          echo "VITE_GMAIL_CLIENT_SECRET=${{ secrets.VITE_GMAIL_CLIENT_SECRET }}" >> .env
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Rust stable (iOS-Target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          key: ios
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Inject version from tag into tauri.conf.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json
+          mv tmp.json src-tauri/tauri.conf.json
+
+      - name: Import signing certificate and provisioning profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
+          MOBILEPROVISION_BASE64: ${{ secrets.IOS_MOBILEPROVISION_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/build_certificate.p12"
+          PP_PATH="$RUNNER_TEMP/build_pp.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+          echo "$MOBILEPROVISION_BASE64" | base64 --decode -o "$PP_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(security cms -D -i "$PP_PATH" | plutil -extract UUID xml1 -o - - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
+
+      - name: Apply Release-only Swift symbol-visibility workaround
+        shell: bash
+        run: |
+          # cargo fetch first, so the crates this patches (tauri, plugins,
+          # swift-rs) actually exist in the local registry cache yet.
+          (cd src-tauri && cargo fetch --target aarch64-apple-ios)
+          ./scripts/ios-release-swift-patch.sh
+
+      - name: Initialize iOS project
+        shell: bash
+        run: |
+          # Wie beim Android-Job: nur der von `tauri icon` erzeugte
+          # Icon-Ordner liegt im Repo, das restliche Xcode-Projekt wird
+          # frisch generiert.
+          if [ -d src-tauri/gen/apple ]; then
+            if [ -d src-tauri/gen/apple/Assets.xcassets ]; then
+              cp -r src-tauri/gen/apple/Assets.xcassets /tmp/klevr-assets
+            fi
+            rm -rf src-tauri/gen/apple
+          fi
+          npx tauri ios init
+          if [ -d /tmp/klevr-assets ]; then
+            cp -r /tmp/klevr-assets/. src-tauri/gen/apple/Assets.xcassets/
+          fi
+
+      - name: Patch Info.plist (Kamera + Scene-Lifecycle + Portrait-Lock) und Deployment-Target
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLIST="src-tauri/gen/apple/rechnungs-manager_iOS/Info.plist"
+
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Klevr benötigt Kamerazugriff, um Belege zu scannen.'" "$PLIST" 2>/dev/null || true
+
+          # UIScene-Lifecycle deklarieren (der tao-Patch braucht das zusätzlich
+          # zur Delegate-Implementierung, siehe vendor/tao-0.34.8).
+          /usr/libexec/PlistBuddy -c "Delete :UIApplicationSceneManifest" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIApplicationSceneManifest dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIApplicationSceneManifest:UIApplicationSupportsMultipleScenes bool false" "$PLIST"
+
+          # Portrait-Lock
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PLIST"
+
+          plutil -lint "$PLIST"
+
+          # Deployment-Target: die von `tauri ios init` erzeugte Vorgabe
+          # (14.0) liegt unterhalb dessen, was aktuelle Xcode-Versionen noch
+          # akzeptieren.
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 14\.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/' \
+            src-tauri/gen/apple/rechnungs-manager.xcodeproj/project.pbxproj
+          sed -i '' 's/iOS: 14\.0/iOS: 15.0/' src-tauri/gen/apple/project.yml
+
+      - name: Build IPA
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx tauri ios build --export-method release-testing --target aarch64
+
+      - name: Rename IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          IPA=$(find src-tauri/gen/apple/build -name "*.ipa" | head -1)
+          OUT="Klevr_${VERSION}_ios.ipa"
+          cp "$IPA" "$OUT"
+          echo "IPA_PATH=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ios
+          path: ${{ env.IPA_PATH }}
+
+      - name: Attach IPA to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 30); do
+            if gh release upload "${{ github.ref_name }}" "$IPA_PATH" --clobber -R "${{ github.repository }}"; then
+              echo "IPA ans Release angehängt."
+              exit 0
+            fi
+            echo "Release noch nicht da – warte 30 s ($i/30) …"
+            sleep 30
+          done
+          echo "::error::Release für ${{ github.ref_name }} nicht gefunden."
+          exit 1

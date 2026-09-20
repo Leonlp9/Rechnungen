@@ -58,3 +58,9 @@ mailparse = "0.15"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "native-tls", "builder"] }
 sysinfo = { version = "0.32", default-features = false, features = ["system"] }
 
+# Lokaler Patch: `tao` implementiert auf iOS noch kein UIScene-Lifecycle,
+# das neuere iOS-Versionen zwingend voraussetzen (sonst Absturz beim Start).
+# Siehe vendor/tao-0.34.8 - fügt scene-Delegate-Methoden nach.
+[patch.crates-io]
+tao = { path = "vendor/tao-0.34.8" }
+

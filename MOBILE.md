@@ -83,10 +83,47 @@ Ohne diese Secrets baut der Workflow trotzdem – dann mit einem Wegwerf-Key:
 Das APK ist installierbar, aber jedes Update erfordert eine Neuinstallation.
 Die `.jks`-Datei sicher aufbewahren und **niemals committen**.
 
+### iOS-IPA
+
+Anders als bei Android gibt es für iOS **keinen** Wegwerf-Signaturweg: Apple
+verlangt für jede Signatur ein echtes Apple-Developer-Zertifikat + ein dazu
+passendes Provisioning-Profile. Der `ios`-Job in `build.yml` baut deshalb nur,
+wenn die nötigen Secrets gesetzt sind – ohne sie wird der Job übersprungen
+(kein kaputter Build, einfach kein iOS-Artefakt).
+
+Für einen **Ad-hoc-Build** (installierbar auf zuvor bei Apple registrierten
+Geräten, ohne App Store) werden folgende Repository-Secrets gebraucht:
+
+| Secret | Inhalt |
+| --- | --- |
+| `IOS_BUILD_CERTIFICATE_BASE64` | Base64 des `.p12`-Signaturzertifikats |
+| `IOS_BUILD_CERTIFICATE_PASSWORD` | Passwort des `.p12` |
+| `IOS_MOBILEPROVISION_BASE64` | Base64 des Ad-hoc-Provisioning-Profiles (`.mobileprovision`) |
+| `IOS_KEYCHAIN_PASSWORD` | Beliebiges Passwort für den temporären CI-Schlüsselbund |
+| `APPLE_TEAM_ID` | Die Team-ID aus dem Apple-Developer-Konto |
+
+Das Provisioning-Profile muss die UDIDs aller Geräte enthalten, auf denen die
+IPA installiert werden soll (im Apple Developer Portal unter „Devices"
+registrieren, dann ein neues Ad-hoc-Profile mit diesen Geräten erstellen).
+Ohne bezahltes Apple-Developer-Programm (99 $/Jahr) ist das nicht möglich –
+das kostenlose „Personal Team" reicht nur für lokale Builds direkt vom
+angeschlossenen Mac (siehe oben), nicht für CI-Distribution.
+
+Die fertige IPA wird, genau wie das Android-APK, als
+`Klevr_<version>_ios.ipa` an das GitHub-Release gehängt. Installation:
+IPA herunterladen, über [AltStore](https://altstore.io),
+[Sideloadly](https://sideloadly.io) oder Xcodes „Devices and Simulators"-
+Fenster auf ein zuvor registriertes Gerät übertragen, danach einmal unter
+**Einstellungen → Allgemein → VPN & Geräteverwaltung** dem Entwickler-Profil
+vertrauen.
+
 ## iOS
 
-Voraussetzungen: ein **Mac** mit Xcode + ein
-[Apple-Developer-Konto](https://developer.apple.com) (99 $/Jahr).
+Voraussetzungen: ein **Mac** mit Xcode. Für App Store/TestFlight braucht man
+ein [Apple-Developer-Konto](https://developer.apple.com) (99 $/Jahr) – für
+Entwicklung und Installation auf dem **eigenen** iPhone reicht eine normale,
+kostenlose Apple-ID (siehe „Erste Installation auf dem eigenen iPhone"
+unten).
 
 ```
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim
@@ -100,7 +137,83 @@ Kamera in `Info.plist` den Schlüssel `NSCameraUsageDescription` mit einer
 Begründung ergänzen. Für den Portrait-Lock in `Info.plist` unter
 `UISupportedInterfaceOrientations` nur `UIInterfaceOrientationPortrait`
 eintragen (Android macht das der CI-Workflow automatisch über
-`android:screenOrientation="portrait"`).
+`android:screenOrientation="portrait"`). Außerdem `IPHONEOS_DEPLOYMENT_TARGET`
+im generierten `gen/apple/project.yml` (und im Xcode-Projekt) auf mindestens
+`15.0` setzen – die von `tauri ios init` erzeugte Vorgabe `14.0` liegt
+unterhalb dessen, was aktuelle Xcode-Versionen noch akzeptieren.
+
+Nach `tauri ios init` landet außerdem manchmal ein generischer
+xcodegen-Platzhalter statt des echten App-Icons in
+`gen/apple/Assets.xcassets/AppIcon.appiconset/` – dann die Dateien aus
+`src-tauri/icons/ios/` dort hinüberkopieren.
+
+### Bekannte Probleme auf sehr neuem iOS/Xcode (27+)
+
+Auf iOS 27 / Xcode 27 traten beim Testen zwei Probleme auf, die nichts mit
+dieser App selbst zu tun haben, sondern mit dem aktuellen Stand von
+Tauris iOS-Unterstützung (`tao`/`wry`/`swift-rs`):
+
+1. **Sofortiger Absturz beim Start** ("no scene lifecycle adoption"): iOS
+   verlangt inzwischen zwingend, dass Apps das UIScene-Lifecycle
+   implementieren; `tao`s iOS-Backend tut das noch nicht. Workaround: eine
+   gepatchte `tao`-Version liegt unter `src-tauri/vendor/tao-0.34.8` und
+   wird über `[patch.crates-io]` in `src-tauri/Cargo.toml` eingebunden –
+   passiert automatisch, kein manueller Schritt nötig.
+2. **Release-Build schlägt fehl** ("symbol(s) not found for architecture
+   arm64"): `swift-rs` und Tauris eigene iOS-Swift-Bridge exportieren ein
+   paar Funktionen nicht als `public`, was im Release-Modus
+   (Whole-Module-Optimization) zu fehlenden Symbolen beim Linken führt.
+   Workaround: einmal `./scripts/ios-release-swift-patch.sh` ausführen,
+   bevor `npm run tauri ios build` läuft (patcht lokale Swift-Quellen,
+   idempotent). Der CI-Workflow macht das automatisch.
+
+Beide Workarounds sollten überflüssig werden, sobald `tao`/`swift-rs`
+offizielle Fixes veröffentlichen – dann können `src-tauri/vendor/tao-0.34.8`,
+der `[patch.crates-io]`-Eintrag und `scripts/ios-release-swift-patch.sh`
+ersatzlos entfernt werden.
+
+### Erste Installation auf dem eigenen iPhone (kostenlos, ohne App Store)
+
+Für's Testen auf dem eigenen Gerät braucht es **kein** kostenpflichtiges
+Apple-Developer-Konto – eine normale Apple-ID genügt (kostenloses
+"Personal Team"). Einziger Nachteil: die Signatur läuft nach **7 Tagen** ab,
+dann muss man einmal neu installieren.
+
+1. Xcode installieren, einmal öffnen, unter **Settings → Accounts** mit der
+   eigenen Apple-ID anmelden.
+2. iPhone per USB mit dem Mac verbinden, auf dem iPhone das
+   Entwickler-Vertrauen freischalten, falls Xcode danach fragt.
+3. Im Terminal:
+   ```
+   rustup target add aarch64-apple-ios
+   npm install
+   npm run tauri ios init
+   ./scripts/ios-release-swift-patch.sh   # einmalig, siehe oben
+   npm run tauri ios build -- --export-method debugging --target aarch64
+   ```
+4. Die fertige IPA liegt danach unter
+   `src-tauri/gen/apple/build/arm64/klevr.ipa`. Installation auf das
+   verbundene iPhone, z. B. über das
+   [Xcode-„Devices and Simulators"-Fenster](https://developer.apple.com/documentation/xcode/running-your-app-in-the-simulator-or-on-a-device)
+   (App per Drag & Drop auf das Gerät ziehen) oder per Kommandozeile:
+   ```
+   xcrun devicectl device install app --device <GERÄTE-UDID> \
+     src-tauri/gen/apple/build/arm64/klevr.app
+   ```
+   (Die UDID zeigt `xcrun devicectl list devices`.)
+5. Beim ersten Öffnen verweigert iOS den Start ("Nicht vertrauenswürdiger
+   Entwickler"). Auf dem iPhone: **Einstellungen → Allgemein → VPN &
+   Geräteverwaltung** → die eigene Apple-ID antippen → **Vertrauen**.
+   Danach startet die App normal.
+6. Für ein **eigenständiges** Update später einfach Schritt 3–5 wiederholen
+   (kein Mac/WLAN mehr nötig, sobald die App installiert ist – nur zum
+   *Neubauen* eines Updates braucht es wieder den Mac).
+
+`npm run tauri ios dev` (statt `build`) startet stattdessen den
+Live-Reload-Entwicklungsmodus: schneller zum Iterieren, aber der erste
+Start dauert spürbar länger, weil die App den kompletten Code live über
+WLAN vom Vite-Dev-Server nachlädt statt ihn (wie bei `build`) fertig
+gebündelt mitzubringen.
 
 ## Die Handy-Oberfläche
 
