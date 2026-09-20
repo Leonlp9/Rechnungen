@@ -354,46 +354,63 @@ jobs:
     permissions:
       contents: write
     runs-on: macos-latest
-    # Note: the `env` context isn't available in a job-level `if:` (only in
-    # step-level `if:`/`run:`/`with:`), so the secrets check has to be
-    # inlined here directly rather than going through an `env:` block.
-    if: |
-      (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
-      secrets.IOS_BUILD_CERTIFICATE_BASE64 != '' &&
-      secrets.IOS_MOBILEPROVISION_BASE64 != '' &&
-      secrets.APPLE_TEAM_ID != ''
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
     steps:
+      # Neither the `env` nor the `secrets` context is available in a
+      # job-level `if:` for a regular (non-reusable-workflow-call) job - only
+      # `github`/`vars`/`inputs`/`needs` are. So instead of trying to skip
+      # the whole job when the signing secrets are missing, this first step
+      # checks for them and every following step is gated on its output.
+      - name: Check required iOS signing secrets
+        id: check-secrets
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}" ] && \
+             [ -n "${{ secrets.IOS_MOBILEPROVISION_BASE64 }}" ] && \
+             [ -n "${{ secrets.APPLE_TEAM_ID }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::iOS signing secrets not configured - skipping the iOS build. See MOBILE.md ('iOS-IPA') for the required secrets."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.check-secrets.outputs.present == 'true'
 
       - name: Create .env from secrets
+        if: steps.check-secrets.outputs.present == 'true'
         shell: bash
         run: |
           echo "VITE_GMAIL_CLIENT_ID=${{ secrets.VITE_GMAIL_CLIENT_ID }}" >> .env
           echo "VITE_GMAIL_CLIENT_SECRET=${{ secrets.VITE_GMAIL_CLIENT_SECRET }}" >> .env
 
       - name: Setup Node
+        if: steps.check-secrets.outputs.present == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install Rust stable (iOS-Target)
+        if: steps.check-secrets.outputs.present == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios
 
       - name: Rust cache
+        if: steps.check-secrets.outputs.present == 'true'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
           key: ios
 
       - name: Install frontend dependencies
+        if: steps.check-secrets.outputs.present == 'true'
         run: npm install
 
       - name: Inject version from tag into tauri.conf.json
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.check-secrets.outputs.present == 'true' && startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           VERSION="${{ github.ref_name }}"
@@ -402,6 +419,7 @@ jobs:
           mv tmp.json src-tauri/tauri.conf.json
 
       - name: Import signing certificate and provisioning profile
+        if: steps.check-secrets.outputs.present == 'true'
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
@@ -429,6 +447,7 @@ jobs:
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
 
       - name: Apply Release-only Swift symbol-visibility workaround
+        if: steps.check-secrets.outputs.present == 'true'
         shell: bash
         run: |
           # cargo fetch first, so the crates this patches (tauri, plugins,
@@ -437,6 +456,7 @@ jobs:
           ./scripts/ios-release-swift-patch.sh
 
       - name: Initialize iOS project
+        if: steps.check-secrets.outputs.present == 'true'
         shell: bash
         run: |
           # Wie beim Android-Job: nur der von `tauri icon` erzeugte
@@ -454,6 +474,7 @@ jobs:
           fi
 
       - name: Patch Info.plist (Kamera + Scene-Lifecycle + Portrait-Lock) und Deployment-Target
+        if: steps.check-secrets.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -482,11 +503,13 @@ jobs:
           sed -i '' 's/iOS: 14\.0/iOS: 15.0/' src-tauri/gen/apple/project.yml
 
       - name: Build IPA
+        if: steps.check-secrets.outputs.present == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx tauri ios build --export-method release-testing --target aarch64
 
       - name: Rename IPA
+        if: steps.check-secrets.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -497,13 +520,14 @@ jobs:
           echo "IPA_PATH=$OUT" >> "$GITHUB_ENV"
 
       - name: Upload artifact
+        if: steps.check-secrets.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: build-ios
           path: ${{ env.IPA_PATH }}
 
       - name: Attach IPA to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.check-secrets.outputs.present == 'true' && startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
